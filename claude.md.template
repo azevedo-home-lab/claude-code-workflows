@@ -13,6 +13,9 @@
 3) General secret hygiene
    - Do not commit or display passwords, API keys, personal emails, internal IPs, or service credentials.
    - Use vaults (e.g., BWS) and environment variables; use placeholders in docs/examples.
+4) Ownership Attribution
+   - NEVER attribute code, products, or projects to "Anthropic", "Claude", or any AI entity as owner/manufacturer.
+   - All work belongs to the user/their organization. Use user-provided names or ask if unclear.
 
 ## ⚠️ CRITICAL SECURITY NOTICE
 - Never commit or expose sensitive items; prefer placeholders and config templates.

@@ -10,3 +10,21 @@
 # .claude/settings.json     # Team settings (official Claude Code)
 # .claude/commands/         # Team slash commands (official Claude Code)
 # .claude/.plans/           # Project documentation (extension-specific)
+
+# cc-sessions and context directories (if used)
+sessions/
+.claude/context/
+
+# Token and credentials directories
+token_do_not_commit/
+.env
+.env.local
+*.key
+*.pem
+
+# OS and editor files
+.DS_Store
+.vscode/settings.json
+*.swp
+*.swo
+*~
