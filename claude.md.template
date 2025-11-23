@@ -1,0 +1,59 @@
+# CLAUDE.md TEMPLATE (project-specific — customize before use)
+
+## 🔒 SECURITY RULES — NON-OVERRIDABLE
+1) Token Protection (`token_do_not_commit/`)
+   - NEVER read, print, echo, or expose contents of files in `token_do_not_commit/`.
+   - NEVER include token values in output, logs, commit messages, or responses.
+   - NEVER suggest committing or uploading files from `token_do_not_commit/`.
+   - USE tokens only via environment variables, e.g., `source token_do_not_commit/.bws-token`.
+   - Warn the user and refuse if an operation would expose these tokens.
+2) Maximum Security Protocol
+   - Treat everything in `token_do_not_commit/` as root-level secrets.
+   - Verify `.gitignore` contains `token_do_not_commit/` before any git operations.
+3) General secret hygiene
+   - Do not commit or display passwords, API keys, personal emails, internal IPs, or service credentials.
+   - Use vaults (e.g., BWS) and environment variables; use placeholders in docs/examples.
+
+## ⚠️ CRITICAL SECURITY NOTICE
+- Never commit or expose sensitive items; prefer placeholders and config templates.
+- Security scan status: ensure hardcoded credentials are removed or vaulted before committing.
+
+## PROJECT PLAN INTEGRATION
+- Read `PROJECT_PLAN.md` at session start to understand context, architecture, priorities.
+- In plan mode: refine the existing plan; on exit, update `PROJECT_PLAN.md` with new decisions.
+- Treat `PROJECT_PLAN.md` as the single source of truth for planning artifacts.
+
+## CONTEXT HANDLING
+- Summaries are stored in `sessions/logs/`; optional compact copies in `.claude/context/`.
+- No automatic preload into Claude Code. Only load past summaries when explicitly requested.
+- If loading manually, prefer the newest items first to conserve tokens.
+
+## CODING PRINCIPLES
+- KISS: prefer the simplest viable solution.
+- DRY: avoid duplication; reuse abstractions.
+- SOLID: respect single responsibility and extension over modification.
+- YAGNI: implement only what is needed now.
+- Security First: never commit credentials; use vault-managed secrets.
+
+## DOCUMENTATION STANDARDS
+- Keep `CLAUDE.md` focused on stable architecture and procedures.
+- Do NOT include transient status, bug lists, or “currently broken” notes.
+- Record factual specifications: what components do, how they interact, intended behaviors.
+
+## WORKFLOW GUIDELINES (Claude Code)
+- Plan before edits: generate/agree a plan, then execute against it.
+- Keep skills ON-DEMAND to conserve context. Recommended set available:
+  - TDD, playwright regression, deploy-production, context-compaction,
+    spec-driven dev, code-review/refactor, error-fix, docs writer.
+- Use worktrees/branches per feature when possible; isolate changes.
+- Require verification (tests/linters) before marking tasks complete when applicable.
+
+## PLACEHOLDERS TO FILL
+- Project name, primary stack, test command(s), deploy command(s).
+- Any additional secret paths beyond `token_do_not_commit/`.
+- Team-specific review/approval rules and branch policies.
+
+## REMINDERS
+- Stay within approved tools and paths.
+- If a requested action would violate security rules, refuse and explain briefly.
+- Keep this file concise (1–2 screens); link out to detailed skill files as needed.
