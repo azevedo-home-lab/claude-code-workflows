@@ -1,4 +1,12 @@
-Working draft for the Claude code workflow (we’ll iterate together)
+# ARCHIVED DOCUMENT
+
+> **NOTE:** This document has been reorganized into structured documentation. See [README.md](../../README.md) for current documentation organized by use case.
+>
+> This file is preserved for historical reference and development history.
+
+---
+
+Working draft for the Claude code workflow (we'll iterate together)
 
 Goals for this doc
 - Align on how to combine cc-sessions guardrails with Superpowers skills and your saved PDF practices.
