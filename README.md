@@ -69,7 +69,7 @@ MCP server that persists observations across sessions. Replaces manual handover 
 
 ### Reference
 - [Architecture](docs/reference/architecture.md) - How the pieces fit together
-- [Benefits Analysis](docs/reference/benefits-analysis.md) - Measured benefits
+- [Benefits Analysis](docs/reference/benefits-analysis.md) - Estimated benefits (hypothetical)
 
 ## Templates
 

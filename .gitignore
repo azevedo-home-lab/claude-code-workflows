@@ -22,6 +22,9 @@ token_do_not_commit/
 *.key
 *.pem
 
+# Archived docs (moved from docs/research/, kept locally for reference)
+archive/
+
 # OS and editor files
 .DS_Store
 .vscode/settings.json

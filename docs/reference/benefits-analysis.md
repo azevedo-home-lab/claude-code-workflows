@@ -1,6 +1,8 @@
 # Benefits Analysis
 
-Detailed breakdown of benefits for each DAIC workflow component.
+> **Note**: Quantified claims in this document (time savings, ROI ratios, bug reduction percentages) are based on the author's workflow observations and hypothetical scenarios. They are NOT the result of large-scale studies. Your actual improvements will vary based on task complexity, team familiarity, and existing practices. Test on real projects and measure your own results.
+
+Detailed breakdown of estimated benefits for each DAIC workflow component.
 
 ## Table of Contents
 
