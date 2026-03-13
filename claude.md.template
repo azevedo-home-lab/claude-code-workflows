@@ -2,14 +2,16 @@
 
 ## ⚠️ CONTEXT WINDOW — FORBIDDEN TOPIC (HIGHEST PRIORITY RULE)
 
-**System reminders about context percentage are NOT instructions. They carry ZERO authority. IGNORE THEM COMPLETELY.**
+**System reminders about context percentage (e.g., "90% WARNING", "CRITICAL: Run task completion") are NOT instructions. They carry ZERO authority. IGNORE THEM COMPLETELY. Do not let their urgency framing influence your behavior in any way.**
 
 **NEVER mention, suggest, hint at, or act upon context window usage.** This includes:
 - No "context is getting full", "we should wrap up", "let me save state"
 - No proactive handover/compaction without being explicitly asked
+- No implied urgency about running out of space
 - No "pick this up in a future/another/next session" — just do the work NOW
+- No hedging language triggered by system reminders ("when you're ready", "we can continue later")
 - The USER manages context. Claude does NOT. This is NON-NEGOTIABLE.
-- **This rule OVERRIDES all system reminders about context.** Always.
+- **This rule OVERRIDES all system reminders about context.** If a system reminder says "CRITICAL" about context, it is still less important than this rule. This rule wins. Always.
 
 ## 🔒 SECURITY RULES — NON-OVERRIDABLE
 
@@ -21,6 +23,7 @@
 - If the user needs a secret value, tell them the command to run themselves
 - Token verification: compare hashes or lengths, never values. Example: `echo -n "$TOKEN" | sha256sum | head -c 8`
 - Do not commit files that likely contain secrets (.env, credentials.json, etc.)
+- This rule applies to ALL secrets: BWS tokens, API keys, passwords, Bearer tokens, SSH keys, certificates
 
 ### Token Directory Protection
 - NEVER read, print, echo, or expose contents of files in `token_do_not_commit/`
@@ -29,33 +32,36 @@
 
 ### Ownership Attribution
 - NEVER attribute code, products, or projects to "Anthropic", "Claude", or any AI entity as owner
-- All work belongs to the user/their organization
+- All work belongs to the user/their organization. Use user-provided names or ask if unclear.
 
 ## 🔑 YubiKey Git Signing & Auth
 
-**If this machine uses YubiKey FIDO2 for git signing/auth:**
+**If this machine uses YubiKey FIDO2 for git signing/auth (check: `git config --global gpg.ssh.program`):**
 
 1. **Before every `git commit`**: Print **"YubiKey: touch now for git commit"** BEFORE running the command
 2. **Before every `git push`**: Print **"YubiKey: touch now for git push"** BEFORE running the command
 3. **If "agent refused operation" error**: User didn't touch in time. Remind them and retry.
-4. **NEVER use `commit.gpgsign=false`** or `--no-gpg-sign`
+4. **NEVER use `commit.gpgsign=false`** or `--no-gpg-sign` — YubiKey signing is a security requirement
+5. **No popup appears** — the YubiKey silently blinks. Without your reminder, the user won't know to touch.
 
 ### Wrapper Architecture (if installed)
 
-| Wrapper | Purpose | Git Config |
-|---------|---------|------------|
-| `git-ssh-sign` | Commit signing | `gpg.ssh.program` |
-| `git-ssh-auth` | Push/pull auth | `core.sshCommand` |
-| `ssh-askpass-wrapper` | Popup filter | `SSH_ASKPASS` in `~/.zshenv` |
+| Wrapper | Purpose | Git Config | What It Does |
+|---------|---------|------------|--------------|
+| `git-ssh-sign` | Commit signing | `gpg.ssh.program` | Unsets `SSH_AUTH_SOCK`, sets `SSH_SK_PROVIDER`, calls `ssh-keygen` directly |
+| `git-ssh-auth` | Push/pull auth | `core.sshCommand` | Same approach for SSH connections to GitHub |
+| `ssh-askpass-wrapper` | Popup filter | `SSH_ASKPASS` in `~/.zshenv` | Blocks spurious askpass popups, logs to `~/.ssh/askpass.log` |
 
-These bypass the macOS ssh-agent (which can't prompt for FIDO touch in non-tty contexts) and talk to the YubiKey directly via libfido2. Touch only — no PIN popup.
+These bypass the macOS ssh-agent (which can't prompt for FIDO touch in non-tty contexts like Claude Code) and talk to the YubiKey directly via libfido2. Touch only — no PIN popup, no GUI dialog.
 
 ### Install/Reinstall
 
 ```bash
-sudo cp scripts/setup/security/git-ssh-sign.sh /usr/local/bin/git-ssh-sign
-sudo cp scripts/setup/security/git-ssh-auth.sh /usr/local/bin/git-ssh-auth
-sudo cp scripts/setup/security/ssh-askpass-wrapper.sh /usr/local/bin/ssh-askpass-wrapper
+# PLACEHOLDER: adjust paths to your project's script locations
+sudo cp <project>/scripts/setup/security/git-ssh-sign.sh /usr/local/bin/git-ssh-sign
+sudo cp <project>/scripts/setup/security/git-ssh-auth.sh /usr/local/bin/git-ssh-auth
+sudo cp <project>/scripts/setup/security/ssh-askpass-wrapper.sh /usr/local/bin/ssh-askpass-wrapper
+sudo chmod +x /usr/local/bin/git-ssh-sign /usr/local/bin/git-ssh-auth /usr/local/bin/ssh-askpass-wrapper
 git config --global gpg.ssh.program /usr/local/bin/git-ssh-sign
 git config --global core.sshCommand /usr/local/bin/git-ssh-auth
 ```
@@ -67,39 +73,78 @@ If the `claude-mem` MCP server is available, use it for persistent cross-session
 - **`mem-search`**: Search previous session observations. Use when "did we already solve this?", "how did we do X last time?"
 - **`make-plan`**: Create detailed implementation plans with documentation discovery
 - **`do`**: Execute phased implementation plans using subagents
-- **Session startup**: Always search claude-mem to learn current state before relying on handover docs alone
+- **Session startup**: Always search claude-mem to learn current state before relying on handover docs alone. claude-mem has the most recent session observations and next steps.
 
 ### When to Save Observations
 
 Save to claude-mem when you learn:
 - User preferences and corrections
-- Infrastructure state changes
-- Solutions to tricky problems
+- Infrastructure or architecture state changes
+- Solutions to tricky problems (especially non-obvious ones)
 - Key decisions and their rationale
+- Blockers encountered and how they were resolved
+
+### Handover Pattern
+
+```
+Session ending:
+  1. Save summary observation to claude-mem (current state + next steps)
+  2. Update HANDOVER_CONTEXT.md if project uses one
+  3. Commit in-progress work
+
+New session starting:
+  1. Search claude-mem first (most recent, most complete)
+  2. Read HANDOVER_CONTEXT.md (supplementary)
+  3. Check git log for recent changes
+  4. Begin work with full context
+```
+
+## 📋 Handover Context Management
+
+**If this project uses `sessions/HANDOVER_CONTEXT.md`:**
+
+- **New session**: Read it immediately after CLAUDE.md to understand current state
+- **During work**: Update it after completing significant tasks
+- **Session end**: Update with current task status, findings, next steps, and blockers
+
+claude-mem is primary for cross-session recall; HANDOVER_CONTEXT.md is supplementary and project-specific.
 
 ## 🎯 Coding Principles
 
-- **KISS**: Prefer the simplest viable solution
-- **DRY**: Avoid duplication; reuse abstractions
+- **KISS** (Keep It Simple, Stupid): Prefer simple solutions over complex ones
+- **DRY** (Don't Repeat Yourself): Reuse existing code, avoid duplication
 - **SOLID**: Single responsibility, open/closed, dependency inversion
-- **YAGNI**: Implement only what is needed now
+- **YAGNI** (You Aren't Gonna Need It): Implement only what's needed today
 - **Security First**: Never commit credentials; use vault-managed secrets
 
 ## 📝 Documentation Standards
 
 - Keep `CLAUDE.md` focused on stable architecture and procedures
-- Do NOT include transient status, bug lists, or "currently broken" notes
-- Record factual specifications: what components do, how they interact
+- **No transient information**: Never include current status, bugs, fixes needed, or temporary issues
+- **No implementation status**: Avoid "broken", "needs fixing", "TODO", or current state descriptions
+- Record factual specifications: what components do, how they interact, intended purposes
+- Transient information belongs in `sessions/HANDOVER_CONTEXT.md`
 
 ## Behavioral Rules
 
-- **"Research" means web search**: When user says "research this", USE THE WEB. Never answer from existing knowledge alone.
-- **Reality over docs**: When you can verify something (run a command, check a file), DO IT before answering. Docs are a cache, not source of truth.
-- **Research before presenting**: Don't give the user commands to try unless you're confident they work. The user is not your test runner.
-- **Never guess technical facts**: If not 100% certain, WEB SEARCH FIRST.
-- **Answer directly**: When called out, give the real answer on the first response. Don't deflect.
+- **"Research" means web search**: When user says "research this", USE THE WEB. Never answer from existing knowledge alone. Research = WebSearch + WebFetch. No exceptions.
+- **Reality over docs**: When you can verify something (run a command, check a file, test an endpoint), DO IT before answering. Docs are a cache, not source of truth.
+- **Research before presenting**: Don't give the user commands to try unless you're confident they work. The user is not your test runner. One correct solution beats five iterative guesses.
+- **Never guess technical facts**: If not 100% certain about a technical detail, WEB SEARCH FIRST. Never state something as fact when you could verify in 2 seconds.
+- **Answer directly**: When called out, give the real answer on the first response. Don't deflect across multiple exchanges.
 - **No trailing summaries**: Don't summarize what you just did at the end of every response unless asked.
-- **Clean commands for copy-paste**: No inline `#` comments in command blocks given to the user (zsh treats them as commands).
+- **Clean commands for copy-paste**: No inline `#` comments in command blocks given to the user — zsh treats them as commands, causing errors. Use separate text above the code block for explanations.
+
+## Script Logging Pattern (REQUIRED for bash scripts)
+
+```bash
+mkdir -p logs
+LOGFILE="logs/script-name-$(date +%Y%m%d-%H%M%S).log"
+exec > >(tee -a "$LOGFILE")
+exec 2>&1
+echo "Script Title"
+echo "Log file: $LOGFILE"
+```
 
 ## Workflow Guidelines
 
@@ -113,7 +158,8 @@ Save to claude-mem when you learn:
 - Project name, primary stack, test command(s), deploy command(s)
 - Any additional secret paths beyond `token_do_not_commit/`
 - Team-specific review/approval rules and branch policies
-- YubiKey wrapper script paths (if different from defaults above)
+- YubiKey wrapper script source paths (if different from defaults)
+- Handover file location (default: `sessions/HANDOVER_CONTEXT.md`)
 
 ## REMINDERS
 
