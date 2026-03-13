@@ -1,74 +1,93 @@
 # Claude Code Workflows
 
-A comprehensive guide to using cc-sessions and Superpowers together for structured, accountable development workflows.
+A comprehensive guide to using three complementary tools for structured, accountable development with Claude Code:
 
-## 🚀 Quick Start
+- **cc-sessions** — Task lifecycle management (DAIC workflow: Discuss → Approve → Implement → Complete)
+- **Superpowers** — Specialized skills (brainstorming, TDD, planning, debugging, code review)
+- **claude-mem** — Cross-session persistent memory via MCP server
+
+## Quick Start
 
 New to this workflow? Start here:
-- [Getting Started Guide](docs/guides/getting-started.md) - Your first steps
-- [Workflow Cheatsheet](docs/quick-reference/workflow-cheatsheet.md) - Quick command reference
+1. [Getting Started Guide](docs/guides/getting-started.md) - Installation and first workflow
+2. [CLAUDE.md Template](claude.md.template) - Copy into your project and customize
+3. [Workflow Cheatsheet](docs/quick-reference/workflow-cheatsheet.md) - Daily-use quick reference
 
-## 📖 Documentation
+## The Three Tools
 
-### Quick Reference
-- [Command Reference](docs/quick-reference/commands.md) - All DAIC commands with descriptions
-- [Workflow Cheatsheet](docs/quick-reference/workflow-cheatsheet.md) - Daily-use quick reference
+### cc-sessions (Task Lifecycle)
+
+Enforces the DAIC loop: structured task creation, context gathering, implementation with scope control, and clean completion with archival.
+
+```
+mek: <task>    → Discussion phase (define requirements)
+start^:        → Load context, create plan
+yert           → Approve plan, begin implementation
+finito         → Verify, commit, archive
+```
+
+### Superpowers (Skills)
+
+Auto-activated skills that enforce discipline at each phase:
+
+| Skill | When |
+|-------|------|
+| `brainstorming` | Before any creative/feature work |
+| `writing-plans` | When you have requirements, before code |
+| `executing-plans` | Running a plan with review checkpoints |
+| `test-driven-development` | Before writing implementation code |
+| `systematic-debugging` | When encountering bugs or failures |
+| `verification-before-completion` | Before claiming work is done |
+
+### claude-mem (Cross-Session Memory)
+
+MCP server that persists observations across sessions. Replaces manual handover docs.
+
+| Command | Purpose |
+|---------|---------|
+| `mem-search` | Find work from previous sessions |
+| `make-plan` | Create implementation plans with context |
+| `do` | Execute plans using subagents |
+
+**Session pattern:**
+- **Start**: Search claude-mem for prior context before reading handover files
+- **During**: Observations saved automatically as you work
+- **End**: Key decisions and findings persisted for next session
+
+## Documentation
 
 ### Guides
 - [Getting Started](docs/guides/getting-started.md) - Installation and first workflow
-- [Superpowers Guide](docs/guides/superpowers-guide.md) - Deep dive into Superpowers features
-- [cc-sessions Guide](docs/guides/cc-sessions-guide.md) - Understanding the DAIC workflow
+- [Superpowers Guide](docs/guides/superpowers-guide.md) - Deep dive into skills
+- [cc-sessions Guide](docs/guides/cc-sessions-guide.md) - DAIC workflow details
+- [Cross-Session Memory](docs/guides/claude-mem-guide.md) - claude-mem usage and handover patterns
 - [Examples](docs/guides/examples.md) - Real-world usage scenarios
+
+### Quick Reference
+- [Command Reference](docs/quick-reference/commands.md) - All commands with descriptions
+- [Workflow Cheatsheet](docs/quick-reference/workflow-cheatsheet.md) - Daily quick reference
 
 ### Reference
 - [Architecture](docs/reference/architecture.md) - How the pieces fit together
-- [Benefits Analysis](docs/reference/benefits-analysis.md) - Detailed benefits breakdown
+- [Benefits Analysis](docs/reference/benefits-analysis.md) - Measured benefits
 
-### Research
-- [Source Analysis](docs/research/source_analysis.md) - Original research notes
-- [Workflow Proposal](docs/research/workflow_proposal.md) - Development history (archived)
+## Templates
 
-## 🔧 Templates
+- [CLAUDE.md Template](claude.md.template) - Project-specific rules including:
+  - Context window management (forbidden topic rule)
+  - YubiKey FIDO2 git signing setup
+  - Secret protection protocols
+  - claude-mem integration
+  - Behavioral rules for Claude Code
 
-- [CLAUDE.md Template](claude.md.template) - Security rules and project-specific guidelines
+## Security
 
-## 💡 Quick Command Reference
+The template includes security rules for:
+- **Secret protection**: Never display token/key values in output
+- **YubiKey signing**: Optional FIDO2 commit signing and push auth
+- **Token directories**: Protected paths excluded from git
+- **Ownership**: All work attributed to user, never to AI
 
-```bash
-# DAIC Workflow
-mek: <task>                    # Start new task
-/superpowers:brainstorm        # Refine requirements
-start^:                        # Load context & plan
-/superpowers:write-plan        # Generate plan
-yert                          # Approve & implement
-/superpowers:execute-plan      # Execute with checkpoints
-finito                        # Verify & commit
-```
-
-## 📚 What's Inside
-
-This repository provides:
-- **Structured workflow** combining cc-sessions DAIC loop with Superpowers skills
-- **Context management** through session summaries and smart loading
-- **Accountability** with task tracking and session archival
-- **Quality gates** via TDD, verification, and proper commits
-- **Templates** for reusing this workflow in your projects
-
-## 🎯 Benefits
-
-- 30-40% less back-and-forth during implementation
-- Full session logs with decision rationale
-- Smart context loading (only relevant code)
-- Prevents scope creep with plan approval gates
-- Future session warm starts from summaries
-
-## 🔒 Security
-
-See [CLAUDE.md Template](claude.md.template) for security rules including:
-- Token protection protocols
-- Secret hygiene guidelines
-- Ownership attribution rules
-
-## 🤝 Contributing
+## Contributing
 
 This workflow is designed for reuse. Copy and customize for your projects.
