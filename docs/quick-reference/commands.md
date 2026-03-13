@@ -180,3 +180,15 @@ These skills activate automatically when contextually relevant:
 | `yert` | Implementation | Approve plan | Scope control |
 | `/superpowers:execute-plan` | Implementation | Execute | Quality gates |
 | `finito` | Check | Complete & commit | Knowledge capture |
+
+## Quick Sequence
+
+```
+mek: Add feature X          → Discussion: define what to build
+/superpowers:brainstorm      → Structured Q&A, refine requirements
+start^:                      → Gather codebase context
+/superpowers:write-plan      → Generate numbered plan
+yert                         → Approve and lock scope
+/superpowers:execute-plan    → Implement with checkpoints
+finito                       → Verify, commit, archive
+```

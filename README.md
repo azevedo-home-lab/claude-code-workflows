@@ -58,14 +58,12 @@ MCP server that persists observations across sessions. Replaces manual handover 
 
 ### Guides
 - [Getting Started](docs/guides/getting-started.md) - Installation and first workflow
-- [Superpowers Guide](docs/guides/superpowers-guide.md) - Deep dive into skills
-- [cc-sessions Guide](docs/guides/cc-sessions-guide.md) - DAIC workflow details
+- [Integration Guide](docs/guides/integration-guide.md) - How cc-sessions + Superpowers work together
 - [Cross-Session Memory](docs/guides/claude-mem-guide.md) - claude-mem usage and handover patterns
 - [Examples](docs/guides/examples.md) - Real-world usage scenarios
 
 ### Quick Reference
 - [Command Reference](docs/quick-reference/commands.md) - All commands with descriptions
-- [Workflow Cheatsheet](docs/quick-reference/workflow-cheatsheet.md) - Daily quick reference
 
 ### Reference
 - [Architecture](docs/reference/architecture.md) - How the pieces fit together
