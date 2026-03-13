@@ -1,6 +1,6 @@
 # DAIC + Superpowers Integration Guide
 
-How cc-sessions and Superpowers work together. For command reference, see [commands.md](../quick-reference/commands.md). For examples, see [examples.md](examples.md).
+How cc-sessions and Superpowers work together. For command reference, see [commands.md](../quick-reference/commands.md).
 
 ## cc-sessions: Task Lifecycle
 

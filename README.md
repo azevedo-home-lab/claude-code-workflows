@@ -60,14 +60,10 @@ MCP server that persists observations across sessions. Replaces manual handover 
 - [Getting Started](docs/guides/getting-started.md) - Installation and first workflow
 - [Integration Guide](docs/guides/integration-guide.md) - How cc-sessions + Superpowers work together
 - [Cross-Session Memory](docs/guides/claude-mem-guide.md) - claude-mem usage and handover patterns
-- [Examples](docs/guides/examples.md) - Real-world usage scenarios
-
-### Quick Reference
-- [Command Reference](docs/quick-reference/commands.md) - All commands with descriptions
 
 ### Reference
-- [Architecture](docs/reference/architecture.md) - How the pieces fit together
-- [Benefits Analysis](docs/reference/benefits-analysis.md) - Estimated benefits (hypothetical)
+- [Command Reference](docs/quick-reference/commands.md) - All commands
+- [Architecture](docs/reference/architecture.md) - System design and file organization
 
 ## Templates
 
