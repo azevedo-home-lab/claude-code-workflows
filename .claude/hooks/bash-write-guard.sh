@@ -8,6 +8,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/workflow-state.sh"
 
+# No state file = no enforcement (first run, hooks not yet activated)
+if [ ! -f "$STATE_FILE" ]; then
+    exit 0
+fi
+
 PHASE=$(get_phase)
 
 # Allow everything in implement phase
@@ -18,8 +23,8 @@ fi
 # Read the tool input from stdin
 INPUT=$(cat)
 
-# Extract the command from JSON
-COMMAND=$(echo "$INPUT" | grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*: *"//;s/"$//')
+# Extract the command from JSON (handles escaped quotes in values)
+COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
 
 # If we can't extract the command, allow (fail open)
 if [ -z "$COMMAND" ]; then
@@ -27,9 +32,7 @@ if [ -z "$COMMAND" ]; then
 fi
 
 # Check for write patterns
-WRITE_PATTERN='(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c.*open.*write|echo[[:space:]].*>)'
-
-if echo "$COMMAND" | grep -qE "$WRITE_PATTERN"; then
+if echo "$COMMAND" | grep -qE '(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c|echo[[:space:]].*>)'; then
     cat <<'DENY'
 {
   "hookSpecificOutput": {

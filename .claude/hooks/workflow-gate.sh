@@ -7,6 +7,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/workflow-state.sh"
 
+# No state file = no enforcement (first run, hooks not yet activated)
+if [ ! -f "$STATE_FILE" ]; then
+    exit 0
+fi
+
 PHASE=$(get_phase)
 
 if [ "$PHASE" = "discuss" ]; then
