@@ -7,6 +7,8 @@ DATA=$(cat)
 # Parse fields
 MODEL=$(echo "$DATA" | jq -r '.model.display_name // "?"')
 USED_PCT=$(echo "$DATA" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1)
+USED_TOKENS=$(echo "$DATA" | jq -r '.context_window.used_tokens // 0')
+TOTAL_TOKENS=$(echo "$DATA" | jq -r '.context_window.total_tokens // 0')
 CWD=$(echo "$DATA" | jq -r '.cwd // ""')
 WORKTREE_NAME=$(echo "$DATA" | jq -r '.worktree.name // empty' 2>/dev/null)
 WORKTREE_BRANCH=$(echo "$DATA" | jq -r '.worktree.branch // empty' 2>/dev/null)
@@ -18,16 +20,26 @@ DIM='\033[2m'
 GREEN='\033[32m'
 YELLOW='\033[33m'
 RED='\033[31m'
+BLUE='\033[34m'
 CYAN='\033[36m'
 MAGENTA='\033[35m'
 
-# Context bar color based on usage
+# Context bar color: blue base, yellow >50%, red >80%
 if [ "$USED_PCT" -lt 50 ]; then
-  BAR_COLOR="$GREEN"
+  BAR_COLOR="$BLUE"
 elif [ "$USED_PCT" -lt 80 ]; then
   BAR_COLOR="$YELLOW"
 else
   BAR_COLOR="$RED"
+fi
+
+# Format token counts as "Xk/Yk"
+if [ "$TOTAL_TOKENS" -gt 0 ]; then
+  USED_K="$((USED_TOKENS / 1000))k"
+  TOTAL_K="$((TOTAL_TOKENS / 1000))k"
+  TOKEN_INFO=" (${USED_K}/${TOTAL_K})"
+else
+  TOKEN_INFO=""
 fi
 
 # Build 10-char progress bar
@@ -63,7 +75,7 @@ OUTPUT+="${BOLD}${MODEL}${RESET}"
 OUTPUT+="  ${DIM}│${RESET}  "
 
 # Context bar
-OUTPUT+="${BAR_COLOR}${BAR}${RESET} ${USED_PCT}%"
+OUTPUT+="${BAR_COLOR}${BAR}${RESET} ${USED_PCT}%${TOKEN_INFO}"
 
 # Branch
 if [ -n "$BRANCH" ]; then

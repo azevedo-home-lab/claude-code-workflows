@@ -78,7 +78,7 @@ MCP server that persists observations across sessions. Replaces manual handover 
 A minimal single-line status bar with color-coded context usage and worktree support:
 
 ```
-Opus │ ▓▓░░░░░░░░ 25% │  main │ ~/Projects/MyApp │ Workflow Manager ✓ [DISCUSS] │ Claude-Mem ✓
+Opus │ ▓▓░░░░░░░░ 25% (50k/200k) │  main │ ~/Projects/MyApp │ Workflow Manager ✓ [DISCUSS] │ Claude-Mem ✓
 ```
 
 **Quick install:**
