@@ -13,6 +13,7 @@ echo ""
 rm -f "$TARGET/.claude/hooks/workflow-state.sh"
 rm -f "$TARGET/.claude/hooks/workflow-gate.sh"
 rm -f "$TARGET/.claude/hooks/bash-write-guard.sh"
+rm -f "$TARGET/.claude/hooks/post-tool-navigator.sh"
 
 # Remove commands
 rm -f "$TARGET/.claude/commands/approve.md"

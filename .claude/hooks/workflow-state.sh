@@ -21,7 +21,32 @@ set_phase() {
     cat > "$STATE_FILE" <<EOF
 {
   "phase": "$phase",
+  "message_shown": false,
   "updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
 EOF
+}
+
+get_message_shown() {
+    if [ ! -f "$STATE_FILE" ]; then
+        echo "false"
+        return
+    fi
+    local shown
+    shown=$(grep -o '"message_shown"[[:space:]]*:[[:space:]]*[a-z]*' "$STATE_FILE" | grep -o '[a-z]*$')
+    echo "${shown:-false}"
+}
+
+set_message_shown() {
+    if [ -f "$STATE_FILE" ]; then
+        local phase
+        phase=$(get_phase)
+        cat > "$STATE_FILE" <<EOF
+{
+  "phase": "$phase",
+  "message_shown": true,
+  "updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+    fi
 }

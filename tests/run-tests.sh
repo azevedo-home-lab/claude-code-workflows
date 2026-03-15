@@ -147,6 +147,23 @@ assert_eq "review" "$RESULT" "set_phase supports 'review' phase"
 CONTENT=$(cat "$TMPDIR/.claude/state/phase.json")
 assert_contains "$CONTENT" "updated" "state file contains timestamp"
 
+# Test: set_phase initializes message_shown to false
+assert_contains "$CONTENT" '"message_shown": false' "set_phase initializes message_shown to false"
+
+# Test: get_message_shown returns false initially
+RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_message_shown)
+assert_eq "false" "$RESULT" "get_message_shown returns false initially"
+
+# Test: set_message_shown sets flag to true
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_message_shown
+RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_message_shown)
+assert_eq "true" "$RESULT" "set_message_shown sets flag to true"
+
+# Test: set_phase resets message_shown to false
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_message_shown)
+assert_eq "false" "$RESULT" "set_phase resets message_shown to false"
+
 # Test: set_phase creates state directory if missing
 rm -rf "$TMPDIR/.claude/state"
 source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
@@ -273,6 +290,7 @@ git -C "$INSTALL_TARGET" init --quiet
 assert_file_exists "$INSTALL_TARGET/.claude/hooks/workflow-gate.sh" "install creates workflow-gate.sh"
 assert_file_exists "$INSTALL_TARGET/.claude/hooks/bash-write-guard.sh" "install creates bash-write-guard.sh"
 assert_file_exists "$INSTALL_TARGET/.claude/hooks/workflow-state.sh" "install creates workflow-state.sh"
+assert_file_exists "$INSTALL_TARGET/.claude/hooks/post-tool-navigator.sh" "install creates post-tool-navigator.sh"
 assert_file_exists "$INSTALL_TARGET/.claude/commands/approve.md" "install creates approve.md"
 assert_file_exists "$INSTALL_TARGET/.claude/commands/discuss.md" "install creates discuss.md"
 assert_file_exists "$INSTALL_TARGET/.claude/commands/review.md" "install creates review.md"
@@ -346,6 +364,7 @@ git -C "$UNINSTALL_TARGET" init --quiet
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/hooks/workflow-gate.sh" "uninstall removes workflow-gate.sh"
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/hooks/bash-write-guard.sh" "uninstall removes bash-write-guard.sh"
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/hooks/workflow-state.sh" "uninstall removes workflow-state.sh"
+assert_file_not_exists "$UNINSTALL_TARGET/.claude/hooks/post-tool-navigator.sh" "uninstall removes post-tool-navigator.sh"
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/approve.md" "uninstall removes approve.md"
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/discuss.md" "uninstall removes discuss.md"
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/review.md" "uninstall removes review.md"
@@ -356,6 +375,79 @@ assert_file_not_exists "$UNINSTALL_TARGET/.claude/state" "uninstall removes stat
 assert_file_exists "$UNINSTALL_TARGET/.claude/settings.json" "uninstall preserves settings.json"
 
 rm -rf "$UNINSTALL_TARGET"
+
+# ============================================================
+# TEST SUITE: post-tool-navigator.sh
+# ============================================================
+echo ""
+echo "=== post-tool-navigator.sh ==="
+
+# Helper: run navigator with a tool name
+run_navigator() {
+    local tool="$1"
+    echo "{\"tool_name\":\"$tool\"}" | "$TMPDIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true
+}
+
+# Test: shows message in IMPLEMENT phase on first Write
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+OUTPUT=$(run_navigator "Write")
+assert_contains "$OUTPUT" "IMPLEMENT phase" "navigator shows IMPLEMENT message on Write"
+
+# Test: silent on second tool use (message_shown = true)
+OUTPUT=$(run_navigator "Edit")
+assert_not_contains "$OUTPUT" "IMPLEMENT" "navigator silent after first message shown"
+
+# Test: phase change resets message_shown
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+OUTPUT=$(run_navigator "Read")
+assert_contains "$OUTPUT" "REVIEW phase" "navigator shows REVIEW message after phase change"
+
+# Test: silent on Read/Grep in IMPLEMENT phase
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+OUTPUT=$(run_navigator "Read")
+assert_not_contains "$OUTPUT" "IMPLEMENT" "navigator silent on Read in IMPLEMENT"
+
+OUTPUT=$(run_navigator "Grep")
+assert_not_contains "$OUTPUT" "IMPLEMENT" "navigator silent on Grep in IMPLEMENT"
+
+# Test: shows DISCUSS message
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+OUTPUT=$(run_navigator "Read")
+assert_contains "$OUTPUT" "DISCUSS phase" "navigator shows DISCUSS message"
+
+# Test: no message when no state file
+setup_test_project
+rm -f "$TMPDIR/.claude/state/phase.json"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+OUTPUT=$(run_navigator "Write")
+assert_not_contains "$OUTPUT" "phase" "navigator silent when no state file"
+
+# Test: REVIEW message mentions /complete
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+OUTPUT=$(run_navigator "Bash")
+assert_contains "$OUTPUT" "/complete" "navigator REVIEW message mentions /complete"
+
+# Test: IMPLEMENT message mentions /review
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+OUTPUT=$(run_navigator "Write")
+assert_contains "$OUTPUT" "/review" "navigator IMPLEMENT message mentions /review"
+
+# Test: all messages mention /discuss
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+OUTPUT=$(run_navigator "Write")
+assert_contains "$OUTPUT" "/discuss" "navigator IMPLEMENT message mentions /discuss"
 
 # ============================================================
 # TEST SUITE: statusline.sh
