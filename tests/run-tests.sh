@@ -282,6 +282,26 @@ assert_file_exists "$INSTALL_TARGET/.claude/state/phase.json" "install auto-crea
 INIT_PHASE=$(grep -o '"phase"[[:space:]]*:[[:space:]]*"[^"]*"' "$INSTALL_TARGET/.claude/state/phase.json" | grep -o '"[^"]*"$' | tr -d '"')
 assert_eq "discuss" "$INIT_PHASE" "install sets initial phase to discuss"
 
+# Test: installs statusline globally
+assert_file_exists "$HOME/.claude/statusline.sh" "install creates global statusline.sh"
+if [ -x "$HOME/.claude/statusline.sh" ]; then
+    echo -e "  ${GREEN}PASS${NC} global statusline is executable"
+    PASS=$((PASS + 1))
+else
+    echo -e "  ${RED}FAIL${NC} global statusline is executable"
+    FAIL=$((FAIL + 1))
+fi
+
+# Test: global settings.json contains statusLine config
+if [ -f "$HOME/.claude/settings.json" ]; then
+    GLOBAL_SETTINGS=$(cat "$HOME/.claude/settings.json")
+    assert_contains "$GLOBAL_SETTINGS" "statusline.sh" "global settings references statusline.sh"
+else
+    echo -e "  ${RED}FAIL${NC} global settings references statusline.sh"
+    echo "    ~/.claude/settings.json not found"
+    FAIL=$((FAIL + 1))
+fi
+
 # Test: refuses non-git directory
 NON_GIT=$(mktemp -d)
 INSTALL_OUTPUT=$("$REPO_DIR/install.sh" "$NON_GIT" 2>&1 || true)

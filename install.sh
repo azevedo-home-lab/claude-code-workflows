@@ -120,6 +120,46 @@ cat > "$TARGET/.claude/state/phase.json" <<'INIT'
 INIT
 echo "Initialized workflow state to DISCUSS phase (edits blocked)."
 
+# Install statusline globally
+GLOBAL_SETTINGS="$HOME/.claude/settings.json"
+STATUSLINE_DST="$HOME/.claude/statusline.sh"
+
+cp "$SCRIPT_DIR/statusline/statusline.sh" "$STATUSLINE_DST"
+chmod +x "$STATUSLINE_DST"
+echo "Installed statusline to $STATUSLINE_DST."
+
+if [ -f "$GLOBAL_SETTINGS" ]; then
+    if grep -q "statusline.sh" "$GLOBAL_SETTINGS" 2>/dev/null; then
+        echo "Statusline already configured in global settings — skipping."
+    else
+        # Merge statusLine into existing global settings using python
+        python3 -c "
+import json, sys
+with open('$GLOBAL_SETTINGS') as f:
+    settings = json.load(f)
+settings['statusLine'] = {
+    'type': 'command',
+    'command': '$STATUSLINE_DST',
+    'padding': 2
+}
+with open('$GLOBAL_SETTINGS', 'w') as f:
+    json.dump(settings, f, indent=2)
+    f.write('\n')
+" 2>/dev/null && echo "Added statusLine to global settings." || echo "WARNING: Could not update global settings. Add statusLine manually."
+    fi
+else
+    cat > "$GLOBAL_SETTINGS" <<SLCFG
+{
+  "statusLine": {
+    "type": "command",
+    "command": "$STATUSLINE_DST",
+    "padding": 2
+  }
+}
+SLCFG
+    echo "Created global settings with statusLine."
+fi
+
 echo ""
 echo "Workflow Manager installed!"
 echo ""
