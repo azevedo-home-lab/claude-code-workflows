@@ -30,7 +30,18 @@ DISCUSS ──(/approve)──> IMPLEMENT ──(/discuss)──> DISCUSS
 - `/approve` — unlock code edits (plan approved, start implementing)
 - `/discuss` — lock code edits (back to discussion for next task)
 
-**Setup:** Copy `.claude/hooks/` and `.claude/commands/` into your project, then add the hooks config to `.claude/settings.json`. See [Getting Started](docs/guides/getting-started.md).
+**Install into any project:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/install.sh | bash
+```
+
+Or clone and install manually:
+```bash
+git clone https://github.com/azevedo-home-lab/claude-code-workflows.git
+./claude-code-workflows/install.sh /path/to/your/project
+```
+
+Uninstall: `./uninstall.sh` or manually remove `.claude/hooks/workflow-*.sh` and `.claude/commands/{approve,discuss}.md`.
 
 ## Tools
 

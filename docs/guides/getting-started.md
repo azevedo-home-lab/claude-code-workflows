@@ -11,44 +11,21 @@ Get up and running with workflow enforcement + Superpowers + claude-mem.
 
 ### 1. Install Workflow Enforcement Hooks
 
-Copy the hooks and commands into your project:
-
+**One-liner (from your project root):**
 ```bash
-mkdir -p .claude/hooks .claude/commands .claude/state
-cp <claude-code-workflows>/.claude/hooks/workflow-state.sh .claude/hooks/
-cp <claude-code-workflows>/.claude/hooks/workflow-gate.sh .claude/hooks/
-cp <claude-code-workflows>/.claude/hooks/bash-write-guard.sh .claude/hooks/
-cp <claude-code-workflows>/.claude/commands/approve.md .claude/commands/
-cp <claude-code-workflows>/.claude/commands/discuss.md .claude/commands/
-chmod +x .claude/hooks/*.sh
+curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/install.sh | bash
 ```
 
-Add the hook configuration to `.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
-        "hooks": [{
-          "type": "command",
-          "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-gate.sh"
-        }]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [{
-          "type": "command",
-          "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/bash-write-guard.sh"
-        }]
-      }
-    ]
-  }
-}
+**Or clone and install:**
+```bash
+git clone https://github.com/azevedo-home-lab/claude-code-workflows.git /tmp/ccw
+/tmp/ccw/install.sh
+rm -rf /tmp/ccw
 ```
 
-Add `.claude/state/` to your `.gitignore`.
+The installer copies hooks, commands, creates `.claude/settings.json` (or warns if one exists), and adds `.claude/state/` to `.gitignore`.
+
+Restart Claude Code after installing.
 
 ### 2. Install Superpowers
 
