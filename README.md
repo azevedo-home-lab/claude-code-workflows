@@ -1,7 +1,8 @@
 # Claude Code Workflows
 
-A guide to structured, accountable development with Claude Code using three complementary tools:
+A guide to structured, accountable development with Claude Code using complementary tools:
 
+- **Workflow Enforcement Hooks** — PreToolUse hooks that block code edits until a plan is discussed and approved
 - **Superpowers** — Specialized skills (brainstorming, TDD, planning, debugging, code review)
 - **claude-mem** — Cross-session persistent memory via MCP server
 - **Status Line** — Minimal, color-coded status bar showing model, context usage, git branch, and worktree info
@@ -12,7 +13,26 @@ A guide to structured, accountable development with Claude Code using three comp
 2. [CLAUDE.md Template](claude.md.template) - Copy into your project and customize
 3. [Workflow Cheatsheet](docs/quick-reference/workflow-cheatsheet.md) - Daily-use quick reference
 
-## The Two Tools
+## Workflow Enforcement
+
+Two-phase hard gate that prevents cowboy coding. Claude **cannot** edit files until a plan is discussed and you approve it.
+
+```
+DISCUSS ──(/approve)──> IMPLEMENT ──(/discuss)──> DISCUSS
+```
+
+| Phase | Write/Edit | Bash writes | Read/Grep | What to do |
+|-------|-----------|-------------|-----------|------------|
+| **DISCUSS** | Blocked | Blocked | Allowed | Brainstorm, plan, research |
+| **IMPLEMENT** | Allowed | Allowed | Allowed | Execute the approved plan |
+
+**Commands:**
+- `/approve` — unlock code edits (plan approved, start implementing)
+- `/discuss` — lock code edits (back to discussion for next task)
+
+**Setup:** Copy `.claude/hooks/` and `.claude/commands/` into your project, then add the hooks config to `.claude/settings.json`. See [Getting Started](docs/guides/getting-started.md).
+
+## Tools
 
 ### Superpowers (Skills)
 
@@ -79,6 +99,7 @@ See the [Status Line Guide](docs/guides/statusline-guide.md) for full details, c
 
 ### Reference
 - [Command Reference](docs/quick-reference/commands.md) - All commands
+- [Hooks Reference](docs/reference/hooks.md) - Workflow enforcement hooks
 - [Architecture](docs/reference/architecture.md) - System design and file organization
 
 ## Templates
