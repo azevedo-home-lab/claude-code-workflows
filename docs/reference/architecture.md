@@ -1,6 +1,6 @@
 # Architecture
 
-How the three tools work together in Claude Code.
+How Superpowers and claude-mem work together in Claude Code.
 
 ## System Overview
 
@@ -16,31 +16,14 @@ How the three tools work together in Claude Code.
                    │        │
         ┌──────────┘        └──────────┐
         ↓                              ↓
-┌──────────────┐              ┌─────────────────┐
-│  cc-sessions │              │  Superpowers    │
-│  (Lifecycle) │◄────────────►│  (Techniques)   │
-└──────┬───────┘              └────────┬────────┘
-       │                               │
-       └───────────┬───────────────────┘
-                   │
-                   ↓
-        ┌──────────────────────┐
-        │  claude-mem (MCP)    │
-        │  (Cross-session      │
-        │   memory)            │
-        └──────────────────────┘
+┌──────────────────┐          ┌─────────────────┐
+│  Superpowers     │          │  claude-mem     │
+│  (Skills &       │          │  (Cross-session │
+│   Techniques)    │          │   memory)       │
+└──────────────────┘          └─────────────────┘
 ```
 
 ## Component Responsibilities
-
-### cc-sessions — Task Lifecycle
-
-- Task creation and tracking (`mek:`)
-- Git branch automation
-- Context gathering at `start^:` (codebase analysis + past summaries)
-- Scope enforcement after `yert` (blocks edits outside approved plan)
-- Session logging and summaries in `sessions/logs/`
-- Commit workflow at `finito`
 
 ### Superpowers — Development Techniques
 
@@ -56,26 +39,25 @@ Skills load on-demand when contextually relevant, not preloaded.
 - Persists observations (decisions, discoveries, preferences) across sessions
 - `mem-search` for loading prior context at session start
 - `make-plan` / `do` for plan creation and execution
-- Supplements session logs with conversational context
 
-## Integration Flow
+## Workflow
 
 ```
-DISCUSSION:
-  mek: Add feature → cc-sessions creates task, locks tools
-  /superpowers:brainstorm → Q&A refinement → docs/vision.md
+REQUIREMENTS:
+  Describe what you want
+  /superpowers:brainstorm → Q&A refinement
 
-ALIGNMENT:
-  start^: → cc-sessions gathers context + claude-mem search
+PLANNING:
   /superpowers:write-plan → numbered plan
+  Review and approve
 
 IMPLEMENTATION:
-  yert → cc-sessions locks scope
   /superpowers:execute-plan → step-by-step with checkpoints
   (auto-skills: TDD, debugging, etc.)
 
-CHECK:
-  finito → verification → commit → summary → archive
+VERIFICATION:
+  /superpowers:verification-before-completion → verify
+  Commit
 ```
 
 ## File Organization
@@ -83,23 +65,16 @@ CHECK:
 ```
 your-project/
 ├── .claude/
-│   ├── commands/          # Custom slash commands
+│   ├── skills/            # Custom skills (optional)
 │   └── settings.json      # Claude Code config
-├── sessions/
-│   └── logs/              # Session summaries (gitignored)
 ├── docs/
-│   ├── vision.md          # Requirements (from brainstorm)
 │   └── plans/             # Implementation plans
 ├── CLAUDE.md              # Project rules (committed)
 └── src/                   # Your code
 ```
 
-**Committed**: `CLAUDE.md`, `.claude/commands/`, `docs/plans/`, `docs/vision.md`
-**Gitignored**: `sessions/`, `.claude/context/`, `.claude/.chats/`, `.claude/settings.local.json`
-
 ## Security
 
-- Session logs gitignored (may contain code snippets)
 - `token_do_not_commit/` in `.gitignore`
-- `finito` scans for secret patterns before commit
 - YubiKey FIDO2 signing optional (see CLAUDE.md template)
+- Never commit credentials; use vault-managed secrets

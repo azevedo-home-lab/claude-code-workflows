@@ -1,30 +1,17 @@
 # Claude Code Workflows
 
-A comprehensive guide to using three complementary tools for structured, accountable development with Claude Code:
+A guide to structured, accountable development with Claude Code using two complementary tools:
 
-- **cc-sessions** — Task lifecycle management (DAIC workflow: Discuss → Approve → Implement → Complete)
 - **Superpowers** — Specialized skills (brainstorming, TDD, planning, debugging, code review)
 - **claude-mem** — Cross-session persistent memory via MCP server
 
 ## Quick Start
 
-New to this workflow? Start here:
 1. [Getting Started Guide](docs/guides/getting-started.md) - Installation and first workflow
 2. [CLAUDE.md Template](claude.md.template) - Copy into your project and customize
 3. [Workflow Cheatsheet](docs/quick-reference/workflow-cheatsheet.md) - Daily-use quick reference
 
-## The Three Tools
-
-### cc-sessions (Task Lifecycle)
-
-Enforces the DAIC loop: structured task creation, context gathering, implementation with scope control, and clean completion with archival.
-
-```
-mek: <task>    → Discussion phase (define requirements)
-start^:        → Load context, create plan
-yert           → Approve plan, begin implementation
-finito         → Verify, commit, archive
-```
+## The Two Tools
 
 ### Superpowers (Skills)
 
@@ -58,7 +45,7 @@ MCP server that persists observations across sessions. Replaces manual handover 
 
 ### Guides
 - [Getting Started](docs/guides/getting-started.md) - Installation and first workflow
-- [Integration Guide](docs/guides/integration-guide.md) - How cc-sessions + Superpowers work together
+- [Integration Guide](docs/guides/integration-guide.md) - How Superpowers skills work together
 - [Cross-Session Memory](docs/guides/claude-mem-guide.md) - claude-mem usage and handover patterns
 
 ### Reference

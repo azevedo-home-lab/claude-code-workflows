@@ -1,6 +1,6 @@
 # Getting Started
 
-Get up and running with the cc-sessions + Superpowers workflow.
+Get up and running with the Superpowers + claude-mem workflow.
 
 ## Prerequisites
 
@@ -16,25 +16,11 @@ plugin marketplace add obra/superpowers-marketplace
 plugin install superpowers@superpowers-marketplace
 ```
 
-### 2. Create Directory Structure
+### 2. Install claude-mem (optional)
 
-```bash
-mkdir -p sessions/logs .claude/context
-```
+Follow the claude-mem installation guide for your platform. See [claude-mem guide](claude-mem-guide.md).
 
-### 3. Configure .gitignore
-
-```
-sessions/
-.claude/context/
-.claude/.chats/
-.claude/settings.local.json
-token_do_not_commit/
-.env
-.env.local
-```
-
-### 4. Copy CLAUDE.md Template
+### 3. Copy CLAUDE.md Template
 
 ```bash
 cp claude.md.template CLAUDE.md
@@ -42,23 +28,21 @@ cp claude.md.template CLAUDE.md
 
 Edit `CLAUDE.md` to fill in project-specific placeholders.
 
-## Your First DAIC Workflow
+## Your First Workflow
 
 ```
-mek: Add user authentication with JWT     # Start task
-/superpowers:brainstorm                     # Clarify: OAuth? Password rules? Session timeout?
-start^:                                     # Gather codebase context
-/superpowers:write-plan                     # Generate implementation plan
-yert                                        # Approve plan, lock scope
-/superpowers:execute-plan                   # Implement with review checkpoints
-finito                                      # Verify, commit, archive summary
+"Add user authentication with JWT"       # Describe what you want
+/superpowers:brainstorm                   # Clarify: OAuth? Password rules? Session timeout?
+/superpowers:write-plan                   # Generate implementation plan
+# Review and approve the plan
+/superpowers:execute-plan                 # Implement with review checkpoints
+/superpowers:verification-before-completion  # Verify before claiming done
 ```
 
-Each phase builds on the previous. The key insight: requirements are locked before coding starts, preventing scope creep and rework.
+Each phase builds on the previous. The key insight: requirements are clarified and a plan is approved before coding starts, preventing scope creep and rework.
 
 ## Next Steps
 
-- [Integration Guide](integration-guide.md) — How cc-sessions and Superpowers work together
+- [Integration Guide](integration-guide.md) — How Superpowers skills work together
 - [Command Reference](../quick-reference/commands.md) — All commands with descriptions
-- [Examples](examples.md) — Real-world scenarios
 - [Cross-Session Memory](claude-mem-guide.md) — Persistent memory across sessions

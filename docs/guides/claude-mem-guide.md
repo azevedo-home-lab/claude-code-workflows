@@ -94,14 +94,14 @@ Key findings are persisted automatically. For explicit handover:
 2. Update handover file if the project uses one
 3. Commit any in-progress work
 
-## Integration with DAIC Workflow
+## Integration with Superpowers Workflow
 
-| DAIC Phase | claude-mem Role |
-|------------|----------------|
-| **mek:** (new task) | Search for prior work on similar tasks |
-| **start^:** (gather context) | Load observations from previous sessions on this task |
-| **yert** (implement) | Save key decisions and discoveries as you work |
-| **finito** (complete) | Final observation summarizing what was done and outcome |
+| Phase | claude-mem Role |
+|-------|----------------|
+| **Brainstorm** | Search for prior work on similar tasks |
+| **Plan** | Load observations from previous sessions for context |
+| **Implement** | Save key decisions and discoveries as you work |
+| **Complete** | Final observation summarizing what was done and outcome |
 
 ## Integration with File-Based Memory
 

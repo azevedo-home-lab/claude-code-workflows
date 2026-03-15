@@ -1,16 +1,13 @@
 # Command Reference
 
-## DAIC Workflow
+## Superpowers Skills
 
 | Command | Phase | What It Does |
 |---------|-------|-------------|
-| `mek: <task>` | Discussion | Start task, initialize session log |
-| `/superpowers:brainstorm` | Discussion | Structured Q&A to refine requirements |
-| `start^:` | Alignment | Gather codebase context, load past summaries |
-| `/superpowers:write-plan` | Alignment | Generate numbered implementation plan |
-| `yert` | Implementation | Approve plan, lock scope |
+| `/superpowers:brainstorm` | Requirements | Structured Q&A to refine requirements |
+| `/superpowers:write-plan` | Planning | Generate numbered implementation plan |
 | `/superpowers:execute-plan` | Implementation | Batch execution with review checkpoints |
-| `finito` | Check | Verify, commit, archive session summary |
+| `/superpowers:verification-before-completion` | Verification | Verify before claiming done |
 
 ## Auto-Activated Skills
 
@@ -19,18 +16,25 @@
 | TDD | Creating new functions/modules |
 | Systematic Debugging | Error logs or stack traces present |
 | Code Review | Refactoring existing code |
-| Error Fix | Errors detected during implementation |
-| Verification | Before `finito` completion |
+| Verification | Before claiming completion |
 | Worktrees | Working on multiple features in parallel |
+
+## claude-mem Commands
+
+| Command | What It Does |
+|---------|-------------|
+| `/claude-mem:mem-search` | Search previous session observations |
+| `/claude-mem:make-plan` | Create implementation plan with context discovery |
+| `/claude-mem:do` | Execute a plan using subagents |
 
 ## Quick Sequence
 
 ```
-mek: Add feature X          → Define what to build
-/superpowers:brainstorm      → Clarify requirements
-start^:                      → Gather codebase context
-/superpowers:write-plan      → Generate plan
-yert                         → Approve and lock scope
-/superpowers:execute-plan    → Implement with checkpoints
-finito                       → Verify, commit, archive
+Describe what you want
+/superpowers:brainstorm          → Clarify requirements
+/superpowers:write-plan          → Generate plan
+Review and approve
+/superpowers:execute-plan        → Implement with checkpoints
+/superpowers:verification-before-completion → Verify
+Commit
 ```
