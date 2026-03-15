@@ -1,0 +1,168 @@
+# Security Policy
+
+**Version**: 1.0
+**Project**: <PROJECT_NAME>
+
+## Supported Versions
+
+| Version | Supported |
+|---------|-----------|
+| Latest  | Yes |
+
+## Reporting a Vulnerability
+
+1. **Do NOT create a public GitHub issue** for security vulnerabilities
+2. **Email the maintainer** directly with details
+3. Include: description, reproduction steps, potential impact, suggested fixes
+
+## Security Measures
+
+### Automated Scanning
+
+<!-- PLACEHOLDER: List your CI/CD security tools -->
+- CodeQL / Bandit / Safety — static analysis and dependency scanning
+- TruffleHog — secret scanning
+- Dependabot — automated dependency vulnerability alerts
+
+### Credential Management
+
+- **No secrets committed** to repository
+- Secrets stored in vault (Bitwarden Secrets Manager, HashiCorp Vault, etc.)
+- Placeholder system in all documentation: `[SECRET_NAME]` → actual value
+- Logs directory git-ignored to prevent credential leakage
+
+### Infrastructure Security
+
+- Network segmentation via VLANs
+- VPN for remote access
+- RBAC on cluster/infrastructure resources
+- HTTPS for all API access
+
+---
+
+## Workstation Security Model
+
+<!-- Remove this section if your dev machine is not segregated -->
+
+### Purpose
+
+The development workstation is a **segregated machine** dedicated to AI-assisted coding. Its security model ensures: **zero credentials at rest, physical hardware required for all signing/auth operations**.
+
+### Why Segregation
+
+AI coding agents have terminal access. A compromised agent could:
+- Read stored credentials from keychain, environment, or config files
+- Use persistent OAuth tokens to delete repositories or push malicious code
+- Exfiltrate personal data if personal accounts are accessible
+
+### Identity Model
+
+| Rule | Detail |
+|------|--------|
+| **Permitted account** | `<SEGREGATED_ACCOUNT>` |
+| **Forbidden account** | `<PERSONAL_ACCOUNT>` — no tokens, no keychain entries, nothing |
+| **Git identity** | `<GIT_USER>` / `<GIT_EMAIL>` |
+| **Password vault** | `<VAULT_ACCOUNT>` on `<VAULT_SERVER>` (separate from personal vault) |
+
+### Authentication Layers
+
+#### Layer 1: Git Operations (Hardware Security Key — touch required)
+
+All git commits and pushes require physical security key touch. Shell wrappers bypass `ssh-agent` and talk to the key directly:
+
+| Operation | Wrapper | What happens |
+|-----------|---------|-------------|
+| `git commit` (signing) | `git-ssh-sign` → `ssh-keygen` | Key LED blinks, touch to sign |
+| `git push/pull` (auth) | `git-ssh-auth` → `ssh` | Key LED blinks, touch to authenticate |
+
+**Key**: `<SSH_KEY_PATH>` (ed25519-sk resident key, application `<FIDO_APP_NAME>`). Registered on `<SEGREGATED_ACCOUNT>` as both authentication and signing key.
+
+**Why wrappers**: AI coding tools run git as subprocesses with no TTY. The macOS `ssh-agent` can't prompt for FIDO2 touch in non-TTY contexts. The wrappers unset `SSH_AUTH_SOCK` to force direct key communication.
+
+**Protection**: A compromised agent cannot sign commits or push code without physical touch. The private key never leaves the hardware.
+
+#### Layer 2: Password Vault (Keychain + FIDO2 WebAuthn)
+
+| Component | Method |
+|-----------|--------|
+| Master password storage | OS Keychain (encrypted at rest, no silent app access) |
+| Master password retrieval | Helper command → clipboard, auto-clears in N seconds |
+| 2FA (full login) | Hardware security key FIDO2 WebAuthn (physical touch) |
+| Vault timeout | N minutes → Lock |
+
+#### Layer 3: GitHub CLI (Ephemeral Sessions)
+
+The `gh` CLI is **not kept logged in**. OAuth tokens grant broad `repo` scope which would allow a compromised agent to delete repositories.
+
+| Command | Purpose |
+|---------|---------|
+| `gh-session login` | Authenticate via browser, store token temporarily |
+| `gh-session logout` | Revoke token AND scrub OS keychain entries |
+| `gh-session status` | Verify no persistent tokens remain |
+
+**Flow**: Login → do PR/issue work → logout. No persistent token survives between sessions.
+
+### Threat Model
+
+| Threat | Mitigated? | How |
+|--------|-----------|-----|
+| Agent reads stored passwords | Yes | No passwords on disk (Keychain requires login password, silent access blocked) |
+| Agent pushes malicious code | Yes | Git push requires physical key touch |
+| Agent signs malicious commits | Yes | Git signing requires physical key touch |
+| Agent deletes repos via API | Yes | No persistent `gh` CLI token (ephemeral sessions) |
+| Agent reads password vault | Partial | Vault locks after timeout; clipboard clears after N seconds |
+| Agent accesses personal accounts | Yes | No personal account credentials exist on machine |
+| Agent modifies git wrappers | Low risk | Modified wrapper can't forge signatures (private key on hardware) |
+
+### Credential Lifecycle
+
+```
+Security key plugged in:
+  → Git operations: touch per commit/push (no stored credential)
+  → Vault: helper → clipboard → auto-clear (master password in Keychain)
+  → gh CLI: login → work → logout → keychain scrubbed
+
+Security key removed:
+  → Git operations: fail (no signing, no push)
+  → Vault: locked after timeout
+  → gh CLI: not logged in
+  → SSH to infra: works (uses regular ed25519 key, no hardware key needed)
+```
+
+### Key Generation
+
+<!-- Adjust command for your security key and identity -->
+
+```bash
+SSH_SK_PROVIDER=<SK_PROVIDER_PATH> ssh-keygen \
+  -t ed25519-sk \
+  -O resident \
+  -O application=ssh:<APP_NAME> \
+  -C "<KEY_COMMENT>" \
+  -f ~/.ssh/<KEY_FILENAME> \
+  -N ""
+```
+
+**FIDO2 flag behavior**:
+
+| Flag | Behavior | Use case |
+|------|----------|----------|
+| (default) | Touch + may require PIN | Standard security |
+| `-O no-touch-required` | Silent (no LED, no touch) | Automated/headless only |
+| `-O verify-required` | Touch + PIN every time | Maximum security |
+
+Generate with the same `ssh-keygen` binary used by wrappers for consistent flag behavior.
+
+---
+
+## PLACEHOLDERS
+
+- `<PROJECT_NAME>`: Your project name
+- `<SEGREGATED_ACCOUNT>`: GitHub account for dev workstation
+- `<PERSONAL_ACCOUNT>`: Personal GitHub account (forbidden on dev machine)
+- `<GIT_USER>` / `<GIT_EMAIL>`: Git identity for dev workstation
+- `<VAULT_ACCOUNT>` / `<VAULT_SERVER>`: Password vault details
+- `<SSH_KEY_PATH>`: Path to SSH key file
+- `<FIDO_APP_NAME>`: FIDO2 application label (e.g., `ssh:my-account`)
+- `<SK_PROVIDER_PATH>`: Path to sk-libfido2.dylib or equivalent
+- `<KEY_FILENAME>` / `<KEY_COMMENT>`: SSH key naming

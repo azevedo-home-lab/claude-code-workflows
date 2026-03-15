@@ -153,6 +153,12 @@ echo "Log file: $LOGFILE"
 - Require verification (tests/linters) before marking tasks complete
 - Keep skills ON-DEMAND to conserve context
 
+## 🛡️ Workstation Security Model
+
+**If this machine is a segregated development workstation:**
+- See `docs/security/SECURITY.md` for the full security model, threat analysis, and credential lifecycle
+- Template available at: `docs/reference/SECURITY.md.template` in the ClaudeWorkflows repository
+
 ## PLACEHOLDERS TO FILL
 
 - Project name, primary stack, test command(s), deploy command(s)
