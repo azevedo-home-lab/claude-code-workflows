@@ -2,7 +2,7 @@
 
 A guide to structured, accountable development with Claude Code using complementary tools:
 
-- **Workflow Enforcement Hooks** — PreToolUse hooks that block code edits until a plan is discussed and approved
+- **Workflow Manager** — PreToolUse hooks that block code edits until a plan is discussed and approved
 - **Superpowers** — Specialized skills (brainstorming, TDD, planning, debugging, code review)
 - **claude-mem** — Cross-session persistent memory via MCP server
 - **Status Line** — Minimal, color-coded status bar showing model, context usage, git branch, and worktree info
@@ -13,7 +13,7 @@ A guide to structured, accountable development with Claude Code using complement
 2. [CLAUDE.md Template](claude.md.template) - Copy into your project and customize
 3. [Workflow Cheatsheet](docs/quick-reference/workflow-cheatsheet.md) - Daily-use quick reference
 
-## Workflow Enforcement
+## Workflow Manager
 
 Two-phase hard gate that prevents cowboy coding. Claude **cannot** edit files until a plan is discussed and you approve it.
 
@@ -78,7 +78,7 @@ MCP server that persists observations across sessions. Replaces manual handover 
 A minimal single-line status bar with color-coded context usage and worktree support:
 
 ```
-Opus  │  ▓▓░░░░░░░░ 25%  │   main  │  ~/Projects/MyApp
+Opus │ ▓▓░░░░░░░░ 25% │  main │ ~/Projects/MyApp │ Workflow Manager ✓ [DISCUSS] │ Claude-Mem ✓
 ```
 
 **Quick install:**
@@ -110,7 +110,7 @@ See the [Status Line Guide](docs/guides/statusline-guide.md) for full details, c
 
 ### Reference
 - [Command Reference](docs/quick-reference/commands.md) - All commands
-- [Hooks Reference](docs/reference/hooks.md) - Workflow enforcement hooks
+- [Hooks Reference](docs/reference/hooks.md) - Workflow Manager hooks
 - [Architecture](docs/reference/architecture.md) - System design and file organization
 
 ## Templates

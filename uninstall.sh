@@ -1,12 +1,12 @@
 #!/bin/bash
-# Remove Claude Code Workflow Enforcement Hooks from the current project
+# Remove Claude Code Workflow Manager from the current project
 # Usage: ./uninstall.sh [/path/to/project]
 
 set -euo pipefail
 
 TARGET="${1:-$(pwd)}"
 
-echo "Removing workflow enforcement hooks from: $TARGET"
+echo "Removing Workflow Manager from: $TARGET"
 echo ""
 
 # Remove hook files

@@ -277,6 +277,11 @@ SETTINGS=$(cat "$INSTALL_TARGET/.claude/settings.json")
 assert_contains "$SETTINGS" "workflow-gate.sh" "settings.json references workflow-gate.sh"
 assert_contains "$SETTINGS" "bash-write-guard.sh" "settings.json references bash-write-guard.sh"
 
+# Test: auto-initializes phase.json to "discuss"
+assert_file_exists "$INSTALL_TARGET/.claude/state/phase.json" "install auto-creates phase.json"
+INIT_PHASE=$(grep -o '"phase"[[:space:]]*:[[:space:]]*"[^"]*"' "$INSTALL_TARGET/.claude/state/phase.json" | grep -o '"[^"]*"$' | tr -d '"')
+assert_eq "discuss" "$INIT_PHASE" "install sets initial phase to discuss"
+
 # Test: refuses non-git directory
 NON_GIT=$(mktemp -d)
 INSTALL_OUTPUT=$("$REPO_DIR/install.sh" "$NON_GIT" 2>&1 || true)

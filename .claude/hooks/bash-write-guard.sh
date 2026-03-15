@@ -1,5 +1,5 @@
 #!/bin/bash
-# PreToolUse hook: blocks Bash write operations in DISCUSS phase
+# Workflow Manager: blocks Bash write operations in DISCUSS phase
 # Matcher: Bash
 # Catches: redirections, sed -i, tee, heredocs, python file writes
 

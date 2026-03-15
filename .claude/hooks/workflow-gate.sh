@@ -1,5 +1,5 @@
 #!/bin/bash
-# PreToolUse hook: blocks Write/Edit/MultiEdit/NotebookEdit in DISCUSS phase
+# Workflow Manager: blocks Write/Edit/MultiEdit/NotebookEdit in DISCUSS phase
 # Matcher: Write|Edit|MultiEdit|NotebookEdit
 
 set -euo pipefail

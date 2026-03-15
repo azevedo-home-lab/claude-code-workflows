@@ -1,6 +1,6 @@
 # Architecture
 
-How workflow hooks, Superpowers, and claude-mem work together in Claude Code.
+How Workflow Manager, Superpowers, and claude-mem work together in Claude Code.
 
 ## System Overview
 
@@ -47,7 +47,7 @@ IMPLEMENT:  Everything ALLOWED
 
 ## Component Responsibilities
 
-### Workflow Hooks — Hard Gates
+### Workflow Manager — Hard Gates
 
 - `workflow-gate.sh` — blocks Write/Edit/MultiEdit in DISCUSS phase
 - `bash-write-guard.sh` — blocks Bash write operations in DISCUSS phase

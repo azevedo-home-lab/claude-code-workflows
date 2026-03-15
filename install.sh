@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install Claude Code Workflow Enforcement Hooks into the current project
+# Install Claude Code Workflow Manager into the current project
 # Usage: curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/install.sh | bash
 #    or: git clone ... && cd claude-code-workflows && ./install.sh /path/to/your/project
 
@@ -19,12 +19,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ ! -f "$SCRIPT_DIR/.claude/hooks/workflow-gate.sh" ]; then
     TMPDIR=$(mktemp -d)
     trap 'rm -rf "$TMPDIR"' EXIT
-    echo "Downloading workflow hooks..."
+    echo "Downloading Workflow Manager..."
     git clone --depth 1 --quiet https://github.com/azevedo-home-lab/claude-code-workflows.git "$TMPDIR"
     SCRIPT_DIR="$TMPDIR"
 fi
 
-echo "Installing workflow enforcement hooks into: $TARGET"
+echo "Installing Workflow Manager into: $TARGET"
 echo ""
 
 # Validate target is a git repo
@@ -111,12 +111,20 @@ else
     echo "Created .gitignore with .claude/state/ entry."
 fi
 
+# Initialize workflow state to DISCUSS phase
+cat > "$TARGET/.claude/state/phase.json" <<'INIT'
+{
+  "phase": "discuss",
+  "updated": "auto-initialized by installer"
+}
+INIT
+echo "Initialized workflow state to DISCUSS phase (edits blocked)."
+
 echo ""
-echo "Installation complete!"
+echo "Workflow Manager installed!"
 echo ""
 echo "Usage:"
 echo "  /approve  — unlock code edits (after plan is approved)"
 echo "  /discuss  — lock code edits (back to discussion mode)"
 echo ""
-echo "New Claude Code sessions start in DISCUSS phase (edits blocked)."
-echo "Restart Claude Code to activate the hooks."
+echo "Sessions start in DISCUSS phase. Restart Claude Code to activate."

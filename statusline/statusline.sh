@@ -78,4 +78,31 @@ fi
 # Directory
 OUTPUT+="  ${DIM}│${RESET}  ${DIM}${SHORT_CWD}${RESET}"
 
+# Workflow Manager detection
+WM_STATE_FILE="${CWD}/.claude/state/phase.json"
+WM_GATE_FILE="${CWD}/.claude/hooks/workflow-gate.sh"
+if [ -f "$WM_GATE_FILE" ]; then
+  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Workflow Manager ✓${RESET}"
+  # Show phase if state file exists
+  if [ -f "$WM_STATE_FILE" ]; then
+    WM_PHASE=$(grep -o '"phase"[[:space:]]*:[[:space:]]*"[^"]*"' "$WM_STATE_FILE" | grep -o '"[^"]*"$' | tr -d '"')
+    if [ "$WM_PHASE" = "discuss" ]; then
+      OUTPUT+=" ${YELLOW}[DISCUSS]${RESET}"
+    elif [ "$WM_PHASE" = "implement" ]; then
+      OUTPUT+=" ${GREEN}[IMPLEMENT]${RESET}"
+    fi
+  fi
+else
+  OUTPUT+="  ${DIM}│${RESET}  ${DIM}Workflow Manager ✗${RESET}"
+fi
+
+# Claude-Mem detection
+if echo "$DATA" | jq -e '.mcp_servers[]? | select(. == "claude-mem" or test("claude.mem"; "i"))' >/dev/null 2>&1; then
+  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Claude-Mem ✓${RESET}"
+elif command -v claude-mem >/dev/null 2>&1 || [ -d "$HOME/.claude/plugins/cache/thedotmack" ]; then
+  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Claude-Mem ✓${RESET}"
+else
+  OUTPUT+="  ${DIM}│${RESET}  ${DIM}Claude-Mem ✗${RESET}"
+fi
+
 printf '%b' "$OUTPUT"

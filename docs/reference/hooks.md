@@ -1,4 +1,4 @@
-# Workflow Enforcement Hooks Reference
+# Workflow Manager Hooks Reference
 
 ## Overview
 

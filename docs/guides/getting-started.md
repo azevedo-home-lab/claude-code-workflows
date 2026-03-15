@@ -1,6 +1,6 @@
 # Getting Started
 
-Get up and running with workflow enforcement + Superpowers + claude-mem.
+Get up and running with Workflow Manager + Superpowers + claude-mem.
 
 ## Prerequisites
 
@@ -9,7 +9,7 @@ Get up and running with workflow enforcement + Superpowers + claude-mem.
 
 ## Setup
 
-### 1. Install Workflow Enforcement Hooks
+### 1. Install Workflow Manager
 
 **One-liner (from your project root):**
 ```bash

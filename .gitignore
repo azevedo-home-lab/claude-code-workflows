@@ -11,7 +11,7 @@
 # .claude/commands/         # Team slash commands (official Claude Code)
 # .claude/.plans/           # Project documentation (extension-specific)
 
-# Workflow state (per-session, not committed)
+# Workflow Manager state (per-session, not committed)
 .claude/state/
 
 # Context directories
