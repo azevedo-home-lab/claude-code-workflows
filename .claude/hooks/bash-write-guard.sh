@@ -15,8 +15,8 @@ fi
 
 PHASE=$(get_phase)
 
-# Allow everything in implement phase
-if [ "$PHASE" = "implement" ]; then
+# Allow everything in implement and review phases
+if [ "$PHASE" = "implement" ] || [ "$PHASE" = "review" ]; then
     exit 0
 fi
 

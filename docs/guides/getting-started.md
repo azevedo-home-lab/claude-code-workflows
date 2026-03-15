@@ -50,16 +50,20 @@ Edit `CLAUDE.md` to fill in project-specific placeholders.
 
 ```
 "Add user authentication with JWT"       # Describe what you want
-/superpowers:brainstorm                   # Clarify requirements (edits BLOCKED)
-/superpowers:write-plan                   # Generate plan (edits still BLOCKED)
+/superpowers:brainstorming                # Clarify requirements (edits BLOCKED)
+/superpowers:writing-plans                # Generate plan (edits still BLOCKED)
 # Review the plan
 /approve                                  # Unlock code edits
-/superpowers:execute-plan                 # Implement with review checkpoints
-/superpowers:verification-before-completion  # Verify before claiming done
-/discuss                                  # Lock edits again for next task
+/superpowers:executing-plans              # Implement with review checkpoints
+/superpowers:test-driven-development      # Tests before implementation
+# Implementation done
+/review                                   # Enter review phase
+/superpowers:verification-before-completion  # Run tests, verify output
+/superpowers:requesting-code-review       # Security, best practices check
+/complete                                 # Task done, back to discuss
 ```
 
-The hooks enforce the boundary: Claude cannot write code until you approve. Superpowers guides the quality of each phase.
+The hooks enforce the discuss-before-code boundary. Superpowers guides quality at each phase. The review phase ensures verification and code review before the task is complete.
 
 ## Next Steps
 

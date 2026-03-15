@@ -102,10 +102,28 @@ if [ -f "$WM_GATE_FILE" ]; then
       OUTPUT+=" ${YELLOW}[DISCUSS]${RESET}"
     elif [ "$WM_PHASE" = "implement" ]; then
       OUTPUT+=" ${GREEN}[IMPLEMENT]${RESET}"
+    elif [ "$WM_PHASE" = "review" ]; then
+      OUTPUT+=" ${CYAN}[REVIEW]${RESET}"
     fi
   fi
 else
   OUTPUT+="  ${DIM}│${RESET}  ${DIM}Workflow Manager ✗${RESET}"
+fi
+
+# Superpowers detection
+SP_PLUGIN_DIR="$HOME/.claude/plugins/cache/superpowers-marketplace"
+ACTIVE_SKILL_FILE="${CWD}/.claude/state/active-skill.json"
+if [ -d "$SP_PLUGIN_DIR" ]; then
+  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Superpowers ✓${RESET}"
+  # Show active skill if set
+  if [ -f "$ACTIVE_SKILL_FILE" ]; then
+    ACTIVE_SKILL=$(grep -o '"skill"[[:space:]]*:[[:space:]]*"[^"]*"' "$ACTIVE_SKILL_FILE" | grep -o '"[^"]*"$' | tr -d '"')
+    if [ -n "$ACTIVE_SKILL" ]; then
+      OUTPUT+=" ${CYAN}[${ACTIVE_SKILL}]${RESET}"
+    fi
+  fi
+else
+  OUTPUT+="  ${DIM}│${RESET}  ${DIM}Superpowers ✗${RESET}"
 fi
 
 # Claude-Mem detection

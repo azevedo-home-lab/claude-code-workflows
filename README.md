@@ -15,20 +15,31 @@ A guide to structured, accountable development with Claude Code using complement
 
 ## Workflow Manager
 
-Two-phase hard gate that prevents cowboy coding. Claude **cannot** edit files until a plan is discussed and you approve it.
+Three-phase workflow that prevents cowboy coding. Claude **cannot** edit files until a plan is discussed and you approve it. After implementation, a review phase enforces verification and code review before the task is complete.
 
 ```
-DISCUSS ──(/approve)──> IMPLEMENT ──(/discuss)──> DISCUSS
+┌──────────────────────────────────────────────────────────────────────┐
+│                                                                      │
+↓                                                                      │
+DISCUSS ──(/approve)──> IMPLEMENT ──(/review)──> REVIEW ──(/complete)──┘
+                              │                      │
+                              └───── (/discuss) ─────┘
+                              │                      │
+                              ↓                      ↓
+                           DISCUSS                DISCUSS
 ```
 
-| Phase | Write/Edit | Bash writes | Read/Grep | What to do |
-|-------|-----------|-------------|-----------|------------|
-| **DISCUSS** | Blocked | Blocked | Allowed | Brainstorm, plan, research |
-| **IMPLEMENT** | Allowed | Allowed | Allowed | Execute the approved plan |
+| Phase | Write/Edit | Bash writes | Superpowers skills | What to do |
+|-------|-----------|-------------|-------------------|------------|
+| **DISCUSS** | Blocked | Blocked | `brainstorming`, `writing-plans` | Brainstorm, plan, research |
+| **IMPLEMENT** | Allowed | Allowed | `executing-plans`, `test-driven-development` | Execute the approved plan |
+| **REVIEW** | Allowed | Allowed | `verification-before-completion`, `requesting-code-review` | Verify, test, review, fix |
 
 **Commands:**
 - `/approve` — unlock code edits (plan approved, start implementing)
-- `/discuss` — lock code edits (back to discussion for next task)
+- `/review` — enter review phase (verify and review before completing)
+- `/complete` — task done, reset to discuss for next task
+- `/discuss` — abort/rethink, go back to discussion from any phase
 
 **Install into any project:**
 ```bash

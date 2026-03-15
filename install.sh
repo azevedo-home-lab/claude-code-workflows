@@ -48,6 +48,8 @@ chmod +x "$TARGET/.claude/hooks/"*.sh
 # Copy commands
 cp "$SCRIPT_DIR/.claude/commands/approve.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/discuss.md" "$TARGET/.claude/commands/"
+cp "$SCRIPT_DIR/.claude/commands/review.md" "$TARGET/.claude/commands/"
+cp "$SCRIPT_DIR/.claude/commands/complete.md" "$TARGET/.claude/commands/"
 
 echo "Copied hooks and commands."
 

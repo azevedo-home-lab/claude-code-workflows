@@ -39,10 +39,13 @@ The hooks enforce the **discuss-before-code boundary**. Superpowers handles the 
 ## Phase Model
 
 ```
-DISCUSS ──(/approve)──> IMPLEMENT ──(/discuss)──> DISCUSS
+DISCUSS ──(/approve)──> IMPLEMENT ──(/review)──> REVIEW ──(/complete)──> DISCUSS
+                              │                      │
+                              └───── (/discuss) ─────┘ → DISCUSS
 
 DISCUSS:    Write/Edit BLOCKED, Bash writes BLOCKED, Read/Grep ALLOWED
 IMPLEMENT:  Everything ALLOWED
+REVIEW:     Everything ALLOWED (fixes from review)
 ```
 
 ## Component Responsibilities
@@ -74,21 +77,25 @@ Skills load on-demand when contextually relevant, not preloaded.
 ```
 DISCUSS PHASE (edits blocked):
   Describe what you want
-  /superpowers:brainstorm → Q&A refinement
-  /superpowers:write-plan → numbered plan
+  /superpowers:brainstorming → Q&A refinement
+  /superpowers:writing-plans → numbered plan
   Review the plan
 
-TRANSITION:
-  /approve → unlock edits
+TRANSITION: /approve → unlock edits
 
 IMPLEMENT PHASE (edits allowed):
-  /superpowers:execute-plan → step-by-step with checkpoints
-  (auto-skills: TDD, debugging, etc.)
-  /superpowers:verification-before-completion → verify
-  Commit
+  /superpowers:executing-plans → step-by-step with checkpoints
+  /superpowers:test-driven-development → tests before code
 
-TRANSITION:
-  /discuss → lock edits for next task
+TRANSITION: /review → enter review
+
+REVIEW PHASE (edits allowed for fixes):
+  /superpowers:verification-before-completion → run tests, verify claims
+  /superpowers:requesting-code-review → security, best practices, requirements
+  Fix any issues found
+
+TRANSITION: /complete → task done, back to discuss
+           /discuss → abort, rethink
 ```
 
 ## File Organization

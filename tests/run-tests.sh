@@ -138,6 +138,11 @@ source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_phase)
 assert_eq "discuss" "$RESULT" "set_phase can change back to 'discuss'"
 
+# Test: set_phase to review
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "review" "$RESULT" "set_phase supports 'review' phase"
+
 # Test: state file contains timestamp
 CONTENT=$(cat "$TMPDIR/.claude/state/phase.json")
 assert_contains "$CONTENT" "updated" "state file contains timestamp"
@@ -172,6 +177,12 @@ rm -f "$TMPDIR/.claude/state/phase.json"
 OUTPUT=$("$TMPDIR/.claude/hooks/workflow-gate.sh" 2>&1 || true)
 assert_not_contains "$OUTPUT" "deny" "allows when no state file (first run)"
 
+# Test: allows Write in REVIEW phase (edits allowed for fixes)
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+OUTPUT=$("$TMPDIR/.claude/hooks/workflow-gate.sh" 2>&1 || true)
+assert_not_contains "$OUTPUT" "deny" "allows Write/Edit in REVIEW phase"
+
 # Test: deny message mentions /approve
 setup_test_project
 source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
@@ -195,6 +206,12 @@ setup_test_project
 source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 OUTPUT=$(run_bash_guard "echo hello > file.txt")
 assert_not_contains "$OUTPUT" "deny" "allows all Bash in IMPLEMENT phase"
+
+# Test: allows all Bash in REVIEW phase
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+OUTPUT=$(run_bash_guard "echo hello > file.txt")
+assert_not_contains "$OUTPUT" "deny" "allows all Bash in REVIEW phase"
 
 # Test: allows read-only Bash in DISCUSS phase
 setup_test_project
@@ -258,6 +275,8 @@ assert_file_exists "$INSTALL_TARGET/.claude/hooks/bash-write-guard.sh" "install 
 assert_file_exists "$INSTALL_TARGET/.claude/hooks/workflow-state.sh" "install creates workflow-state.sh"
 assert_file_exists "$INSTALL_TARGET/.claude/commands/approve.md" "install creates approve.md"
 assert_file_exists "$INSTALL_TARGET/.claude/commands/discuss.md" "install creates discuss.md"
+assert_file_exists "$INSTALL_TARGET/.claude/commands/review.md" "install creates review.md"
+assert_file_exists "$INSTALL_TARGET/.claude/commands/complete.md" "install creates complete.md"
 assert_file_exists "$INSTALL_TARGET/.claude/settings.json" "install creates settings.json"
 
 # Test: hooks are executable
@@ -329,12 +348,80 @@ assert_file_not_exists "$UNINSTALL_TARGET/.claude/hooks/bash-write-guard.sh" "un
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/hooks/workflow-state.sh" "uninstall removes workflow-state.sh"
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/approve.md" "uninstall removes approve.md"
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/discuss.md" "uninstall removes discuss.md"
+assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/review.md" "uninstall removes review.md"
+assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/complete.md" "uninstall removes complete.md"
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/state" "uninstall removes state directory"
 
 # Test: settings.json preserved (not deleted by uninstall)
 assert_file_exists "$UNINSTALL_TARGET/.claude/settings.json" "uninstall preserves settings.json"
 
 rm -rf "$UNINSTALL_TARGET"
+
+# ============================================================
+# TEST SUITE: statusline.sh
+# ============================================================
+echo ""
+echo "=== statusline.sh ==="
+
+STATUSLINE="$REPO_DIR/statusline/statusline.sh"
+
+# Helper: run statusline with mock JSON
+run_statusline() {
+    echo "$1" | "$STATUSLINE" 2>/dev/null || true
+}
+
+# Test: parses model name
+OUTPUT=$(run_statusline '{"model":{"display_name":"Opus 4.6"},"context_window":{"used_percentage":25,"context_window_size":200000,"current_usage":{"input_tokens":50000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/test"}')
+assert_contains "$OUTPUT" "Opus 4.6" "statusline shows model name"
+
+# Test: shows percentage
+assert_contains "$OUTPUT" "25%" "statusline shows context percentage"
+
+# Test: shows token counts
+assert_contains "$OUTPUT" "50k/200k" "statusline shows token counts (Xk/Yk)"
+
+# Test: blue bar color for <50%
+assert_contains "$OUTPUT" '\[34m' "statusline uses blue for <50% usage"
+
+# Test: yellow bar for 50-80%
+OUTPUT=$(run_statusline '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":65,"context_window_size":200000,"current_usage":{"input_tokens":130000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/test"}')
+assert_contains "$OUTPUT" '\[33m' "statusline uses yellow for 50-80% usage"
+
+# Test: red bar for >80%
+OUTPUT=$(run_statusline '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":90,"context_window_size":200000,"current_usage":{"input_tokens":180000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/test"}')
+assert_contains "$OUTPUT" '\[31m' "statusline uses red for >80% usage"
+
+# Test: shows Workflow Manager ✗ when not installed
+OUTPUT=$(run_statusline '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":10,"context_window_size":200000,"current_usage":{"input_tokens":20000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/nonexistent"}')
+assert_contains "$OUTPUT" "Workflow Manager" "statusline shows Workflow Manager label"
+
+# Test: handles missing token data gracefully
+OUTPUT=$(run_statusline '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":0},"cwd":"/tmp/test"}')
+assert_contains "$OUTPUT" "0%" "statusline handles missing token data"
+
+# Test: shows Superpowers ✓ when plugin installed
+if [ -d "$HOME/.claude/plugins/cache/superpowers-marketplace" ]; then
+    OUTPUT=$(run_statusline '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":10,"context_window_size":200000,"current_usage":{"input_tokens":20000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/test"}')
+    assert_contains "$OUTPUT" "Superpowers" "statusline shows Superpowers label"
+fi
+
+# Test: shows active skill in statusline
+SL_TEST_DIR=$(mktemp -d)
+mkdir -p "$SL_TEST_DIR/.claude/state"
+echo '{"skill": "brainstorming", "updated": "test"}' > "$SL_TEST_DIR/.claude/state/active-skill.json"
+OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_TEST_DIR\"}")
+assert_contains "$OUTPUT" "brainstorming" "statusline shows active skill name"
+rm -rf "$SL_TEST_DIR"
+
+# Test: no skill shown when skill field is empty
+SL_TEST_DIR2=$(mktemp -d)
+mkdir -p "$SL_TEST_DIR2/.claude/state"
+echo '{"skill": "", "updated": "test"}' > "$SL_TEST_DIR2/.claude/state/active-skill.json"
+OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_TEST_DIR2\"}")
+# Strip ANSI codes and check for empty brackets like "[]"
+CLEAN_OUTPUT=$(echo "$OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
+assert_not_contains "$CLEAN_OUTPUT" "\[\]" "statusline hides empty skill brackets"
+rm -rf "$SL_TEST_DIR2"
 
 # ============================================================
 # RESULTS
