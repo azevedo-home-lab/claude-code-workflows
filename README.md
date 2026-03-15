@@ -1,9 +1,10 @@
 # Claude Code Workflows
 
-A guide to structured, accountable development with Claude Code using two complementary tools:
+A guide to structured, accountable development with Claude Code using three complementary tools:
 
 - **Superpowers** — Specialized skills (brainstorming, TDD, planning, debugging, code review)
 - **claude-mem** — Cross-session persistent memory via MCP server
+- **Status Line** — Minimal, color-coded status bar showing model, context usage, git branch, and worktree info
 
 ## Quick Start
 
@@ -41,12 +42,40 @@ MCP server that persists observations across sessions. Replaces manual handover 
 - **During**: Observations saved automatically as you work
 - **End**: Key decisions and findings persisted for next session
 
+### Status Line
+
+A minimal single-line status bar with color-coded context usage and worktree support:
+
+```
+Opus  │  ▓▓░░░░░░░░ 25%  │   main  │  ~/Projects/MyApp
+```
+
+**Quick install:**
+```bash
+cp statusline/statusline.sh ~/.claude/statusline.sh
+chmod +x ~/.claude/statusline.sh
+```
+
+Then add to `~/.claude/settings.json`:
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh",
+    "padding": 2
+  }
+}
+```
+
+See the [Status Line Guide](docs/guides/statusline-guide.md) for full details, customization, and available session data fields.
+
 ## Documentation
 
 ### Guides
 - [Getting Started](docs/guides/getting-started.md) - Installation and first workflow
 - [Integration Guide](docs/guides/integration-guide.md) - How Superpowers skills work together
 - [Cross-Session Memory](docs/guides/claude-mem-guide.md) - claude-mem usage and handover patterns
+- [Status Line](docs/guides/statusline-guide.md) - Setup, customization, and available data fields
 
 ### Reference
 - [Command Reference](docs/quick-reference/commands.md) - All commands

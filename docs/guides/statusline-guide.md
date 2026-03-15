@@ -1,0 +1,118 @@
+# Claude Code Status Line Setup Guide
+
+A minimal, color-coded status bar for Claude Code that shows model, context usage, git branch, and worktree info at a glance.
+
+## What It Shows
+
+```
+Opus  │  ▓▓░░░░░░░░ 25%  │   main  │  ~/Projects/MyApp
+```
+
+| Element | Description |
+|---------|-------------|
+| **Model name** | Active model (Opus, Sonnet, Haiku) in bold |
+| **Context bar** | 10-char visual gauge with color coding |
+| **Git branch** | Current branch with  icon |
+| **Worktree** | Worktree name with ⊟ icon (only when active) |
+| **Directory** | Shortened working directory path |
+
+### Context Bar Colors
+
+| Color | Usage Range | Meaning |
+|-------|-------------|---------|
+| Green | 0–49% | Plenty of room |
+| Yellow | 50–79% | Getting full, be aware |
+| Red | 80–100% | Near limit, expect compression soon |
+
+### With Worktree Active
+
+```
+Sonnet  │  ▓▓▓▓▓▓░░░░ 65%  │   feature/auth  ⊟ auth-worktree  │  ~/Projects/MyApp
+```
+
+## Prerequisites
+
+- **jq** — JSON processor (used to parse session data from stdin)
+  ```bash
+  brew install jq        # macOS
+  sudo apt install jq    # Debian/Ubuntu
+  ```
+
+## Installation
+
+### 1. Copy the script
+
+```bash
+cp statusline/statusline.sh ~/.claude/statusline.sh
+chmod +x ~/.claude/statusline.sh
+```
+
+### 2. Add to Claude Code settings
+
+Add the `statusLine` block to `~/.claude/settings.json`:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh",
+    "padding": 2
+  }
+}
+```
+
+See [`statusline/settings.json.example`](../../statusline/settings.json.example) for reference.
+
+### 3. Restart Claude Code
+
+The status line appears on the next session (or may pick up immediately).
+
+## Testing
+
+Test the script manually by piping sample JSON:
+
+```bash
+echo '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":25},"cwd":"/Users/you/project","worktree":{"name":null,"branch":null}}' | ~/.claude/statusline.sh
+```
+
+Test with worktree active:
+
+```bash
+echo '{"model":{"display_name":"Sonnet"},"context_window":{"used_percentage":65},"cwd":"/Users/you/project","worktree":{"name":"feature-auth","branch":"feature/auth-refactor"}}' | ~/.claude/statusline.sh
+```
+
+## Customization
+
+The script is at `~/.claude/statusline.sh`. Common modifications:
+
+- **Change bar length**: Edit `FILLED=$((USED_PCT / 10))` and `EMPTY=$((10 - FILLED))` — divide by 5 for a 20-char bar
+- **Change bar characters**: Replace `▓` and `░` with any characters (e.g., `█` and `─`)
+- **Change path truncation**: Adjust the `30` in the length check to show more/less of the path
+- **Add more info**: Echo additional lines — each `echo`/`printf` creates a new row in the status bar
+
+## Available Session Data
+
+The script receives JSON via stdin with these fields:
+
+| Field | Description |
+|-------|-------------|
+| `model.display_name` | Human-readable model name |
+| `model.id` | Model identifier |
+| `context_window.used_percentage` | Context usage as percentage |
+| `context_window.context_window_size` | Max context size |
+| `cwd` | Current working directory |
+| `worktree.name` | Active worktree name (null if none) |
+| `worktree.branch` | Worktree git branch (null if none) |
+| `cost.total_cost_usd` | Session cost in USD |
+| `cost.total_duration_ms` | Total session time |
+| `cost.total_lines_added` | Lines added this session |
+| `cost.total_lines_removed` | Lines removed this session |
+| `session_id` | Unique session identifier |
+| `version` | Claude Code version |
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| [`statusline/statusline.sh`](../../statusline/statusline.sh) | The status line script |
+| [`statusline/settings.json.example`](../../statusline/settings.json.example) | Example settings.json snippet |
