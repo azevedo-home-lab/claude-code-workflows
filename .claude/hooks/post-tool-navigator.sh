@@ -55,12 +55,12 @@ esac
 set_message_shown
 
 # Return message via hookSpecificOutput
-python3 -c "
-import json
+MSG="$MSG" python3 -c "
+import json, os
 output = {
     'hookSpecificOutput': {
         'hookEventName': 'PostToolUse',
-        'systemMessage': '$MSG'
+        'systemMessage': os.environ['MSG']
     }
 }
 print(json.dumps(output))

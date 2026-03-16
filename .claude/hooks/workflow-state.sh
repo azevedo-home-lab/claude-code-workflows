@@ -84,15 +84,17 @@ get_review_field() {
     fi
     local value
     value=$(python3 -c "
-import json
-with open('$REVIEW_STATUS_FILE') as f:
+import json, sys
+field = sys.argv[1]
+filepath = sys.argv[2]
+with open(filepath) as f:
     d = json.load(f)
-v = d.get('$field', '')
+v = d.get(field, '')
 if isinstance(v, bool):
     print(str(v).lower())
 else:
     print(v)
-" 2>/dev/null || echo "")
+" "$field" "$REVIEW_STATUS_FILE" 2>/dev/null || echo "")
     echo "$value"
 }
 
@@ -102,17 +104,20 @@ set_review_field() {
     if [ ! -f "$REVIEW_STATUS_FILE" ]; then
         return
     fi
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     python3 -c "
-import json
-with open('$REVIEW_STATUS_FILE', 'r') as f:
+import json, sys
+field, value, ts, filepath = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+with open(filepath, 'r') as f:
     d = json.load(f)
-if '$value' in ('true', 'false'):
-    d['$field'] = '$value' == 'true'
+if value in ('true', 'false'):
+    d[field] = value == 'true'
 else:
-    d['$field'] = '$value'
-d['updated'] = '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
-with open('$REVIEW_STATUS_FILE', 'w') as f:
+    d[field] = value
+d['updated'] = ts
+with open(filepath, 'w') as f:
     json.dump(d, f, indent=2)
     f.write('\n')
-" 2>/dev/null
+" "$field" "$value" "$ts" "$REVIEW_STATUS_FILE"
 }
