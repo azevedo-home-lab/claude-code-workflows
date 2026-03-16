@@ -1,0 +1,24 @@
+{
+  "Profiles": [
+    {
+      "Name": "Claude Code",
+      "Guid": "claude-code-profile-001",
+      "Tags": ["claude", "ai"],
+      "Unlimited Scrollback": true,
+      "Scrollback Lines": 50000,
+      "Silence Bell": true,
+      "BM Growl": true,
+      "Send Bell Alert": true,
+      "Send Idle Alert": false,
+      "Idle Period": 2,
+      "Terminal Type": "xterm-256color",
+      "Option Key Sends": 2,
+      "Right Option Key Sends": 2,
+      "Badge Text": "Claude",
+      "Use Bold Font": true,
+      "ASCII Anti Aliased": true,
+      "Non-ASCII Anti Aliased": true,
+      "Custom Command": "No"
+    }
+  ]
+}
