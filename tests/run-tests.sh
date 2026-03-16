@@ -169,6 +169,21 @@ rm -rf "$TMPDIR/.claude/state"
 source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 assert_file_exists "$TMPDIR/.claude/state/phase.json" "set_phase creates state dir if missing"
 
+# Test: set_phase rejects invalid phase names
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+OUTPUT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "invalid_phase" 2>&1 || true)
+assert_contains "$OUTPUT" "ERROR" "set_phase rejects invalid phase name"
+# Verify phase didn't change
+RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "implement" "$RESULT" "set_phase keeps previous phase after rejection"
+
+# Test: set_phase accepts 'off' phase
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "off"
+RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "off" "$RESULT" "set_phase accepts 'off' phase"
+
 # Test: set_phase cleans up review-status.json when leaving review
 setup_test_project
 source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
@@ -342,6 +357,12 @@ assert_contains "$OUTPUT" "deny" "blocks 'cat > file.txt << EOF' in DISCUSS"
 # Test: blocks python file write in DISCUSS phase
 OUTPUT=$(echo '{"tool_input":{"command":"python3 -c \"open('"'"'f'"'"','"'"'w'"'"').write('"'"'x'"'"')\""}}' | "$TMPDIR/.claude/hooks/bash-write-guard.sh" 2>&1 || true)
 assert_contains "$OUTPUT" "deny" "blocks python3 -c file write in DISCUSS"
+
+# Test: allows all Bash in OFF phase
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "off"
+OUTPUT=$(run_bash_guard "echo hello > file.txt")
+assert_not_contains "$OUTPUT" "deny" "allows all Bash in OFF phase"
 
 # Test: allows when no state file
 setup_test_project

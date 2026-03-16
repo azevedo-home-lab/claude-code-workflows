@@ -4,9 +4,10 @@
 # Catches: redirections, sed -i, tee, heredocs, python file writes
 #
 # Whitelisted paths (allowed in DISCUSS phase):
-#   - .claude/state/         (workflow state files)
-#   - docs/superpowers/specs/ (design specs)
-#   - docs/plans/            (implementation plans)
+#   - .claude/state/              (workflow state files)
+#   - docs/superpowers/specs/     (design specs)
+#   - docs/superpowers/plans/     (implementation plans)
+#   - docs/plans/                 (implementation plans, legacy path)
 
 set -euo pipefail
 
@@ -20,8 +21,8 @@ fi
 
 PHASE=$(get_phase)
 
-# Allow everything in implement and review phases
-if [ "$PHASE" = "implement" ] || [ "$PHASE" = "review" ]; then
+# Allow everything in non-discuss phases (off, implement, review)
+if [ "$PHASE" != "discuss" ]; then
     exit 0
 fi
 

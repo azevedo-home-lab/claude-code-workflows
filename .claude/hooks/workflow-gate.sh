@@ -3,9 +3,10 @@
 # Matcher: Write|Edit|MultiEdit|NotebookEdit
 #
 # Whitelisted paths (allowed in DISCUSS phase):
-#   - .claude/state/         (workflow state files)
-#   - docs/superpowers/specs/ (design specs)
-#   - docs/plans/            (implementation plans)
+#   - .claude/state/              (workflow state files)
+#   - docs/superpowers/specs/     (design specs)
+#   - docs/superpowers/plans/     (implementation plans)
+#   - docs/plans/                 (implementation plans, legacy path)
 
 set -euo pipefail
 

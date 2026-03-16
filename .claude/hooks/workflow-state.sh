@@ -21,6 +21,13 @@ get_phase() {
 
 set_phase() {
     local new_phase="$1"
+
+    # Validate phase name
+    case "$new_phase" in
+        off|discuss|implement|review) ;;
+        *) echo "ERROR: Invalid phase: $new_phase (valid: off, discuss, implement, review)" >&2; return 1 ;;
+    esac
+
     local current_phase
     current_phase=$(get_phase)
 
