@@ -71,19 +71,33 @@ Stage all changed files relevant to the task and commit. Follow the project's co
 
 If there are no changes to commit (clean working tree and no new commits beyond main), skip this step and note "Nothing to commit."
 
-### Step 3: Verification
+### Step 3: Plan Validation
 
-Run the project's test suite against the committed state to confirm everything works:
+Tests already ran during `/review`. This step validates that the **plan deliverables and spec outcomes** were actually delivered.
 
-1. Look for test commands: `tests/run-tests.sh`, `npm test`, `pytest`, `make test`, `cargo test`, etc.
-2. If tests found → run them
-   - If tests **pass** → continue to next step
-   - If tests **fail** → report failures and ask: "Fix now and re-commit, or proceed anyway?"
-     - If fix → make fixes, amend or create new commit, re-run tests
-     - If proceed → continue with a warning note for the handover
-3. If no tests found → report "No tests found — skipping verification"
+**If a plan file exists** (check `docs/superpowers/plans/`, `docs/plans/`, or any plan referenced in the session):
 
-Also verify that any spec/plan deliverables are actually present and correct (e.g., if a plan said "create X", confirm X exists).
+1. Read the plan file
+2. Extract every deliverable, acceptance criterion, and expected outcome
+3. For each item, verify with **evidence** — not "I believe this works" but proof:
+   - File exists? → `ls` or `cat` the file
+   - Endpoint works? → `curl` it
+   - Behavior changed? → demonstrate the before/after
+   - Config applied? → show the config value
+   - Security fix? → demonstrate the attack vector is blocked
+4. Present a checklist to the user:
+   ```
+   ## Plan Validation
+   - [x] Deliverable 1 — evidence: [what you checked]
+   - [x] Deliverable 2 — evidence: [what you checked]
+   - [ ] Deliverable 3 — MISSING: [what's wrong]
+   ```
+5. If any item fails:
+   - Report what's missing and ask: "Fix now and re-commit, or proceed anyway?"
+   - If fix → make fixes, create new commit, re-validate the failed items
+   - If proceed → note the gaps in the handover observation
+
+**If no plan file exists**: report "No plan file found — skipping plan validation" and continue.
 
 ### Step 4: Handover (Claude-Mem Observation)
 
