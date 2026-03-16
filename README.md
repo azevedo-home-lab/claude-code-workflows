@@ -53,9 +53,11 @@ When you run `/review`, it executes a structured pipeline:
 
 When you run `/complete`, it verifies and closes the task:
 1. **Pre-completion checks** — blocks if review wasn't completed
-2. **Claude-mem observation** — saves session summary for future context
-3. **Smart docs detection** — recommends documentation updates based on changed files
-4. **Phase transition** — resets to OFF (normal operation)
+2. **Smart docs detection** — recommends documentation updates (included in commit)
+3. **Commit & Push** — stage, commit with conventional message, optional push
+4. **Plan validation** — if a plan file exists, verifies each deliverable with evidence (behavioral deliverables must be demonstrated, not just grep'd)
+5. **Handover** — claude-mem observation with commit hash and verification results
+6. **Phase transition** — resets to OFF (normal operation)
 
 **Install into any project:**
 ```bash
