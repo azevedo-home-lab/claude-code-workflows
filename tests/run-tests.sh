@@ -169,42 +169,108 @@ rm -rf "$TMPDIR/.claude/state"
 source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 assert_file_exists "$TMPDIR/.claude/state/phase.json" "set_phase creates state dir if missing"
 
+# Test: set_phase cleans up review-status.json when leaving review
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && reset_review_status
+assert_file_exists "$TMPDIR/.claude/state/review-status.json" "review-status exists in review phase"
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+assert_file_not_exists "$TMPDIR/.claude/state/review-status.json" "set_phase deletes review-status when leaving review"
+
+# Test: set_phase does NOT delete review-status.json when staying in review (re-run)
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && reset_review_status
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+assert_file_exists "$TMPDIR/.claude/state/review-status.json" "re-entering review keeps review-status"
+
+# Test: reset_review_status creates review-status.json
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && reset_review_status
+assert_file_exists "$TMPDIR/.claude/state/review-status.json" "reset_review_status creates file"
+
+# Test: review-status.json has correct initial fields
+CONTENT=$(cat "$TMPDIR/.claude/state/review-status.json")
+assert_contains "$CONTENT" '"verification_complete": false' "review-status has verification_complete false"
+assert_contains "$CONTENT" '"verification_skipped": false' "review-status has verification_skipped false"
+assert_contains "$CONTENT" '"agents_dispatched": false' "review-status has agents_dispatched false"
+assert_contains "$CONTENT" '"findings_presented": false' "review-status has findings_presented false"
+assert_contains "$CONTENT" '"findings_acknowledged": false' "review-status has findings_acknowledged false"
+
+# Test: set_review_field updates a field
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_review_field "verification_complete" "true"
+RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_review_field "verification_complete")
+assert_eq "true" "$RESULT" "set_review_field updates verification_complete"
+
+# Test: get_review_field returns false for unset field
+RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_review_field "agents_dispatched")
+assert_eq "false" "$RESULT" "get_review_field returns false for unset field"
+
+# Test: get_review_field returns empty when no file
+rm -f "$TMPDIR/.claude/state/review-status.json"
+RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_review_field "verification_complete")
+assert_eq "" "$RESULT" "get_review_field returns empty when no file"
+
 # ============================================================
 # TEST SUITE: workflow-gate.sh
 # ============================================================
 echo ""
 echo "=== workflow-gate.sh ==="
 
-# Test: blocks Write in DISCUSS phase
+# Helper: run workflow-gate with a file path
+run_gate() {
+    local file_path="$1"
+    echo "{\"tool_input\":{\"file_path\":\"$file_path\"}}" | "$TMPDIR/.claude/hooks/workflow-gate.sh" 2>&1 || true
+}
+
+# Test: blocks Write to source files in DISCUSS phase
 setup_test_project
 source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-OUTPUT=$("$TMPDIR/.claude/hooks/workflow-gate.sh" 2>&1 || true)
-assert_contains "$OUTPUT" "deny" "blocks Write/Edit in DISCUSS phase"
+OUTPUT=$(run_gate "/project/src/main.py")
+assert_contains "$OUTPUT" "deny" "blocks Write/Edit to source files in DISCUSS phase"
 assert_contains "$OUTPUT" "BLOCKED" "shows BLOCKED message in DISCUSS"
 
 # Test: allows Write in IMPLEMENT phase
 setup_test_project
 source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-OUTPUT=$("$TMPDIR/.claude/hooks/workflow-gate.sh" 2>&1 || true)
+OUTPUT=$(run_gate "/project/src/main.py")
 assert_not_contains "$OUTPUT" "deny" "allows Write/Edit in IMPLEMENT phase"
 
 # Test: allows when no state file (first run)
 setup_test_project
 rm -f "$TMPDIR/.claude/state/phase.json"
-OUTPUT=$("$TMPDIR/.claude/hooks/workflow-gate.sh" 2>&1 || true)
+OUTPUT=$(run_gate "/project/src/main.py")
 assert_not_contains "$OUTPUT" "deny" "allows when no state file (first run)"
 
 # Test: allows Write in REVIEW phase (edits allowed for fixes)
 setup_test_project
 source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
-OUTPUT=$("$TMPDIR/.claude/hooks/workflow-gate.sh" 2>&1 || true)
+OUTPUT=$(run_gate "/project/src/main.py")
 assert_not_contains "$OUTPUT" "deny" "allows Write/Edit in REVIEW phase"
 
 # Test: deny message mentions /approve
 setup_test_project
 source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-OUTPUT=$("$TMPDIR/.claude/hooks/workflow-gate.sh" 2>&1 || true)
+OUTPUT=$(run_gate "/project/src/main.py")
 assert_contains "$OUTPUT" "/approve" "deny message mentions /approve command"
+
+# Test: allows Write to .claude/state/ in DISCUSS phase (whitelist)
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+OUTPUT=$(run_gate "/project/.claude/state/phase.json")
+assert_not_contains "$OUTPUT" "deny" "allows Write to .claude/state/ in DISCUSS (whitelist)"
+
+# Test: allows Write to docs/superpowers/specs/ in DISCUSS phase (whitelist)
+OUTPUT=$(run_gate "/project/docs/superpowers/specs/2026-03-16-design.md")
+assert_not_contains "$OUTPUT" "deny" "allows Write to docs/superpowers/specs/ in DISCUSS (whitelist)"
+
+# Test: allows Write to docs/plans/ in DISCUSS phase (whitelist)
+OUTPUT=$(run_gate "/project/docs/plans/2026-03-16-plan.md")
+assert_not_contains "$OUTPUT" "deny" "allows Write to docs/plans/ in DISCUSS (whitelist)"
+
+# Test: still blocks non-whitelisted paths in DISCUSS phase
+OUTPUT=$(run_gate "/project/src/app.js")
+assert_contains "$OUTPUT" "deny" "blocks Write to non-whitelisted path in DISCUSS"
 
 # ============================================================
 # TEST SUITE: bash-write-guard.sh
@@ -276,6 +342,20 @@ setup_test_project
 rm -f "$TMPDIR/.claude/state/phase.json"
 OUTPUT=$(run_bash_guard "echo hello > file.txt")
 assert_not_contains "$OUTPUT" "deny" "allows Bash writes when no state file (first run)"
+
+# Test: allows writes to .claude/state/ in DISCUSS phase (whitelist)
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+OUTPUT=$(run_bash_guard "echo '{\"phase\":\"implement\"}' > .claude/state/phase.json")
+assert_not_contains "$OUTPUT" "deny" "allows Bash write to .claude/state/ in DISCUSS (whitelist)"
+
+# Test: allows writes to docs/superpowers/specs/ in DISCUSS phase (whitelist)
+OUTPUT=$(run_bash_guard "cat > docs/superpowers/specs/design.md << EOF")
+assert_not_contains "$OUTPUT" "deny" "allows Bash write to docs/superpowers/specs/ in DISCUSS (whitelist)"
+
+# Test: allows writes to docs/plans/ in DISCUSS phase (whitelist)
+OUTPUT=$(run_bash_guard "echo 'plan content' > docs/plans/plan.md")
+assert_not_contains "$OUTPUT" "deny" "allows Bash write to docs/plans/ in DISCUSS (whitelist)"
 
 # ============================================================
 # TEST SUITE: install.sh

@@ -44,7 +44,7 @@ case "$PHASE" in
         MSG="You are in IMPLEMENT phase. Code was modified. Next steps: continue implementing the approved plan, use superpowers:executing-plans with review checkpoints and superpowers:test-driven-development for tests before code. When implementation is complete, user will /review to enter review phase. User can /discuss to go back to discussion at any time."
         ;;
     review)
-        MSG="You are in REVIEW phase. Next steps: use superpowers:verification-before-completion to run tests, check output, and verify all claims with evidence. Then use superpowers:requesting-code-review to review for security, best practices, and requirements compliance. Fix any issues found. When review passes, user will /complete to finish the task. User can /discuss to go back to discussion at any time."
+        MSG="You are in REVIEW phase. The /review command has initiated the review pipeline. Follow the pipeline steps: run tests, detect changes, dispatch review agents, verify findings, present consolidated report. When review passes, user will /complete to finish. User can /discuss to go back at any time."
         ;;
     *)
         exit 0

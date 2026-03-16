@@ -16,11 +16,19 @@ get_phase() {
 }
 
 set_phase() {
-    local phase="$1"
+    local new_phase="$1"
+    local current_phase
+    current_phase=$(get_phase)
+
+    # Clean up review state when leaving review phase
+    if [ "$current_phase" = "review" ] && [ "$new_phase" != "review" ]; then
+        rm -f "$STATE_DIR/review-status.json"
+    fi
+
     mkdir -p "$STATE_DIR"
     cat > "$STATE_FILE" <<EOF
 {
-  "phase": "$phase",
+  "phase": "$new_phase",
   "message_shown": false,
   "updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
@@ -49,4 +57,62 @@ set_message_shown() {
 }
 EOF
     fi
+}
+
+# Review status helpers
+REVIEW_STATUS_FILE="$STATE_DIR/review-status.json"
+
+reset_review_status() {
+    mkdir -p "$STATE_DIR"
+    cat > "$REVIEW_STATUS_FILE" <<EOF
+{
+  "verification_complete": false,
+  "verification_skipped": false,
+  "agents_dispatched": false,
+  "findings_presented": false,
+  "findings_acknowledged": false,
+  "updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+}
+
+get_review_field() {
+    local field="$1"
+    if [ ! -f "$REVIEW_STATUS_FILE" ]; then
+        echo ""
+        return
+    fi
+    local value
+    value=$(python3 -c "
+import json
+with open('$REVIEW_STATUS_FILE') as f:
+    d = json.load(f)
+v = d.get('$field', '')
+if isinstance(v, bool):
+    print(str(v).lower())
+else:
+    print(v)
+" 2>/dev/null || echo "")
+    echo "$value"
+}
+
+set_review_field() {
+    local field="$1"
+    local value="$2"
+    if [ ! -f "$REVIEW_STATUS_FILE" ]; then
+        return
+    fi
+    python3 -c "
+import json
+with open('$REVIEW_STATUS_FILE', 'r') as f:
+    d = json.load(f)
+if '$value' in ('true', 'false'):
+    d['$field'] = '$value' == 'true'
+else:
+    d['$field'] = '$value'
+d['updated'] = '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+with open('$REVIEW_STATUS_FILE', 'w') as f:
+    json.dump(d, f, indent=2)
+    f.write('\n')
+" 2>/dev/null
 }

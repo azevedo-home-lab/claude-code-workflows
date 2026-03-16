@@ -2,6 +2,11 @@
 # Workflow Manager: blocks Bash write operations in DISCUSS phase
 # Matcher: Bash
 # Catches: redirections, sed -i, tee, heredocs, python file writes
+#
+# Whitelisted paths (allowed in DISCUSS phase):
+#   - .claude/state/         (workflow state files)
+#   - docs/superpowers/specs/ (design specs)
+#   - docs/plans/            (implementation plans)
 
 set -euo pipefail
 
@@ -28,6 +33,11 @@ COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); p
 
 # If we can't extract the command, allow (fail open)
 if [ -z "$COMMAND" ]; then
+    exit 0
+fi
+
+# Allow writes to whitelisted paths (state, specs, plans)
+if echo "$COMMAND" | grep -qE '(\.claude/state/|docs/superpowers/specs/|docs/superpowers/plans/|docs/plans/)'; then
     exit 0
 fi
 
