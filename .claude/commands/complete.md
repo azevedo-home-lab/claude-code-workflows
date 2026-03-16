@@ -33,19 +33,9 @@ If all checks pass, execute the completion pipeline below.
 
 ## Completion Pipeline
 
-### Step 1: Claude-Mem Summary Observation
+### Step 1: Smart Documentation Detection
 
-Save a summary observation to claude-mem using the `save_observation` MCP tool. Include:
-- What was built or changed (summarize from `git diff --stat main...HEAD`)
-- Key decisions made during the session
-- Any gotchas or learnings discovered
-- Files modified
-
-This always runs — it ensures future sessions have context about this work.
-
-### Step 2: Smart Documentation Detection
-
-Analyze what changed (from `git diff --name-only main...HEAD`) and recommend documentation updates:
+Analyze what changed (from `git diff --name-only main...HEAD` plus unstaged/untracked files) and recommend documentation updates:
 - Services modified → suggest updating relevant service doc in `docs/services/`
 - CLAUDE.md-referenced features changed → suggest updating CLAUDE.md
 - New scripts/commands added → suggest updating README or `docs/operations/script-reference.md`
@@ -53,10 +43,65 @@ Analyze what changed (from `git diff --name-only main...HEAD`) and recommend doc
 - Nothing needs updating → report "No documentation updates needed"
 
 Present recommendations and ask: "Update these now? (yes / no / skip)"
-- If **yes** → make the documentation updates
+- If **yes** → make the documentation updates (they'll be included in the commit)
 - If **no/skip** → proceed without docs update
 
-### Step 3: Phase Transition
+### Step 2: Commit & Push
+
+Stage all changed files relevant to the task and commit. Follow the project's commit conventions:
+
+1. Run `git status` and `git diff --stat` to see what needs committing
+2. Stage the relevant files (prefer specific files over `git add -A`)
+3. Draft a concise conventional commit message summarizing the work
+4. Commit with YubiKey touch banner:
+   ```bash
+   echo "========== YUBIKEY: TOUCH NOW FOR GIT COMMIT ==========" && git commit -m "$(cat <<'EOF'
+   <type>: <description>
+
+   Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+   EOF
+   )"
+   ```
+5. Ask the user: "Push to remote? (yes / no)"
+   - If **yes** → push with YubiKey touch banner:
+     ```bash
+     echo "========== YUBIKEY: TOUCH NOW FOR GIT PUSH ==========" && git push
+     ```
+   - If **no** → skip push, note that changes are committed locally
+
+If there are no changes to commit (clean working tree and no new commits beyond main), skip this step and note "Nothing to commit."
+
+### Step 3: Verification
+
+Run the project's test suite against the committed state to confirm everything works:
+
+1. Look for test commands: `tests/run-tests.sh`, `npm test`, `pytest`, `make test`, `cargo test`, etc.
+2. If tests found → run them
+   - If tests **pass** → continue to next step
+   - If tests **fail** → report failures and ask: "Fix now and re-commit, or proceed anyway?"
+     - If fix → make fixes, amend or create new commit, re-run tests
+     - If proceed → continue with a warning note for the handover
+3. If no tests found → report "No tests found — skipping verification"
+
+Also verify that any spec/plan deliverables are actually present and correct (e.g., if a plan said "create X", confirm X exists).
+
+### Step 4: Handover (Claude-Mem Observation)
+
+Save a summary observation to claude-mem using the `save_observation` MCP tool. This captures the full session context for future sessions.
+
+Include:
+- **What was built or changed** (summarize the work done)
+- **Commit hash** (from `git rev-parse --short HEAD`)
+- **Verification results** (tests passed/failed/skipped, deliverables confirmed)
+- **Key decisions** made during the session
+- **Gotchas or learnings** discovered that future sessions should know
+- **Files modified** (key files, not exhaustive list)
+
+Set the `project` parameter to match the current project name.
+
+This always runs — it ensures future sessions have context about this work.
+
+### Step 5: Phase Transition
 
 Run this command to complete the task:
 ```bash
