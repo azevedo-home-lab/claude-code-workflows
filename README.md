@@ -15,31 +15,47 @@ A guide to structured, accountable development with Claude Code using complement
 
 ## Workflow Manager
 
-Three-phase workflow that prevents cowboy coding. Claude **cannot** edit files until a plan is discussed and you approve it. After implementation, a review phase enforces verification and code review before the task is complete.
+Four-phase workflow that prevents cowboy coding. Claude **cannot** edit files until a plan is discussed and you approve it. After implementation, a multi-agent review pipeline verifies code quality, security, and architecture before the task is complete.
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│                                                                      │
-↓                                                                      │
-DISCUSS ──(/approve)──> IMPLEMENT ──(/review)──> REVIEW ──(/complete)──┘
-                              │                      │
-                              └───── (/discuss) ─────┘
-                              │                      │
-                              ↓                      ↓
-                           DISCUSS                DISCUSS
+OFF ──(/discuss)──> DISCUSS ──(/approve)──> IMPLEMENT ──(/review)──> REVIEW ──(/complete)──> OFF
+                                                  │                      │
+                                                  └───── (/discuss) ─────┘
+
+                              /override <phase>  — jump to any phase directly
 ```
 
-| Phase | Write/Edit | Bash writes | Superpowers skills | What to do |
-|-------|-----------|-------------|-------------------|------------|
-| **DISCUSS** | Blocked | Blocked | `brainstorming`, `writing-plans` | Brainstorm, plan, research |
-| **IMPLEMENT** | Allowed | Allowed | `executing-plans`, `test-driven-development` | Execute the approved plan |
-| **REVIEW** | Allowed | Allowed | `verification-before-completion`, `requesting-code-review` | Verify, test, review, fix |
+| Phase | Write/Edit | Bash writes | What to do |
+|-------|-----------|-------------|------------|
+| **OFF** | Allowed | Allowed | Normal Claude Code operation, no enforcement |
+| **DISCUSS** | Blocked (except specs/plans) | Blocked (except specs/plans) | Brainstorm, plan, write design specs |
+| **IMPLEMENT** | Allowed | Allowed | Execute the approved plan with TDD |
+| **REVIEW** | Allowed | Allowed | Multi-agent review pipeline |
 
 **Commands:**
+- `/discuss` — start a workflow (brainstorming, edits blocked)
 - `/approve` — unlock code edits (plan approved, start implementing)
-- `/review` — enter review phase (verify and review before completing)
-- `/complete` — task done, reset to discuss for next task
-- `/discuss` — abort/rethink, go back to discussion from any phase
+- `/review` — run multi-agent review pipeline (3 parallel reviewers + verification)
+- `/complete` — verified completion (claude-mem observation, docs check, back to off)
+- `/override <phase>` — jump directly to any phase (off/discuss/implement/review)
+
+### `/review` Pipeline
+
+When you run `/review`, it executes a structured pipeline:
+1. **Run tests** — finds and runs project test suite
+2. **Detect changes** — committed + unstaged + untracked files
+3. **3 parallel review agents** — Code Quality, Security, Architecture & Plan Compliance
+4. **Verification agent** — filters false positives by checking findings against actual code
+5. **Consolidated report** — deduplicated findings ranked by severity (🔴 Critical / 🟡 Warning / 🟢 Suggestion)
+6. **User gate** — fix issues or acknowledge findings before `/complete`
+
+### `/complete` Pipeline
+
+When you run `/complete`, it verifies and closes the task:
+1. **Pre-completion checks** — blocks if review wasn't completed
+2. **Claude-mem observation** — saves session summary for future context
+3. **Smart docs detection** — recommends documentation updates based on changed files
+4. **Phase transition** — resets to OFF (normal operation)
 
 **Install into any project:**
 ```bash
@@ -52,7 +68,7 @@ git clone https://github.com/azevedo-home-lab/claude-code-workflows.git
 ./claude-code-workflows/install.sh /path/to/your/project
 ```
 
-Uninstall: `./uninstall.sh` or manually remove `.claude/hooks/workflow-*.sh` and `.claude/commands/{approve,discuss}.md`.
+Uninstall: `./uninstall.sh` or manually remove `.claude/hooks/workflow-*.sh`, `.claude/hooks/bash-write-guard.sh`, `.claude/hooks/post-tool-navigator.sh`, and `.claude/commands/{approve,discuss,review,complete,override}.md`.
 
 ## Tools
 
