@@ -1,7 +1,7 @@
 Transition the workflow to REVIEW phase. First check the current phase:
 
 ```bash
-source $CLAUDE_PROJECT_DIR/.claude/hooks/workflow-state.sh
+source ${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/workflow-state.sh
 PHASE=$(get_phase)
 if [ "$PHASE" != "implement" ] && [ "$PHASE" != "review" ]; then
     echo "ERROR: Cannot run /review from $PHASE phase. Use /approve first to enter IMPLEMENT, then /review."
@@ -35,7 +35,7 @@ If tests found, run them and capture the output.
 
 Update state after this step:
 ```bash
-source $CLAUDE_PROJECT_DIR/.claude/hooks/workflow-state.sh
+source ${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/workflow-state.sh
 set_review_field "verification_complete" "true"
 # If no tests were found, also set:
 # set_review_field "verification_skipped" "true"
@@ -104,13 +104,13 @@ Would you like to:
 
 Update state:
 ```bash
-source $CLAUDE_PROJECT_DIR/.claude/hooks/workflow-state.sh
+source ${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/workflow-state.sh
 set_review_field "agents_dispatched" "true"
 set_review_field "findings_presented" "true"
 ```
 
 Wait for the user's response. If they choose option 2 (acknowledge):
 ```bash
-source $CLAUDE_PROJECT_DIR/.claude/hooks/workflow-state.sh
+source ${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/workflow-state.sh
 set_review_field "findings_acknowledged" "true"
 ```
