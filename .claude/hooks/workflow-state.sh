@@ -2,7 +2,7 @@
 # Workflow state utility — read/write phase state
 # Used by hooks (read only) and commands (read/write)
 
-STATE_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/state"
+STATE_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/.claude/state"
 STATE_FILE="$STATE_DIR/phase.json"
 
 # Shared whitelist: paths allowed for writes during DISCUSS phase

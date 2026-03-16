@@ -19,7 +19,7 @@ Valid phases: off, discuss, implement, review
 If the argument is a valid phase, run:
 
 ```bash
-source ${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/workflow-state.sh && set_phase "$ARGUMENTS" && cat > "$STATE_DIR/active-skill.json" <<'SK'
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "$ARGUMENTS" && cat > "$STATE_DIR/active-skill.json" <<'SK'
 {"skill": "", "updated": "phase-transition"}
 SK
 echo "Phase overridden to: $ARGUMENTS"

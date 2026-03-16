@@ -1,7 +1,7 @@
 Complete the current task after a successful review. Run the pre-completion checks first:
 
 ```bash
-source ${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/workflow-state.sh
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh"
 PHASE=$(get_phase)
 if [ "$PHASE" != "review" ]; then
     echo "ERROR: Not in REVIEW phase (current: $PHASE). Run /review first."
@@ -60,7 +60,7 @@ Present recommendations and ask: "Update these now? (yes / no / skip)"
 
 Run this command to complete the task:
 ```bash
-source ${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/workflow-state.sh && set_phase "off" && cat > "$STATE_DIR/active-skill.json" <<'SK'
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "off" && cat > "$STATE_DIR/active-skill.json" <<'SK'
 {"skill": "", "updated": "phase-transition"}
 SK
 echo "Task complete. Phase set to OFF — workflow enforcement disabled."
