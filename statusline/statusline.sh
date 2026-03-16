@@ -98,7 +98,9 @@ if [ -f "$WM_GATE_FILE" ]; then
   # Show phase if state file exists
   if [ -f "$WM_STATE_FILE" ]; then
     WM_PHASE=$(grep -o '"phase"[[:space:]]*:[[:space:]]*"[^"]*"' "$WM_STATE_FILE" | grep -o '"[^"]*"$' | tr -d '"')
-    if [ "$WM_PHASE" = "discuss" ]; then
+    if [ "$WM_PHASE" = "off" ]; then
+      OUTPUT+=" ${DIM}[OFF]${RESET}"
+    elif [ "$WM_PHASE" = "discuss" ]; then
       OUTPUT+=" ${YELLOW}[DISCUSS]${RESET}"
     elif [ "$WM_PHASE" = "implement" ]; then
       OUTPUT+=" ${GREEN}[IMPLEMENT]${RESET}"
