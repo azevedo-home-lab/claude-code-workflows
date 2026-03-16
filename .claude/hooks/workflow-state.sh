@@ -11,12 +11,12 @@ DISCUSS_WRITE_WHITELIST='(\.claude/state/|docs/superpowers/specs/|docs/superpowe
 
 get_phase() {
     if [ ! -f "$STATE_FILE" ]; then
-        echo "discuss"
+        echo "off"
         return
     fi
     local phase
     phase=$(grep -o '"phase"[[:space:]]*:[[:space:]]*"[^"]*"' "$STATE_FILE" | grep -o '"[^"]*"$' | tr -d '"')
-    echo "${phase:-discuss}"
+    echo "${phase:-off}"
 }
 
 set_phase() {

@@ -60,12 +60,12 @@ Present recommendations and ask: "Update these now? (yes / no / skip)"
 
 Run this command to complete the task:
 ```bash
-source $CLAUDE_PROJECT_DIR/.claude/hooks/workflow-state.sh && set_phase "discuss" && cat > "$STATE_DIR/active-skill.json" <<'SK'
+source $CLAUDE_PROJECT_DIR/.claude/hooks/workflow-state.sh && set_phase "off" && cat > "$STATE_DIR/active-skill.json" <<'SK'
 {"skill": "", "updated": "phase-transition"}
 SK
-echo "Task complete. Phase set to DISCUSS — ready for the next task."
+echo "Task complete. Phase set to OFF — workflow enforcement disabled."
 ```
 
-Note: `set_phase("discuss")` automatically deletes `review-status.json` since we're leaving the review phase.
+Note: `set_phase("off")` automatically deletes `review-status.json` since we're leaving the review phase.
 
-Confirm to the user that the task is complete and the workflow has reset to DISCUSS phase. Code edits are now blocked until a new plan is approved with `/approve`.
+Confirm to the user that the task is complete and the workflow has reset to OFF phase (normal Claude Code operation). To start a new workflow cycle, use `/discuss`.

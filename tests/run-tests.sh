@@ -121,9 +121,9 @@ echo "=== workflow-state.sh ==="
 
 setup_test_project
 
-# Test: get_phase returns "discuss" when no state file exists
+# Test: get_phase returns "off" when no state file exists
 RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_phase)
-assert_eq "discuss" "$RESULT" "get_phase defaults to 'discuss' when no state file"
+assert_eq "off" "$RESULT" "get_phase defaults to 'off' when no state file"
 
 # Test: set_phase creates state file with correct phase
 source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
@@ -272,6 +272,12 @@ assert_not_contains "$OUTPUT" "deny" "allows Write to docs/plans/ in DISCUSS (wh
 OUTPUT=$(run_gate "/project/src/app.js")
 assert_contains "$OUTPUT" "deny" "blocks Write to non-whitelisted path in DISCUSS"
 
+# Test: allows Write in OFF phase (no enforcement)
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "off"
+OUTPUT=$(run_gate "/project/src/main.py")
+assert_not_contains "$OUTPUT" "deny" "allows Write/Edit in OFF phase"
+
 # ============================================================
 # TEST SUITE: bash-write-guard.sh
 # ============================================================
@@ -375,6 +381,7 @@ assert_file_exists "$INSTALL_TARGET/.claude/commands/approve.md" "install create
 assert_file_exists "$INSTALL_TARGET/.claude/commands/discuss.md" "install creates discuss.md"
 assert_file_exists "$INSTALL_TARGET/.claude/commands/review.md" "install creates review.md"
 assert_file_exists "$INSTALL_TARGET/.claude/commands/complete.md" "install creates complete.md"
+assert_file_exists "$INSTALL_TARGET/.claude/commands/override.md" "install creates override.md"
 assert_file_exists "$INSTALL_TARGET/.claude/settings.json" "install creates settings.json"
 
 # Test: hooks are executable
@@ -397,7 +404,7 @@ assert_contains "$SETTINGS" "bash-write-guard.sh" "settings.json references bash
 # Test: auto-initializes phase.json to "discuss"
 assert_file_exists "$INSTALL_TARGET/.claude/state/phase.json" "install auto-creates phase.json"
 INIT_PHASE=$(grep -o '"phase"[[:space:]]*:[[:space:]]*"[^"]*"' "$INSTALL_TARGET/.claude/state/phase.json" | grep -o '"[^"]*"$' | tr -d '"')
-assert_eq "discuss" "$INIT_PHASE" "install sets initial phase to discuss"
+assert_eq "off" "$INIT_PHASE" "install sets initial phase to off"
 
 # Test: installs statusline globally
 assert_file_exists "$HOME/.claude/statusline.sh" "install creates global statusline.sh"
@@ -449,6 +456,7 @@ assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/approve.md" "uninstal
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/discuss.md" "uninstall removes discuss.md"
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/review.md" "uninstall removes review.md"
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/complete.md" "uninstall removes complete.md"
+assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/override.md" "uninstall removes override.md"
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/state" "uninstall removes state directory"
 
 # Test: settings.json preserved (not deleted by uninstall)

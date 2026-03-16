@@ -20,6 +20,7 @@ rm -f "$TARGET/.claude/commands/approve.md"
 rm -f "$TARGET/.claude/commands/discuss.md"
 rm -f "$TARGET/.claude/commands/review.md"
 rm -f "$TARGET/.claude/commands/complete.md"
+rm -f "$TARGET/.claude/commands/override.md"
 
 # Remove state
 rm -rf "$TARGET/.claude/state"

@@ -13,10 +13,15 @@ else
 fi
 
 # Determine source directory (where the hook files live)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# BASH_SOURCE is unset when piped from curl, so handle that case
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+    SCRIPT_DIR=""
+fi
 
-# If running via curl pipe, we need to clone the repo to a temp dir
-if [ ! -f "$SCRIPT_DIR/.claude/hooks/workflow-gate.sh" ]; then
+# If running via curl pipe (or source not found), clone the repo to a temp dir
+if [ -z "$SCRIPT_DIR" ] || [ ! -f "$SCRIPT_DIR/.claude/hooks/workflow-gate.sh" ]; then
     TMPDIR=$(mktemp -d)
     trap 'rm -rf "$TMPDIR"' EXIT
     echo "Downloading Workflow Manager..."
@@ -51,6 +56,7 @@ cp "$SCRIPT_DIR/.claude/commands/approve.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/discuss.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/review.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/complete.md" "$TARGET/.claude/commands/"
+cp "$SCRIPT_DIR/.claude/commands/override.md" "$TARGET/.claude/commands/"
 
 echo "Copied hooks and commands."
 
@@ -124,14 +130,15 @@ else
     echo "Created .gitignore with .claude/state/ entry."
 fi
 
-# Initialize workflow state to DISCUSS phase
+# Initialize workflow state to OFF phase (no enforcement)
 cat > "$TARGET/.claude/state/phase.json" <<'INIT'
 {
-  "phase": "discuss",
+  "phase": "off",
+  "message_shown": false,
   "updated": "auto-initialized by installer"
 }
 INIT
-echo "Initialized workflow state to DISCUSS phase (edits blocked)."
+echo "Initialized workflow state to OFF phase (no enforcement)."
 
 # Install statusline globally
 GLOBAL_SETTINGS="$HOME/.claude/settings.json"
@@ -177,7 +184,11 @@ echo ""
 echo "Workflow Manager installed!"
 echo ""
 echo "Usage:"
-echo "  /approve  — unlock code edits (after plan is approved)"
-echo "  /discuss  — lock code edits (back to discussion mode)"
+echo "  /discuss    — start workflow (brainstorming, edits blocked)"
+echo "  /approve    — unlock code edits (after plan is approved)"
+echo "  /review     — run multi-agent review pipeline"
+echo "  /complete   — verified completion (back to off)"
+echo "  /override   — jump to any phase (off/discuss/implement/review)"
 echo ""
-echo "Sessions start in DISCUSS phase. Restart Claude Code to activate."
+echo "Sessions start in OFF phase (no enforcement). Use /discuss to begin a workflow."
+echo "Restart Claude Code to activate."
