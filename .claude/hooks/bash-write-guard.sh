@@ -36,13 +36,13 @@ if [ -z "$COMMAND" ]; then
     exit 0
 fi
 
-# Allow writes to whitelisted paths (state, specs, plans)
-if echo "$COMMAND" | grep -qE '(\.claude/state/|docs/superpowers/specs/|docs/superpowers/plans/|docs/plans/)'; then
-    exit 0
-fi
-
-# Check for write patterns
-if echo "$COMMAND" | grep -qE '(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c|echo[[:space:]].*>)'; then
+# Detect write patterns: redirections, sed -i, tee, heredocs, python file writes
+# Note: python3 -c only blocked when combined with file-write indicators (open/write)
+if echo "$COMMAND" | grep -qE '(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c.*\.(write|open)|echo[[:space:]].*>)'; then
+    # Write detected — allow if targeting whitelisted paths (state, specs, plans)
+    if echo "$COMMAND" | grep -qE "$DISCUSS_WRITE_WHITELIST"; then
+        exit 0
+    fi
     cat <<'DENY'
 {
   "hookSpecificOutput": {

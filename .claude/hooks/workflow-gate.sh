@@ -36,7 +36,7 @@ print(ti.get('file_path', ''))
 
 # Allow writes to whitelisted paths
 if [ -n "$FILE_PATH" ]; then
-    if echo "$FILE_PATH" | grep -qE '(\.claude/state/|docs/superpowers/specs/|docs/superpowers/plans/|docs/plans/)'; then
+    if echo "$FILE_PATH" | grep -qE "$DISCUSS_WRITE_WHITELIST"; then
         exit 0
     fi
 fi

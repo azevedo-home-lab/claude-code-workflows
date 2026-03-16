@@ -5,6 +5,10 @@
 STATE_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/state"
 STATE_FILE="$STATE_DIR/phase.json"
 
+# Shared whitelist: paths allowed for writes during DISCUSS phase
+# Used by workflow-gate.sh and bash-write-guard.sh
+DISCUSS_WRITE_WHITELIST='(\.claude/state/|docs/superpowers/specs/|docs/superpowers/plans/|docs/plans/)'
+
 get_phase() {
     if [ ! -f "$STATE_FILE" ]; then
         echo "discuss"
@@ -47,15 +51,19 @@ get_message_shown() {
 
 set_message_shown() {
     if [ -f "$STATE_FILE" ]; then
-        local phase
-        phase=$(get_phase)
-        cat > "$STATE_FILE" <<EOF
-{
-  "phase": "$phase",
-  "message_shown": true,
-  "updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-EOF
+        local ts
+        ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        python3 -c "
+import json, sys
+filepath, ts = sys.argv[1], sys.argv[2]
+with open(filepath, 'r') as f:
+    d = json.load(f)
+d['message_shown'] = True
+d['updated'] = ts
+with open(filepath, 'w') as f:
+    json.dump(d, f, indent=2)
+    f.write('\n')
+" "$STATE_FILE" "$ts"
     fi
 }
 
