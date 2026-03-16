@@ -100,6 +100,10 @@ MCP server that persists observations across sessions. Replaces manual handover 
 - **During**: Observations saved automatically as you work
 - **End**: Key decisions and findings persisted for next session
 
+### iTerm Launcher
+
+Launch Claude Code in a dedicated iTerm2 window with a project-aware badge (`"Claude <project-name>"`). Works from VSCode, Zed, or any terminal. See [`tools/iterm-launcher/`](tools/iterm-launcher/) for installation and IDE setup.
+
 ### Status Line
 
 A minimal single-line status bar with color-coded context usage and worktree support:
