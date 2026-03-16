@@ -38,8 +38,11 @@ if [ -z "$COMMAND" ]; then
 fi
 
 # Allow any command targeting whitelisted paths (state, specs, plans)
-# Check before write detection to also allow mkdir -p for these paths
+# Also allow workflow state commands (set_phase, workflow-state.sh) for phase transitions
 if echo "$COMMAND" | grep -qE "$DISCUSS_WRITE_WHITELIST"; then
+    exit 0
+fi
+if echo "$COMMAND" | grep -qE '(workflow-state\.sh|set_phase|reset_review_status|set_review_field)'; then
     exit 0
 fi
 

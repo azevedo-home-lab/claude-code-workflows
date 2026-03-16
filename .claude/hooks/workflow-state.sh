@@ -7,7 +7,7 @@ STATE_FILE="$STATE_DIR/phase.json"
 
 # Shared whitelist: paths allowed for writes during DISCUSS phase
 # Used by workflow-gate.sh and bash-write-guard.sh
-DISCUSS_WRITE_WHITELIST='(\.claude/state/|docs/superpowers/specs/|docs/superpowers/plans/|docs/plans/)'
+DISCUSS_WRITE_WHITELIST='(\.claude/state/|\.claude/hooks/|docs/superpowers/specs/|docs/superpowers/plans/|docs/plans/|\$STATE_DIR|\$WF_DIR/\.claude/)'
 
 get_phase() {
     if [ ! -f "$STATE_FILE" ]; then
