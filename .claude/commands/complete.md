@@ -75,24 +75,28 @@ If there are no changes to commit (clean working tree and no new commits beyond 
 
 Tests already ran during `/review`. This step validates that the **plan deliverables and spec outcomes** were actually delivered.
 
+**Before starting validation**, invoke the `superpowers:verification-before-completion` skill to load evidence-before-assertions rules into context.
+
 **If a plan file exists** (check `docs/superpowers/plans/`, `docs/plans/`, or any plan referenced in the session):
 
 1. Read the plan file
 2. Extract every deliverable, acceptance criterion, and expected outcome
-3. For each item, verify with **evidence** — not "I believe this works" but proof:
-   - File exists? → `ls` or `cat` the file
-   - Endpoint works? → `curl` it
-   - Behavior changed? → demonstrate the before/after
-   - Config applied? → show the config value
-   - Security fix? → demonstrate the attack vector is blocked
-4. Present a checklist to the user:
+3. Classify each deliverable:
+   - **Structural** (file/config exists) → `ls` or `cat` is sufficient
+   - **Behavioral** (endpoint works, bug fixed, security hardened, feature functions) → must **demonstrate the behavior**, not just prove code exists
+4. For behavioral deliverables, grep/cat is NOT sufficient evidence. You must:
+   - Endpoint protection? → `curl` with a malicious input, show it's rejected
+   - Security fix? → attempt the attack vector, show it's blocked
+   - Feature works? → exercise it and show the output
+   - Bug fixed? → reproduce the original trigger, show it no longer fails
+5. Present a checklist to the user:
    ```
    ## Plan Validation
-   - [x] Deliverable 1 — evidence: [what you checked]
-   - [x] Deliverable 2 — evidence: [what you checked]
-   - [ ] Deliverable 3 — MISSING: [what's wrong]
+   - [x] Deliverable 1 (structural) — evidence: file exists at path
+   - [x] Deliverable 2 (behavioral) — evidence: curl with malicious redirect_uri → 400 rejected
+   - [ ] Deliverable 3 (behavioral) — FAILED: curl shows attack still succeeds
    ```
-5. If any item fails:
+6. If any item fails:
    - Report what's missing and ask: "Fix now and re-commit, or proceed anyway?"
    - If fix → make fixes, create new commit, re-validate the failed items
    - If proceed → note the gaps in the handover observation
