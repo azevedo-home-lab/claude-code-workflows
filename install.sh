@@ -280,39 +280,53 @@ if $OPT_CLAUDE_MD; then
     echo "━━━ CLAUDE.md template ━━━"
     CLAUDE_MD="$TARGET/CLAUDE.md"
     TEMPLATE="$SCRIPT_DIR/claude.md.template"
+
+    # Build allowed merge tags based on selected flags
+    MERGE_TAGS="always,claude-md,claude-mem"
+    $OPT_YUBIKEY && MERGE_TAGS="$MERGE_TAGS,yubikey"
+
     if [ -f "$CLAUDE_MD" ]; then
-        # Merge missing sections using python3
+        # Merge missing sections using python3, filtered by merge tags
         python3 -c "
-import sys
+import sys, re
 
 template_path = sys.argv[1]
 target_path = sys.argv[2]
+allowed_tags = set(sys.argv[3].split(','))
 
 with open(template_path) as f:
     template = f.read()
 with open(target_path) as f:
     existing = f.read()
 
-# Extract sections from template (## headings)
-import re
-sections = re.split(r'(?=^## )', template, flags=re.MULTILINE)
+# Split into sections, keeping the merge comment that precedes each ## heading
+# Each section starts with an optional <!-- merge: tag --> followed by ## heading
+chunks = re.split(r'(?=<!-- merge:)', template)
 
 added = []
-for section in sections:
-    if not section.strip():
+for chunk in chunks:
+    chunk = chunk.strip()
+    if not chunk:
         continue
-    # Get the heading
-    heading_match = re.match(r'## (.+)', section)
+
+    # Extract merge tag
+    tag_match = re.match(r'<!-- merge:\s*(\S+)\s*-->', chunk)
+    if not tag_match:
+        continue
+    tag = tag_match.group(1)
+
+    # Skip sections not matching selected flags
+    if tag not in allowed_tags:
+        continue
+
+    # Extract heading
+    heading_match = re.search(r'^## (.+)', chunk, re.MULTILINE)
     if not heading_match:
         continue
     heading = heading_match.group(1).strip()
-    # Skip the title line (not a section)
-    if 'TEMPLATE' in heading:
-        continue
-    # Check if this section heading already exists in target
-    # Strip emoji and special chars, then match the full heading text
+
+    # Check if heading already exists in target
     heading_text = re.sub(r'[^\w\s]', '', heading).strip().lower()
-    # Search for matching ## heading in existing file (also stripped)
     found = False
     for line in existing.splitlines():
         if line.startswith('## '):
@@ -321,18 +335,55 @@ for section in sections:
                 found = True
                 break
     if not found:
+        # Strip the merge comment before appending
+        clean_section = re.sub(r'<!-- merge:\s*\S+\s*-->\n?', '', chunk).strip()
         added.append(heading)
         with open(target_path, 'a') as f:
-            f.write('\n' + section)
+            f.write('\n\n' + clean_section + '\n')
 
 if added:
     print('Added sections: ' + ', '.join(added))
 else:
     print('All template sections already present')
-" "$TEMPLATE" "$CLAUDE_MD"
+" "$TEMPLATE" "$CLAUDE_MD" "$MERGE_TAGS"
         ok "CLAUDE.md template merged"
     else
-        cp "$TEMPLATE" "$CLAUDE_MD"
+        # New file — filter template by allowed tags, strip merge comments
+        python3 -c "
+import sys, re
+
+template_path = sys.argv[1]
+target_path = sys.argv[2]
+allowed_tags = set(sys.argv[3].split(','))
+
+with open(template_path) as f:
+    template = f.read()
+
+chunks = re.split(r'(?=<!-- merge:)', template)
+output = []
+
+# Keep the title (before first merge comment)
+title_match = re.match(r'(.*?)(?=<!-- merge:)', template, re.DOTALL)
+if title_match:
+    title = title_match.group(1).strip()
+    if title:
+        output.append(title)
+
+for chunk in chunks:
+    chunk = chunk.strip()
+    if not chunk:
+        continue
+    tag_match = re.match(r'<!-- merge:\s*(\S+)\s*-->', chunk)
+    if not tag_match:
+        continue
+    if tag_match.group(1) not in allowed_tags:
+        continue
+    clean = re.sub(r'<!-- merge:\s*\S+\s*-->\n?', '', chunk).strip()
+    output.append(clean)
+
+with open(target_path, 'w') as f:
+    f.write('\n\n'.join(output) + '\n')
+" "$TEMPLATE" "$CLAUDE_MD" "$MERGE_TAGS"
         ok "Created CLAUDE.md from template"
     fi
 fi
