@@ -90,19 +90,27 @@ TASKS
         ok "VSCode task configured"
     fi
 
-    # keybindings.json — append if not present
+    # keybindings.json — auto-add if not present
     local KEYS_FILE="$VSCODE_DIR/keybindings.json"
     if [ -f "$KEYS_FILE" ] && grep -q "Claude Code in iTerm2" "$KEYS_FILE"; then
         ok "VSCode keybinding already configured"
     else
-        warn "Add this keybinding to $KEYS_FILE manually:"
-        cat <<'BINDING'
-    {
-        "key": "cmd+shift+i",
-        "command": "workbench.action.tasks.runTask",
-        "args": "Claude Code in iTerm2"
-    }
-BINDING
+        local NEW_BINDING='{"key": "cmd+shift+i", "command": "workbench.action.tasks.runTask", "args": "Claude Code in iTerm2"}'
+        python3 -c "
+import json, sys
+path = sys.argv[1]
+entry = json.loads(sys.argv[2])
+try:
+    with open(path) as f:
+        data = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    data = []
+data.append(entry)
+with open(path, 'w') as f:
+    json.dump(data, f, indent=4)
+    f.write('\n')
+" "$KEYS_FILE" "$NEW_BINDING"
+        ok "VSCode keybinding added (Cmd+Shift+I)"
     fi
 }
 
@@ -132,20 +140,27 @@ TASKS
         ok "Zed task configured"
     fi
 
-    # keymap.json — append if not present
+    # keymap.json — auto-add if not present
     local KEYMAP_FILE="$ZED_DIR/keymap.json"
     if [ -f "$KEYMAP_FILE" ] && grep -q "Claude Code in iTerm" "$KEYMAP_FILE"; then
         ok "Zed keybinding already configured"
     else
-        warn "Add this keybinding to $KEYMAP_FILE manually:"
-        cat <<'BINDING'
-  {
-    "context": "Workspace",
-    "bindings": {
-      "cmd-shift-i": ["task::Spawn", { "task_name": "Claude Code in iTerm" }]
-    }
-  }
-BINDING
+        local NEW_BINDING='{"context": "Workspace", "bindings": {"cmd-shift-i": ["task::Spawn", {"task_name": "Claude Code in iTerm"}]}}'
+        python3 -c "
+import json, sys
+path = sys.argv[1]
+entry = json.loads(sys.argv[2])
+try:
+    with open(path) as f:
+        data = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    data = []
+data.append(entry)
+with open(path, 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+" "$KEYMAP_FILE" "$NEW_BINDING"
+        ok "Zed keybinding added (Cmd+Shift+I)"
     fi
 }
 
