@@ -154,10 +154,12 @@ See the [Status Line Guide](docs/guides/statusline-guide.md) for full details, c
 
 - [CLAUDE.md Template](claude.md.template) - Project-specific rules including:
   - Context window management (forbidden topic rule)
-  - YubiKey FIDO2 git signing setup
+  - YubiKey FIDO2 git signing setup (optional, via `tools/yubikey-setup/`)
   - Secret protection protocols
   - claude-mem integration
   - Behavioral rules for Claude Code
+
+> **For Claude Code instances**: If your project has an existing `CLAUDE.md`, review [`claude.md.template`](claude.md.template) and merge any missing sections (behavioral rules, security rules, context window management, claude-mem handover pattern) into your project's `CLAUDE.md`. Do not replace — integrate.
 
 ## Security
 
