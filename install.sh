@@ -293,14 +293,17 @@ for section in sections:
     # Skip the title line (not a section)
     if 'TEMPLATE' in heading:
         continue
-    # Check if this section already exists in target
-    # Match by key words in the heading (ignore emoji differences)
-    key_words = re.sub(r'[^\w\s]', '', heading).strip().lower().split()
+    # Check if this section heading already exists in target
+    # Strip emoji and special chars, then match the full heading text
+    heading_text = re.sub(r'[^\w\s]', '', heading).strip().lower()
+    # Search for matching ## heading in existing file (also stripped)
     found = False
-    for word in key_words:
-        if len(word) > 3 and word.lower() in existing.lower():
-            found = True
-            break
+    for line in existing.splitlines():
+        if line.startswith('## '):
+            existing_text = re.sub(r'[^\w\s]', '', line[3:]).strip().lower()
+            if heading_text == existing_text:
+                found = True
+                break
     if not found:
         added.append(heading)
         with open(target_path, 'a') as f:
