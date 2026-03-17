@@ -92,6 +92,22 @@ cp "$SCRIPT_DIR/.claude/commands/review.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/complete.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/override.md" "$TARGET/.claude/commands/"
 
+# Save installer and optional feature files for re-running with flags
+cp "$SCRIPT_DIR/install.sh" "$TARGET/.claude/install.sh"
+chmod +x "$TARGET/.claude/install.sh"
+cp "$SCRIPT_DIR/claude.md.template" "$TARGET/.claude/claude.md.template"
+if [ -d "$SCRIPT_DIR/tools/yubikey-setup" ]; then
+    mkdir -p "$TARGET/.claude/tools/yubikey-setup"
+    cp "$SCRIPT_DIR/tools/yubikey-setup/git-yubikey" "$TARGET/.claude/tools/yubikey-setup/"
+    cp "$SCRIPT_DIR/tools/yubikey-setup/CLAUDE.md.snippet" "$TARGET/.claude/tools/yubikey-setup/"
+fi
+if [ -d "$SCRIPT_DIR/tools/iterm-launcher" ]; then
+    mkdir -p "$TARGET/.claude/tools/iterm-launcher"
+    cp "$SCRIPT_DIR/tools/iterm-launcher/install.sh" "$TARGET/.claude/tools/iterm-launcher/"
+    cp "$SCRIPT_DIR/tools/iterm-launcher/launch-claude-iterm.sh" "$TARGET/.claude/tools/iterm-launcher/"
+    cp "$SCRIPT_DIR/tools/iterm-launcher/claude-code-profile.json" "$TARGET/.claude/tools/iterm-launcher/"
+fi
+
 ok "Copied hooks and commands"
 
 # Handle settings.json — merge hooks into existing config or create new
@@ -368,7 +384,7 @@ fi
 if ! $ANY_OPT; then
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  Optional features (re-run with flags to install)"
+    echo "  Optional features (re-run installer with flags)"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     echo "  --claude-md   Merge CLAUDE.md template (behavioral rules, security, claude-mem)"
@@ -376,7 +392,15 @@ if ! $ANY_OPT; then
     echo "  --yubikey     git-yubikey touch banner wrapper (macOS)"
     echo "  --all         Install all optional features"
     echo ""
-    echo "  Example: ./install.sh --claude-md --yubikey"
+    echo "  .claude/install.sh --claude-md --yubikey"
+fi
+
+# Clean up installer artifacts after optional features are installed
+if $ANY_OPT; then
+    rm -f "$TARGET/.claude/install.sh"
+    rm -f "$TARGET/.claude/claude.md.template"
+    rm -rf "$TARGET/.claude/tools"
+    ok "Cleaned up installer artifacts"
 fi
 
 echo ""
