@@ -206,15 +206,19 @@ else
     ok "Created .gitignore with .claude/state/"
 fi
 
-# Initialize workflow state to OFF phase (no enforcement)
-cat > "$TARGET/.claude/state/phase.json" <<'INIT'
+# Initialize workflow state to OFF phase (only if not already set)
+if [ ! -f "$TARGET/.claude/state/phase.json" ]; then
+    cat > "$TARGET/.claude/state/phase.json" <<'INIT'
 {
   "phase": "off",
   "message_shown": false,
   "updated": "auto-initialized by installer"
 }
 INIT
-ok "Initialized workflow state to OFF phase"
+    ok "Initialized workflow state to OFF phase"
+else
+    ok "Workflow state preserved ($(grep -o '"phase": "[^"]*"' "$TARGET/.claude/state/phase.json"))"
+fi
 
 # Install statusline globally
 GLOBAL_SETTINGS="$HOME/.claude/settings.json"
