@@ -106,6 +106,10 @@ MCP server that persists observations across sessions. Replaces manual handover 
 
 Launch Claude Code in a dedicated iTerm2 window with a project-aware badge (`"Claude <project-name>"`). Works from VSCode, Zed, or any terminal. See [`tools/iterm-launcher/`](tools/iterm-launcher/) for installation and IDE setup.
 
+### YubiKey Git Signing
+
+Git wrapper (`git-yubikey`) that shows a prominent touch banner before commit/push/tag, plus SSH wrappers that bypass macOS ssh-agent for FIDO2 signing in Claude Code's non-tty environment. See [`tools/yubikey-setup/`](tools/yubikey-setup/) for installation.
+
 ### Status Line
 
 A minimal single-line status bar with color-coded context usage and worktree support:
