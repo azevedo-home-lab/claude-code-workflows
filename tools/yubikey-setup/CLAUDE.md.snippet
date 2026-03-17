@@ -1,0 +1,28 @@
+## 🔑 YubiKey Git Signing & Auth
+
+**All git commits are signed and all GitHub pushes are authenticated via YubiKey FIDO2. There are NO GUI popups — the YubiKey blinks silently and waits for physical touch.**
+
+### Rules for Claude Code Sessions
+
+1. **Before every `git commit` or `git push`**: Use `git-yubikey` instead of `git`. It shows a visible touch banner automatically.
+2. **If "agent refused operation" error**: User didn't touch in time. Remind them and retry.
+3. **NEVER use `commit.gpgsign=false`** or `--no-gpg-sign` — YubiKey signing is a security requirement.
+
+### How It Works
+
+Three wrappers bypass the macOS ssh-agent (which can't prompt for FIDO touch in non-tty contexts like Claude Code):
+
+| Wrapper | Purpose | Git Config | What It Does |
+|---------|---------|------------|--------------|
+| `/usr/local/bin/git-ssh-sign` | Commit signing | `gpg.ssh.program` | Unsets `SSH_AUTH_SOCK`, sets `SSH_SK_PROVIDER`, calls `ssh-keygen` directly |
+| `/usr/local/bin/git-ssh-auth` | Push/pull auth | `core.sshCommand` | Same approach for SSH connections to GitHub |
+| `/usr/local/bin/ssh-askpass-wrapper` | Popup filter | `SSH_ASKPASS` in `~/.zshenv` | Blocks spurious askpass popups, logs all calls |
+| `~/bin/git-yubikey` | Touch banner | Used directly | Shows "YUBIKEY: TOUCH NOW" banner, then calls `/usr/bin/git` |
+
+**Result**: YubiKey touch only (no PIN popup, no GUI dialog) for commits and pushes.
+
+### Reinstall (if wrappers are lost)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/tools/yubikey-setup/install.sh | bash
+```

@@ -1,0 +1,21 @@
+#!/bin/bash
+# Git wrapper that shows YubiKey touch banner for signing/auth operations.
+# Non-signing commands pass through transparently.
+#
+# Usage: use 'git-yubikey' anywhere you'd use 'git'.
+# Only commit, tag, push, pull, fetch, clone show the banner.
+
+SUBCMD="${1:-}"
+
+case "$SUBCMD" in
+    commit|tag|push|pull|fetch|clone)
+        OP="$(echo "$SUBCMD" | tr '[:lower:]' '[:upper:]')"
+        echo ""
+        echo "========================================"
+        printf "  🔑 YUBIKEY: TOUCH NOW FOR GIT %s\n" "$OP"
+        echo "========================================"
+        echo ""
+        ;;
+esac
+
+exec /usr/bin/git "$@"
