@@ -9,13 +9,28 @@ Launch Claude Code in a dedicated iTerm2 window with a project-aware badge for v
 - `cd`s into the project directory
 - Launches `claude`
 
-## Install
+## Quick Install
+
+One-liner from GitHub — no clone needed:
+
+```bash
+# Profile + launcher only
+curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/tools/iterm-launcher/install.sh | bash
+
+# With VSCode integration
+curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/tools/iterm-launcher/install.sh | bash -s -- --vscode
+
+# With Zed integration
+curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/tools/iterm-launcher/install.sh | bash -s -- --zed
+```
+
+Or from a local clone:
 
 ```bash
 cd tools/iterm-launcher
 ./install.sh              # Profile + launcher
-./install.sh --vscode     # + VSCode task/keybinding setup
-./install.sh --zed        # + Zed task/keybinding setup
+./install.sh --vscode     # + VSCode task and keybinding
+./install.sh --zed        # + Zed task and keybinding
 ./install.sh --uninstall  # Remove everything
 ```
 
@@ -34,15 +49,13 @@ launch-claude-iterm                     # uses current directory
 
 ### From VSCode / Cursor
 
-1. Run `./install.sh --vscode`
-2. Press `Cmd+Shift+I` in any project
+Run `./install.sh --vscode` (or the curl one-liner with `--vscode`), then press `Cmd+Shift+I` in any project.
 
 The installer auto-configures both `tasks.json` and `keybindings.json`.
 
 ### From Zed
 
-1. Run `./install.sh --zed`
-2. Press `Cmd+Shift+I` in any project
+Run `./install.sh --zed` (or the curl one-liner with `--zed`), then press `Cmd+Shift+I` in any project.
 
 The installer auto-configures both `tasks.json` and `keymap.json`.
 
@@ -84,4 +97,4 @@ Changes take effect immediately — iTerm2 watches the DynamicProfiles directory
 |------|---------|
 | `launch-claude-iterm.sh` | Launcher script (installed to `~/bin/`) |
 | `claude-code-profile.json` | iTerm2 dynamic profile |
-| `install.sh` | Installer with IDE configuration |
+| `install.sh` | Installer with IDE configuration (works from curl or local clone) |

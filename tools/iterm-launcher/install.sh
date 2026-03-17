@@ -7,6 +7,10 @@
 #   3. IDE-specific keybinding (optional)
 #
 # Usage:
+#   curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/tools/iterm-launcher/install.sh | bash
+#   curl ... | bash -s -- --vscode
+#   curl ... | bash -s -- --zed
+#
 #   ./install.sh              # Install profile + launcher
 #   ./install.sh --vscode     # Also configure VSCode keybinding
 #   ./install.sh --zed        # Also configure Zed keybinding
@@ -14,7 +18,7 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_BASE="https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/tools/iterm-launcher"
 PROFILE_DIR="$HOME/Library/Application Support/iTerm2/DynamicProfiles"
 LAUNCHER_DIR="$HOME/bin"
 LAUNCHER="$LAUNCHER_DIR/launch-claude-iterm"
@@ -28,6 +32,23 @@ NC='\033[0m'
 ok()   { echo -e "${GREEN}✓${NC} $1"; }
 warn() { echo -e "${YELLOW}!${NC} $1"; }
 err()  { echo -e "${RED}✗${NC} $1" >&2; }
+
+# Detect if running from local clone or piped from curl
+SCRIPT_DIR=""
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+# Fetch a file: local copy if available, otherwise download from GitHub
+fetch_file() {
+    local filename="$1"
+    local dest="$2"
+    if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/$filename" ]; then
+        cp "$SCRIPT_DIR/$filename" "$dest"
+    else
+        curl -fsSL "$REPO_BASE/$filename" -o "$dest"
+    fi
+}
 
 uninstall() {
     echo "Uninstalling Claude Code iTerm launcher..."
@@ -43,13 +64,13 @@ uninstall() {
 
 install_profile() {
     mkdir -p "$PROFILE_DIR"
-    cp "$SCRIPT_DIR/claude-code-profile.json" "$PROFILE_DIR/claude-code.json"
+    fetch_file "claude-code-profile.json" "$PROFILE_DIR/claude-code.json"
     ok "iTerm2 profile installed"
 }
 
 install_launcher() {
     mkdir -p "$LAUNCHER_DIR"
-    cp "$SCRIPT_DIR/launch-claude-iterm.sh" "$LAUNCHER"
+    fetch_file "launch-claude-iterm.sh" "$LAUNCHER"
     chmod +x "$LAUNCHER"
     ok "Launcher installed at $LAUNCHER"
 
