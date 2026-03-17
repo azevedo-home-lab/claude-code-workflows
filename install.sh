@@ -1,16 +1,38 @@
 #!/bin/bash
 # Install Claude Code Workflow Manager into the current project
-# Usage: curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/install.sh | bash
-#    or: git clone ... && cd claude-code-workflows && ./install.sh /path/to/your/project
+#
+# Usage:
+#   ./install.sh [target-dir] [options]
+#   curl -fsSL .../install.sh | bash
+#   curl -fsSL .../install.sh | bash -s -- --claude-md --iterm --yubikey
+#   curl -fsSL .../install.sh | bash -s -- --all
+#
+# Options:
+#   --claude-md   Merge CLAUDE.md template into project (or create if missing)
+#   --iterm       Install iTerm launcher with IDE keybindings
+#   --yubikey     Install git-yubikey banner wrapper (banner only, not signing wrappers)
+#   --all         Install all optional features
 
 set -euo pipefail
 
-# Determine target project directory
-if [ -n "${1:-}" ]; then
-    TARGET="$1"
-else
-    TARGET="$(pwd)"
-fi
+# Parse arguments — first non-flag arg is target dir, rest are flags
+TARGET=""
+OPT_CLAUDE_MD=false
+OPT_ITERM=false
+OPT_YUBIKEY=false
+
+for arg in "$@"; do
+    case "$arg" in
+        --claude-md) OPT_CLAUDE_MD=true ;;
+        --iterm)     OPT_ITERM=true ;;
+        --yubikey)   OPT_YUBIKEY=true ;;
+        --all)       OPT_CLAUDE_MD=true; OPT_ITERM=true; OPT_YUBIKEY=true ;;
+        --*)         echo "Unknown option: $arg"; exit 1 ;;
+        *)           TARGET="$arg" ;;
+    esac
+done
+
+TARGET="${TARGET:-$(pwd)}"
 
 # Determine source directory (where the hook files live)
 # BASH_SOURCE is unset when piped from curl, so handle that case
@@ -46,6 +68,10 @@ if [ ! -d "$TARGET/.git" ]; then
     echo "Run this from your project root or pass the project path as an argument."
     exit 1
 fi
+
+# ============================================================
+# Core install — always runs
+# ============================================================
 
 # Create directories
 mkdir -p "$TARGET/.claude/hooks"
@@ -225,44 +251,130 @@ echo "  /override   — jump to any phase (off/discuss/implement/review)"
 echo ""
 echo "Sessions start in OFF phase (no enforcement). Use /discuss to begin a workflow."
 
-# --- Optional features ---
+# ============================================================
+# Optional features — run if flags set, otherwise show menu
+# ============================================================
+
+ANY_OPT=false
+$OPT_CLAUDE_MD || $OPT_ITERM || $OPT_YUBIKEY && ANY_OPT=true
+
+# --- CLAUDE.md template ---
+if $OPT_CLAUDE_MD; then
+    echo ""
+    echo "━━━ CLAUDE.md template ━━━"
+    CLAUDE_MD="$TARGET/CLAUDE.md"
+    TEMPLATE="$SCRIPT_DIR/claude.md.template"
+    if [ -f "$CLAUDE_MD" ]; then
+        # Merge missing sections using python3
+        python3 -c "
+import sys
+
+template_path = sys.argv[1]
+target_path = sys.argv[2]
+
+with open(template_path) as f:
+    template = f.read()
+with open(target_path) as f:
+    existing = f.read()
+
+# Extract sections from template (## headings)
+import re
+sections = re.split(r'(?=^## )', template, flags=re.MULTILINE)
+
+added = []
+for section in sections:
+    if not section.strip():
+        continue
+    # Get the heading
+    heading_match = re.match(r'## (.+)', section)
+    if not heading_match:
+        continue
+    heading = heading_match.group(1).strip()
+    # Skip the title line (not a section)
+    if 'TEMPLATE' in heading:
+        continue
+    # Check if this section already exists in target
+    # Match by key words in the heading (ignore emoji differences)
+    key_words = re.sub(r'[^\w\s]', '', heading).strip().lower().split()
+    found = False
+    for word in key_words:
+        if len(word) > 3 and word.lower() in existing.lower():
+            found = True
+            break
+    if not found:
+        added.append(heading)
+        with open(target_path, 'a') as f:
+            f.write('\n' + section)
+
+if added:
+    print('Added sections: ' + ', '.join(added))
+else:
+    print('All template sections already present')
+" "$TEMPLATE" "$CLAUDE_MD"
+        ok "CLAUDE.md template merged"
+    else
+        cp "$TEMPLATE" "$CLAUDE_MD"
+        ok "Created CLAUDE.md from template"
+    fi
+fi
+
+# --- iTerm launcher ---
+if $OPT_ITERM; then
+    echo ""
+    echo "━━━ iTerm Launcher ━━━"
+    if [ "$(uname)" != "Darwin" ]; then
+        warn "iTerm launcher is macOS only — skipping"
+    else
+        bash "$SCRIPT_DIR/tools/iterm-launcher/install.sh"
+    fi
+fi
+
+# --- YubiKey banner ---
+if $OPT_YUBIKEY; then
+    echo ""
+    echo "━━━ YubiKey Git Banner ━━━"
+    if [ "$(uname)" != "Darwin" ]; then
+        warn "YubiKey setup is macOS only — skipping"
+    else
+        # Install only git-yubikey banner — not the signing wrappers
+        mkdir -p "$HOME/bin"
+        cp "$SCRIPT_DIR/tools/yubikey-setup/git-yubikey" "$HOME/bin/git-yubikey"
+        chmod +x "$HOME/bin/git-yubikey"
+        ok "git-yubikey installed at ~/bin/git-yubikey"
+
+        # Merge CLAUDE.md snippet if project has CLAUDE.md
+        CLAUDE_MD="$TARGET/CLAUDE.md"
+        if [ -f "$CLAUDE_MD" ]; then
+            if grep -q "YubiKey Git Signing" "$CLAUDE_MD"; then
+                ok "CLAUDE.md already has YubiKey section"
+            else
+                echo "" >> "$CLAUDE_MD"
+                cat "$SCRIPT_DIR/tools/yubikey-setup/CLAUDE.md.snippet" >> "$CLAUDE_MD"
+                ok "YubiKey section added to CLAUDE.md"
+            fi
+        fi
+
+        if ! echo "$PATH" | tr ':' '\n' | grep -qx "$HOME/bin"; then
+            warn "~/bin is not in PATH — add to shell profile:"
+            echo "  export PATH=\"\$HOME/bin:\$PATH\""
+        fi
+    fi
+fi
+
+# --- Show optional features menu if none were selected ---
+if ! $ANY_OPT; then
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  Optional features (re-run with flags to install)"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "  --claude-md   Merge CLAUDE.md template (behavioral rules, security, claude-mem)"
+    echo "  --iterm       iTerm launcher with VSCode/Zed keybindings (macOS)"
+    echo "  --yubikey     git-yubikey touch banner wrapper (macOS)"
+    echo "  --all         Install all optional features"
+    echo ""
+    echo "  Example: ./install.sh --claude-md --yubikey"
+fi
 
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Optional features (install separately)"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-
-# CLAUDE.md template
-CLAUDE_MD="$TARGET/CLAUDE.md"
-if [ -f "$CLAUDE_MD" ]; then
-    echo "  CLAUDE.md template"
-    echo "    Your project has a CLAUDE.md. Review the template and merge missing sections"
-    echo "    (behavioral rules, security rules, context window management, claude-mem handover):"
-    echo "    curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/claude.md.template"
-    echo ""
-else
-    echo "  CLAUDE.md template"
-    echo "    Add behavioral rules, security rules, and session management to your project:"
-    echo "    curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/claude.md.template > CLAUDE.md"
-    echo ""
-fi
-
-# iTerm launcher (macOS only)
-if [ "$(uname)" = "Darwin" ]; then
-    echo "  iTerm Launcher (macOS)"
-    echo "    Launch Claude Code in iTerm2 with project badge. Works with VSCode and Zed:"
-    echo "    curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/tools/iterm-launcher/install.sh | bash -s -- --vscode"
-    echo "    curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/tools/iterm-launcher/install.sh | bash -s -- --zed"
-    echo ""
-fi
-
-# YubiKey setup (macOS only, check if signing is configured)
-if [ "$(uname)" = "Darwin" ]; then
-    echo "  YubiKey Git Signing (macOS)"
-    echo "    Git wrapper with touch banners + SSH wrappers for FIDO2 signing in Claude Code:"
-    echo "    curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/tools/yubikey-setup/install.sh | bash"
-    echo ""
-fi
-
 echo "Restart Claude Code to activate hooks."
