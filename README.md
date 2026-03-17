@@ -7,6 +7,10 @@ A guide to structured, accountable development with Claude Code using complement
 - **claude-mem** — Cross-session persistent memory via MCP server
 - **Status Line** — Minimal, color-coded status bar showing model, context usage, git branch, and worktree info
 
+## CLAUDE.md Integration
+
+**For Claude Code instances**: If your project has an existing `CLAUDE.md`, review [`claude.md.template`](claude.md.template) and merge any missing sections into your project's `CLAUDE.md`. Key sections: behavioral rules, security rules, context window management, claude-mem handover pattern. Do not replace — integrate.
+
 ## Quick Start
 
 1. [Getting Started Guide](docs/guides/getting-started.md) - Installation and first workflow
@@ -158,8 +162,6 @@ See the [Status Line Guide](docs/guides/statusline-guide.md) for full details, c
   - Secret protection protocols
   - claude-mem integration
   - Behavioral rules for Claude Code
-
-> **For Claude Code instances**: If your project has an existing `CLAUDE.md`, review [`claude.md.template`](claude.md.template) and merge any missing sections (behavioral rules, security rules, context window management, claude-mem handover pattern) into your project's `CLAUDE.md`. Do not replace — integrate.
 
 ## Security
 
