@@ -35,45 +35,16 @@ launch-claude-iterm                     # uses current directory
 ### From VSCode / Cursor
 
 1. Run `./install.sh --vscode`
-2. Add to `keybindings.json`:
-   ```json
-   {
-       "key": "cmd+shift+i",
-       "command": "workbench.action.tasks.runTask",
-       "args": "Claude Code in iTerm2"
-   }
-   ```
-3. Press `Cmd+Shift+I` in any project
+2. Press `Cmd+Shift+I` in any project
 
-The installer creates this `tasks.json`:
-```json
-{
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "Claude Code in iTerm2",
-      "type": "shell",
-      "command": "~/bin/launch-claude-iterm '${workspaceFolder}'",
-      "presentation": {"reveal": "never"},
-      "problemMatcher": []
-    }
-  ]
-}
-```
+The installer auto-configures both `tasks.json` and `keybindings.json`.
 
 ### From Zed
 
 1. Run `./install.sh --zed`
-2. Add to `keymap.json`:
-   ```json
-   {
-     "context": "Workspace",
-     "bindings": {
-       "cmd-shift-i": ["task::Spawn", { "task_name": "Claude Code in iTerm" }]
-     }
-   }
-   ```
-3. Press `Cmd+Shift+I` in any project
+2. Press `Cmd+Shift+I` in any project
+
+The installer auto-configures both `tasks.json` and `keymap.json`.
 
 ### From any other IDE
 

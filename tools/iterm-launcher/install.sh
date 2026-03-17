@@ -131,7 +131,7 @@ configure_zed() {
 [
   {
     "label": "Claude Code in iTerm",
-    "command": "~/bin/launch-claude-iterm \"$ZED_WORKTREE_ROOT\"",
+    "command": "$HOME/bin/launch-claude-iterm \"$ZED_WORKTREE_ROOT\"",
     "reveal": "never",
     "hide": "always"
   }
@@ -145,7 +145,7 @@ TASKS
     if [ -f "$KEYMAP_FILE" ] && grep -q "Claude Code in iTerm" "$KEYMAP_FILE"; then
         ok "Zed keybinding already configured"
     else
-        local NEW_BINDING='{"context": "Workspace", "bindings": {"cmd-shift-i": ["task::Spawn", {"task_name": "Claude Code in iTerm"}]}}'
+        local NEW_BINDING='{"bindings": {"cmd-shift-i": ["task::Spawn", {"task_name": "Claude Code in iTerm"}]}}'
         python3 -c "
 import json, sys
 path = sys.argv[1]
