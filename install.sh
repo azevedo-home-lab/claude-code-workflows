@@ -29,6 +29,14 @@ if [ -z "$SCRIPT_DIR" ] || [ ! -f "$SCRIPT_DIR/.claude/hooks/workflow-gate.sh" ]
     SCRIPT_DIR="$TMPDIR"
 fi
 
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m'
+
+ok()   { echo -e "${GREEN}✓${NC} $1"; }
+warn() { echo -e "${YELLOW}!${NC} $1"; }
+
 echo "Installing Workflow Manager into: $TARGET"
 echo ""
 
@@ -58,11 +66,52 @@ cp "$SCRIPT_DIR/.claude/commands/review.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/complete.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/override.md" "$TARGET/.claude/commands/"
 
-echo "Copied hooks and commands."
+ok "Copied hooks and commands"
 
 # Handle settings.json — merge hooks into existing config or create new
 SETTINGS="$TARGET/.claude/settings.json"
-HOOKS_CONFIG='{
+
+if [ -f "$SETTINGS" ]; then
+    if grep -q "workflow-gate.sh" "$SETTINGS" 2>/dev/null; then
+        ok "Hooks already configured in settings.json"
+    else
+        python3 -c "
+import json, sys
+
+with open(sys.argv[1]) as f:
+    settings = json.load(f)
+
+hooks = settings.setdefault('hooks', {})
+
+# PreToolUse entries
+pre = hooks.setdefault('PreToolUse', [])
+gate_entry = {
+    'matcher': 'Write|Edit|MultiEdit|NotebookEdit',
+    'hooks': [{'type': 'command', 'command': '\$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-gate.sh'}]
+}
+bash_entry = {
+    'matcher': 'Bash',
+    'hooks': [{'type': 'command', 'command': '\$CLAUDE_PROJECT_DIR/.claude/hooks/bash-write-guard.sh'}]
+}
+pre.append(gate_entry)
+pre.append(bash_entry)
+
+# PostToolUse entry
+post = hooks.setdefault('PostToolUse', [])
+nav_entry = {
+    'hooks': [{'type': 'command', 'command': '\$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-navigator.sh'}]
+}
+post.append(nav_entry)
+
+with open(sys.argv[1], 'w') as f:
+    json.dump(settings, f, indent=2)
+    f.write('\n')
+" "$SETTINGS"
+        ok "Merged workflow hooks into existing settings.json"
+    fi
+else
+    cat > "$SETTINGS" <<'HOOKSCFG'
+{
   "hooks": {
     "PreToolUse": [
       {
@@ -95,24 +144,9 @@ HOOKS_CONFIG='{
       }
     ]
   }
-}'
-
-if [ -f "$SETTINGS" ]; then
-    # Check if hooks are already configured
-    if grep -q "workflow-gate.sh" "$SETTINGS" 2>/dev/null; then
-        echo "Hooks already configured in .claude/settings.json — skipping."
-    else
-        echo ""
-        echo "WARNING: .claude/settings.json already exists."
-        echo "Add the following hooks configuration manually:"
-        echo ""
-        echo "$HOOKS_CONFIG"
-        echo ""
-        echo "If you have existing hooks, add the PreToolUse entries to your existing hooks array."
-    fi
-else
-    echo "$HOOKS_CONFIG" > "$SETTINGS"
-    echo "Created .claude/settings.json with hooks configuration."
+}
+HOOKSCFG
+    ok "Created settings.json with hooks"
 fi
 
 # Update .gitignore
@@ -122,12 +156,12 @@ if [ -f "$GITIGNORE" ]; then
         echo "" >> "$GITIGNORE"
         echo "# Workflow enforcement state (per-session)" >> "$GITIGNORE"
         echo ".claude/state/" >> "$GITIGNORE"
-        echo "Added .claude/state/ to .gitignore."
+        ok "Added .claude/state/ to .gitignore"
     fi
 else
     echo "# Workflow enforcement state (per-session)" > "$GITIGNORE"
     echo ".claude/state/" >> "$GITIGNORE"
-    echo "Created .gitignore with .claude/state/ entry."
+    ok "Created .gitignore with .claude/state/"
 fi
 
 # Initialize workflow state to OFF phase (no enforcement)
@@ -138,7 +172,7 @@ cat > "$TARGET/.claude/state/phase.json" <<'INIT'
   "updated": "auto-initialized by installer"
 }
 INIT
-echo "Initialized workflow state to OFF phase (no enforcement)."
+ok "Initialized workflow state to OFF phase"
 
 # Install statusline globally
 GLOBAL_SETTINGS="$HOME/.claude/settings.json"
@@ -146,13 +180,12 @@ STATUSLINE_DST="$HOME/.claude/statusline.sh"
 
 cp "$SCRIPT_DIR/statusline/statusline.sh" "$STATUSLINE_DST"
 chmod +x "$STATUSLINE_DST"
-echo "Installed statusline to $STATUSLINE_DST."
+ok "Installed statusline to $STATUSLINE_DST"
 
 if [ -f "$GLOBAL_SETTINGS" ]; then
     if grep -q "statusline.sh" "$GLOBAL_SETTINGS" 2>/dev/null; then
-        echo "Statusline already configured in global settings — skipping."
+        ok "Statusline already configured in global settings"
     else
-        # Merge statusLine into existing global settings using python
         python3 -c "
 import json, sys
 with open('$GLOBAL_SETTINGS') as f:
@@ -165,7 +198,7 @@ settings['statusLine'] = {
 with open('$GLOBAL_SETTINGS', 'w') as f:
     json.dump(settings, f, indent=2)
     f.write('\n')
-" 2>/dev/null && echo "Added statusLine to global settings." || echo "WARNING: Could not update global settings. Add statusLine manually."
+" 2>/dev/null && ok "Added statusLine to global settings" || warn "Could not update global settings — add statusLine manually"
     fi
 else
     cat > "$GLOBAL_SETTINGS" <<SLCFG
@@ -177,11 +210,11 @@ else
   }
 }
 SLCFG
-    echo "Created global settings with statusLine."
+    ok "Created global settings with statusLine"
 fi
 
 echo ""
-echo "Workflow Manager installed!"
+ok "Workflow Manager installed!"
 echo ""
 echo "Usage:"
 echo "  /discuss    — start workflow (brainstorming, edits blocked)"
@@ -191,4 +224,45 @@ echo "  /complete   — verified completion (back to off)"
 echo "  /override   — jump to any phase (off/discuss/implement/review)"
 echo ""
 echo "Sessions start in OFF phase (no enforcement). Use /discuss to begin a workflow."
-echo "Restart Claude Code to activate."
+
+# --- Optional features ---
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Optional features (install separately)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# CLAUDE.md template
+CLAUDE_MD="$TARGET/CLAUDE.md"
+if [ -f "$CLAUDE_MD" ]; then
+    echo "  CLAUDE.md template"
+    echo "    Your project has a CLAUDE.md. Review the template and merge missing sections"
+    echo "    (behavioral rules, security rules, context window management, claude-mem handover):"
+    echo "    curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/claude.md.template"
+    echo ""
+else
+    echo "  CLAUDE.md template"
+    echo "    Add behavioral rules, security rules, and session management to your project:"
+    echo "    curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/claude.md.template > CLAUDE.md"
+    echo ""
+fi
+
+# iTerm launcher (macOS only)
+if [ "$(uname)" = "Darwin" ]; then
+    echo "  iTerm Launcher (macOS)"
+    echo "    Launch Claude Code in iTerm2 with project badge. Works with VSCode and Zed:"
+    echo "    curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/tools/iterm-launcher/install.sh | bash -s -- --vscode"
+    echo "    curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/tools/iterm-launcher/install.sh | bash -s -- --zed"
+    echo ""
+fi
+
+# YubiKey setup (macOS only, check if signing is configured)
+if [ "$(uname)" = "Darwin" ]; then
+    echo "  YubiKey Git Signing (macOS)"
+    echo "    Git wrapper with touch banners + SSH wrappers for FIDO2 signing in Claude Code:"
+    echo "    curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/tools/yubikey-setup/install.sh | bash"
+    echo ""
+fi
+
+echo "Restart Claude Code to activate hooks."
