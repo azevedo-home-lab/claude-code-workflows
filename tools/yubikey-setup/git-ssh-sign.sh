@@ -1,4 +1,10 @@
 #!/bin/bash
+# Copyright (C) 2026 azevedo-home-lab
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# This file is part of Claude Code Workflows.
+# See LICENSE for details.
+
 # Git SSH signing wrapper: bypasses ssh-agent to use FIDO key directly.
 # The macOS ssh-agent intercepts SK key operations but can't prompt for
 # FIDO touch in non-tty contexts. Unsetting SSH_AUTH_SOCK forces

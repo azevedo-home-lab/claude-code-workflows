@@ -1,4 +1,10 @@
 #!/bin/bash
+# Copyright (C) 2026 azevedo-home-lab
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# This file is part of Claude Code Workflows.
+# See LICENSE for details.
+
 # Simple bash test runner for workflow enforcement hooks
 # Usage: ./tests/run-tests.sh
 

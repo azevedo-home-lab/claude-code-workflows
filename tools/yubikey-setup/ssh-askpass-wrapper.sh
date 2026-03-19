@@ -1,4 +1,10 @@
 #!/bin/bash
+# Copyright (C) 2026 azevedo-home-lab
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# This file is part of Claude Code Workflows.
+# See LICENSE for details.
+
 # SSH askpass wrapper: only show GUI popup for git signing and GitHub auth.
 # All other SSH operations (API calls, SCP, etc.) get silently rejected
 # to prevent unwanted YubiKey touch popups.
