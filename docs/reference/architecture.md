@@ -7,7 +7,7 @@ How Workflow Manager, Superpowers, and claude-mem work together in Claude Code.
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                        User                             │
-│                  /approve  /discuss                      │
+│            /define  /approve  /discuss                    │
 └───────────────────┬─────────────────────────────────────┘
                     │
                     ↓
@@ -31,7 +31,7 @@ How Workflow Manager, Superpowers, and claude-mem work together in Claude Code.
 
 | Layer | Mechanism | What it does | Can Claude bypass? |
 |-------|-----------|-------------|-------------------|
-| **Hooks** | PreToolUse deny | Blocks Write/Edit in DISCUSS phase | No |
+| **Hooks** | PreToolUse deny | Blocks Write/Edit in DEFINE and DISCUSS phases | No |
 | **Superpowers** | Prompt instructions | Guides brainstorm → plan → execute → verify | Yes (but less likely with hooks backing it up) |
 
 The hooks enforce the **discuss-before-code boundary**. Superpowers handles the **quality of each phase**.
@@ -39,10 +39,12 @@ The hooks enforce the **discuss-before-code boundary**. Superpowers handles the 
 ## Phase Model
 
 ```
-DISCUSS ──(/approve)──> IMPLEMENT ──(/review)──> REVIEW ──(/complete)──> DISCUSS
-                              │                      │
-                              └───── (/discuss) ─────┘ → DISCUSS
+         ┌──(/define)──> DEFINE ──(/discuss)──┐
+OFF ─────┤                                    ├──> DISCUSS ──(/approve)──> IMPLEMENT ──(/review)──> REVIEW ──(/complete)──> OFF
+         └──(/discuss)────────────────────────┘         │                      │
+                                                        └───── (/discuss) ─────┘
 
+DEFINE:     Write/Edit BLOCKED, Bash writes BLOCKED, Read/Grep ALLOWED (optional phase)
 DISCUSS:    Write/Edit BLOCKED, Bash writes BLOCKED, Read/Grep ALLOWED
 IMPLEMENT:  Everything ALLOWED
 REVIEW:     Everything ALLOWED (fixes from review)
@@ -52,8 +54,8 @@ REVIEW:     Everything ALLOWED (fixes from review)
 
 ### Workflow Manager — Hard Gates
 
-- `workflow-gate.sh` — blocks Write/Edit/MultiEdit in DISCUSS phase
-- `bash-write-guard.sh` — blocks Bash write operations in DISCUSS phase
+- `workflow-gate.sh` — blocks Write/Edit/MultiEdit in DEFINE and DISCUSS phases
+- `bash-write-guard.sh` — blocks Bash write operations in DEFINE and DISCUSS phases
 - `workflow-state.sh` — state read/write utility
 - State: `.claude/state/phase.json` (gitignored)
 
@@ -75,6 +77,13 @@ Skills load on-demand when contextually relevant, not preloaded.
 ## Workflow
 
 ```
+DEFINE PHASE (edits blocked, optional):
+  /define → guided problem + outcome definition
+  Define problem statement, outcomes, success metrics
+  Save to docs/plans/define.json
+
+TRANSITION: /discuss → proceed to discussion
+
 DISCUSS PHASE (edits blocked):
   Describe what you want
   /superpowers:brainstorming → Q&A refinement
@@ -108,6 +117,7 @@ your-project/
 │   │   ├── workflow-gate.sh        # Write/Edit gate
 │   │   └── bash-write-guard.sh     # Bash write gate
 │   ├── commands/
+│   │   ├── define.md               # /define command
 │   │   ├── approve.md              # /approve command
 │   │   └── discuss.md              # /discuss command
 │   ├── state/

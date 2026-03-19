@@ -1,5 +1,16 @@
 # Command Reference
 
+## Workflow Manager
+
+| Command | Phase | What It Does |
+|---------|-------|-------------|
+| `/define` | DEFINE | Guide problem + outcome definition |
+| `/discuss` | DISCUSS | Start brainstorming and planning |
+| `/approve` | IMPLEMENT | Unlock code edits |
+| `/review` | REVIEW | Run multi-agent review pipeline |
+| `/complete` | OFF | Verified completion with outcome validation |
+| `/override <phase>` | Any | Jump to any phase |
+
 ## Superpowers Skills
 
 | Command | Phase | What It Does |
@@ -30,11 +41,12 @@
 ## Quick Sequence
 
 ```
-Describe what you want
+/define                          → Define problem + outcomes (optional)
+/discuss                         → Enter discussion
 /superpowers:brainstorm          → Clarify requirements
 /superpowers:write-plan          → Generate plan
 Review and approve
 /superpowers:execute-plan        → Implement with checkpoints
 /superpowers:verification-before-completion → Verify
-Commit
+/complete                        → Validate outcomes + commit
 ```

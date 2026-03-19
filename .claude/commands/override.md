@@ -1,6 +1,6 @@
 Override the workflow phase. Use this to jump directly to any phase.
 
-Valid phases: `off`, `discuss`, `implement`, `review`
+Valid phases: `off`, `define`, `discuss`, `implement`, `review`
 
 The user must specify the target phase as an argument: `/override <phase>`
 
@@ -8,9 +8,10 @@ Parse the argument from "$ARGUMENTS". If no argument or invalid phase, show usag
 
 ```
 Usage: /override <phase>
-Valid phases: off, discuss, implement, review
+Valid phases: off, define, discuss, implement, review
 
   off       — Disable workflow enforcement (normal Claude Code operation)
+  define    — Problem and outcome definition (code edits blocked)
   discuss   — Brainstorming and planning (code edits blocked)
   implement — Code implementation (all edits allowed)
   review    — Review pipeline (all edits allowed)

@@ -453,6 +453,7 @@ assert_file_exists "$INSTALL_TARGET/.claude/commands/discuss.md" "install create
 assert_file_exists "$INSTALL_TARGET/.claude/commands/review.md" "install creates review.md"
 assert_file_exists "$INSTALL_TARGET/.claude/commands/complete.md" "install creates complete.md"
 assert_file_exists "$INSTALL_TARGET/.claude/commands/override.md" "install creates override.md"
+assert_file_exists "$INSTALL_TARGET/.claude/commands/define.md" "install creates define.md"
 assert_file_exists "$INSTALL_TARGET/.claude/settings.json" "install creates settings.json"
 
 # Test: hooks are executable
@@ -528,6 +529,7 @@ assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/discuss.md" "uninstal
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/review.md" "uninstall removes review.md"
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/complete.md" "uninstall removes complete.md"
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/override.md" "uninstall removes override.md"
+assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/define.md" "uninstall removes define.md"
 assert_file_not_exists "$UNINSTALL_TARGET/.claude/state" "uninstall removes state directory"
 
 # Test: settings.json preserved (not deleted by uninstall)

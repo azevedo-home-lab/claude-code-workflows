@@ -103,6 +103,40 @@ Tests already ran during `/review`. This step validates that the **plan delivera
 
 **If no plan file exists**: report "No plan file found — skipping plan validation" and continue.
 
+### Step 3b: Outcome Validation
+
+If `docs/plans/define.json` exists, validate that the defined outcomes were achieved:
+
+1. Read `docs/plans/define.json`
+2. Extract every outcome and success metric
+3. For each outcome, require **behavioral evidence** — demonstrate the behavior, don't just grep for code:
+   - Functional outcome? → exercise it and show the result
+   - Performance outcome? → measure under realistic conditions
+   - Security outcome? → attempt the attack vector, show it's blocked
+   - Reliability outcome? → simulate the failure, observe recovery
+   - Usability outcome? → exercise the user path
+4. For each success metric, check coverage:
+   - Immediately verifiable → validate with evidence
+   - Long-term metric (cannot verify pre-release) → flag as "TO MONITOR"
+   - No outcomes linked to this metric → flag as "WARNING: no outcomes verify this metric"
+5. Present the outcome checklist:
+   ```
+   Outcome Validation:
+     [x] <outcome description> — evidence: <what was observed>
+     [ ] <outcome description> — FAILED: <what went wrong>
+
+   Success Metrics:
+     [x] <metric> <target> — linked to: <outcome(s)> (passed)
+     [!] <metric> <target> — TO MONITOR: cannot verify pre-release
+     [!] <metric> <target> — WARNING: no outcomes verify this metric
+   ```
+6. If any outcome fails:
+   - Report what failed and ask: "Fix now and re-commit, or proceed anyway?"
+   - If fix → make fixes, create new commit, re-validate failed outcomes
+   - If proceed → note the gaps in the handover observation
+
+If `docs/plans/define.json` does not exist, report "No outcome definition found — skipping outcome validation" and continue.
+
 ### Step 4: Handover (Claude-Mem Observation)
 
 Save a summary observation to claude-mem using the `save_observation` MCP tool. This captures the full session context for future sessions.

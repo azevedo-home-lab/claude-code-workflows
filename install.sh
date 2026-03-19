@@ -97,6 +97,7 @@ cp "$SCRIPT_DIR/.claude/commands/discuss.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/review.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/complete.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/override.md" "$TARGET/.claude/commands/"
+cp "$SCRIPT_DIR/.claude/commands/define.md" "$TARGET/.claude/commands/"
 
 # Save installer and optional feature files for re-running with flags
 cp "$SCRIPT_DIR/install.sh" "$TARGET/.claude/install.sh"

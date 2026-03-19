@@ -1,5 +1,7 @@
 # Claude Code Workflows
 
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
 A guide to structured, accountable development with Claude Code using complementary tools:
 
 - **Workflow Manager** — PreToolUse hooks that block code edits until a plan is discussed and approved
@@ -19,29 +21,32 @@ A guide to structured, accountable development with Claude Code using complement
 
 ## Workflow Manager
 
-Four-phase workflow that prevents cowboy coding. Claude **cannot** edit files until a plan is discussed and you approve it. After implementation, a multi-agent review pipeline verifies code quality, security, and architecture before the task is complete.
+Five-phase workflow that prevents cowboy coding. Start by defining the problem and outcomes, then plan, implement, and review. Claude **cannot** edit files until a plan is discussed and you approve it. After implementation, a multi-agent review pipeline verifies code quality, security, and architecture before the task is complete.
 
 ```
-OFF ──(/discuss)──> DISCUSS ──(/approve)──> IMPLEMENT ──(/review)──> REVIEW ──(/complete)──> OFF
-                                                  │                      │
-                                                  └───── (/discuss) ─────┘
+         ┌──(/define)──> DEFINE ──(/discuss)──┐
+OFF ─────┤                                    ├──> DISCUSS ──(/approve)──> IMPLEMENT ──(/review)──> REVIEW ──(/complete)──> OFF
+         └──(/discuss)────────────────────────┘         │                      │
+                                                        └───── (/discuss) ─────┘
 
-                              /override <phase>  — jump to any phase directly
+                                    /override <phase>  — jump to any phase directly
 ```
 
 | Phase | Write/Edit | Bash writes | What to do |
 |-------|-----------|-------------|------------|
 | **OFF** | Allowed | Allowed | Normal Claude Code operation, no enforcement |
+| **DEFINE** | Blocked (except specs/plans) | Blocked (except specs/plans) | Define problem, outcomes, success metrics |
 | **DISCUSS** | Blocked (except specs/plans) | Blocked (except specs/plans) | Brainstorm, plan, write design specs |
 | **IMPLEMENT** | Allowed | Allowed | Execute the approved plan with TDD |
 | **REVIEW** | Allowed | Allowed | Multi-agent review pipeline |
 
 **Commands:**
+- `/define` — define the problem and outcomes (recommended first step, optional)
 - `/discuss` — start a workflow (brainstorming, edits blocked)
 - `/approve` — unlock code edits (plan approved, start implementing)
 - `/review` — run multi-agent review pipeline (3 parallel reviewers + verification)
-- `/complete` — verified completion (claude-mem observation, docs check, back to off)
-- `/override <phase>` — jump directly to any phase (off/discuss/implement/review)
+- `/complete` — verified completion with outcome validation (claude-mem observation, docs check, back to off)
+- `/override <phase>` — jump directly to any phase (off/define/discuss/implement/review)
 
 ### `/review` Pipeline
 
@@ -74,7 +79,7 @@ git clone https://github.com/azevedo-home-lab/claude-code-workflows.git
 ./claude-code-workflows/install.sh /path/to/your/project
 ```
 
-Uninstall: `./uninstall.sh` or manually remove `.claude/hooks/workflow-*.sh`, `.claude/hooks/bash-write-guard.sh`, `.claude/hooks/post-tool-navigator.sh`, and `.claude/commands/{approve,discuss,review,complete,override}.md`.
+Uninstall: `./uninstall.sh` or manually remove `.claude/hooks/workflow-*.sh`, `.claude/hooks/bash-write-guard.sh`, `.claude/hooks/post-tool-navigator.sh`, and `.claude/commands/{define,approve,discuss,review,complete,override}.md`.
 
 ## Tools
 
@@ -173,4 +178,8 @@ The template includes security rules for:
 
 ## Contributing
 
-This workflow is designed for reuse. Copy and customize for your projects.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and PR process.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 — see [LICENSE](LICENSE) for details.
