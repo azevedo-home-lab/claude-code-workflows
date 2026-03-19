@@ -1,5 +1,5 @@
 #!/bin/bash
-# Workflow Manager: blocks Write/Edit/MultiEdit/NotebookEdit in DISCUSS phase
+# Workflow Manager: blocks Write/Edit/MultiEdit/NotebookEdit in DISCUSS and DEFINE phases
 # Matcher: Write|Edit|MultiEdit|NotebookEdit
 #
 # Whitelisted paths (allowed in DISCUSS phase):
@@ -21,11 +21,11 @@ fi
 PHASE=$(get_phase)
 
 # Allow everything in implement and review phases
-if [ "$PHASE" != "discuss" ]; then
+if [ "$PHASE" != "discuss" ] && [ "$PHASE" != "define" ]; then
     exit 0
 fi
 
-# DISCUSS phase: check if the target file is in a whitelisted path
+# DISCUSS/DEFINE phase: check if the target file is in a whitelisted path
 INPUT=$(cat)
 FILE_PATH=$(echo "$INPUT" | python3 -c "
 import sys, json
@@ -42,13 +42,22 @@ if [ -n "$FILE_PATH" ]; then
     fi
 fi
 
-cat <<'DENY'
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",
-    "permissionDecision": "deny",
-    "permissionDecisionReason": "BLOCKED: Phase is DISCUSS. Code changes are not allowed until a plan is discussed and approved. Use /approve to proceed to implementation."
-  }
+# Phase-aware deny message
+if [ "$PHASE" = "define" ]; then
+    REASON="BLOCKED: Phase is DEFINE. Code changes are not allowed until you define the problem and outcomes. Use /discuss to proceed to discussion."
+else
+    REASON="BLOCKED: Phase is DISCUSS. Code changes are not allowed until a plan is discussed and approved. Use /approve to proceed to implementation."
+fi
+
+REASON="$REASON" python3 -c "
+import json, os
+output = {
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'deny',
+        'permissionDecisionReason': os.environ['REASON']
+    }
 }
-DENY
+print(json.dumps(output))
+"
 exit 0

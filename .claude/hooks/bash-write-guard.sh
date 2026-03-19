@@ -1,5 +1,5 @@
 #!/bin/bash
-# Workflow Manager: blocks Bash write operations in DISCUSS phase
+# Workflow Manager: blocks Bash write operations in DISCUSS and DEFINE phases
 # Matcher: Bash
 # Catches: redirections, sed -i, tee, heredocs, python file writes
 #
@@ -21,8 +21,8 @@ fi
 
 PHASE=$(get_phase)
 
-# Allow everything in non-discuss phases (off, implement, review)
-if [ "$PHASE" != "discuss" ]; then
+# Allow everything in non-discuss/non-define phases (off, implement, review)
+if [ "$PHASE" != "discuss" ] && [ "$PHASE" != "define" ]; then
     exit 0
 fi
 
@@ -49,15 +49,24 @@ fi
 # Detect write patterns: redirections, sed -i, tee, heredocs, python file writes
 # Note: python3 -c only blocked when combined with file-write indicators (open/write)
 if echo "$COMMAND" | grep -qE '(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c.*\.(write|open)|echo[[:space:]].*>)'; then
-    cat <<'DENY'
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",
-    "permissionDecision": "deny",
-    "permissionDecisionReason": "BLOCKED: Bash write operation detected in DISCUSS phase. Code changes are not allowed until a plan is discussed and approved. Use /approve to proceed to implementation."
-  }
+    # Phase-aware deny message
+    if [ "$PHASE" = "define" ]; then
+        REASON="BLOCKED: Bash write operation detected in DEFINE phase. Code changes are not allowed until you define the problem and outcomes. Use /discuss to proceed to discussion."
+    else
+        REASON="BLOCKED: Bash write operation detected in DISCUSS phase. Code changes are not allowed until a plan is discussed and approved. Use /approve to proceed to implementation."
+    fi
+
+    REASON="$REASON" python3 -c "
+import json, os
+output = {
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'deny',
+        'permissionDecisionReason': os.environ['REASON']
+    }
 }
-DENY
+print(json.dumps(output))
+"
     exit 0
 fi
 

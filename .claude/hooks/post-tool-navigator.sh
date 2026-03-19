@@ -37,6 +37,9 @@ fi
 
 # Build phase-specific message
 case "$PHASE" in
+    define)
+        MSG="You are in DEFINE phase. Next steps: define the problem statement, outcomes, and success metrics. When definition is complete, use /discuss to proceed to discussion and planning."
+        ;;
     discuss)
         MSG="You are in DISCUSS phase. Next steps: use superpowers:brainstorming to explore requirements, then superpowers:writing-plans to create a plan. When plan is ready, user will /approve. User can /discuss to restart discussion at any time."
         ;;

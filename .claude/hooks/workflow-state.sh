@@ -24,8 +24,8 @@ set_phase() {
 
     # Validate phase name
     case "$new_phase" in
-        off|discuss|implement|review) ;;
-        *) echo "ERROR: Invalid phase: $new_phase (valid: off, discuss, implement, review)" >&2; return 1 ;;
+        off|define|discuss|implement|review) ;;
+        *) echo "ERROR: Invalid phase: $new_phase (valid: off, define, discuss, implement, review)" >&2; return 1 ;;
     esac
 
     local current_phase

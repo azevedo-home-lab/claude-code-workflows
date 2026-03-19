@@ -184,6 +184,12 @@ source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "off"
 RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_phase)
 assert_eq "off" "$RESULT" "set_phase accepts 'off' phase"
 
+# Test: set_phase accepts 'define' phase
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "define"
+RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "define" "$RESULT" "set_phase accepts 'define' phase"
+
 # Test: set_phase cleans up review-status.json when leaving review
 setup_test_project
 source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
@@ -293,6 +299,27 @@ source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "off"
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_not_contains "$OUTPUT" "deny" "allows Write/Edit in OFF phase"
 
+# Test: blocks Write/Edit in DEFINE phase
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "define"
+OUTPUT=$(run_gate "/project/src/main.py")
+assert_contains "$OUTPUT" "deny" "blocks Write/Edit to source files in DEFINE phase"
+assert_contains "$OUTPUT" "BLOCKED" "shows BLOCKED message in DEFINE"
+
+# Test: allows Write to whitelisted paths in DEFINE phase
+OUTPUT=$(run_gate "/project/.claude/state/phase.json")
+assert_not_contains "$OUTPUT" "deny" "allows Write to .claude/state/ in DEFINE (whitelist)"
+
+OUTPUT=$(run_gate "/project/docs/superpowers/specs/design.md")
+assert_not_contains "$OUTPUT" "deny" "allows Write to docs/superpowers/specs/ in DEFINE (whitelist)"
+
+OUTPUT=$(run_gate "/project/docs/plans/define.json")
+assert_not_contains "$OUTPUT" "deny" "allows Write to docs/plans/ in DEFINE (whitelist)"
+
+# Test: deny message in DEFINE mentions /discuss
+OUTPUT=$(run_gate "/project/src/main.py")
+assert_contains "$OUTPUT" "/discuss" "deny message in DEFINE mentions /discuss"
+
 # ============================================================
 # TEST SUITE: bash-write-guard.sh
 # ============================================================
@@ -383,6 +410,23 @@ assert_not_contains "$OUTPUT" "deny" "allows Bash write to docs/superpowers/spec
 # Test: allows writes to docs/plans/ in DISCUSS phase (whitelist)
 OUTPUT=$(run_bash_guard "echo 'plan content' > docs/plans/plan.md")
 assert_not_contains "$OUTPUT" "deny" "allows Bash write to docs/plans/ in DISCUSS (whitelist)"
+
+# Test: blocks Bash redirect in DEFINE phase
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "define"
+OUTPUT=$(run_bash_guard "echo hello > file.txt")
+assert_contains "$OUTPUT" "deny" "blocks 'echo hello > file.txt' in DEFINE"
+
+# Test: allows read-only Bash in DEFINE phase
+OUTPUT=$(run_bash_guard "cat file.txt")
+assert_not_contains "$OUTPUT" "deny" "allows 'cat file.txt' in DEFINE"
+
+# Test: allows writes to whitelisted paths in DEFINE
+OUTPUT=$(run_bash_guard "echo '{\"phase\":\"discuss\"}' > .claude/state/phase.json")
+assert_not_contains "$OUTPUT" "deny" "allows Bash write to .claude/state/ in DEFINE (whitelist)"
+
+OUTPUT=$(run_bash_guard "echo 'plan' > docs/plans/define.json")
+assert_not_contains "$OUTPUT" "deny" "allows Bash write to docs/plans/ in DEFINE (whitelist)"
 
 # ============================================================
 # TEST SUITE: install.sh
@@ -558,6 +602,16 @@ cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Write")
 assert_contains "$OUTPUT" "/discuss" "navigator IMPLEMENT message mentions /discuss"
 
+# Test: shows DEFINE message
+setup_test_project
+source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "define"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+OUTPUT=$(run_navigator "Read")
+assert_contains "$OUTPUT" "DEFINE phase" "navigator shows DEFINE message"
+
+# Test: DEFINE message mentions /discuss
+assert_contains "$OUTPUT" "/discuss" "navigator DEFINE message mentions /discuss"
+
 # ============================================================
 # TEST SUITE: statusline.sh
 # ============================================================
@@ -623,6 +677,16 @@ OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window
 CLEAN_OUTPUT=$(echo "$OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
 assert_not_contains "$CLEAN_OUTPUT" "\[\]" "statusline hides empty skill brackets"
 rm -rf "$SL_TEST_DIR2"
+
+# Test: shows DEFINE phase in statusline
+SL_DEFINE_DIR=$(mktemp -d)
+mkdir -p "$SL_DEFINE_DIR/.claude/state" "$SL_DEFINE_DIR/.claude/hooks"
+echo '{"phase": "define", "message_shown": false}' > "$SL_DEFINE_DIR/.claude/state/phase.json"
+touch "$SL_DEFINE_DIR/.claude/hooks/workflow-gate.sh"
+OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_DEFINE_DIR\"}")
+assert_contains "$OUTPUT" "DEFINE" "statusline shows DEFINE phase label"
+assert_contains "$OUTPUT" '\[34m' "statusline uses blue (\\033[34m) for DEFINE phase"
+rm -rf "$SL_DEFINE_DIR"
 
 # ============================================================
 # RESULTS
