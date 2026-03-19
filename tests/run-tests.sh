@@ -101,22 +101,22 @@ assert_exit_code() {
 }
 
 # Setup: create a temporary project directory for testing
-TMPDIR=$(mktemp -d)
-trap 'rm -rf "$TMPDIR"' EXIT
+TEST_DIR=$(mktemp -d)
+trap 'rm -rf "$TEST_DIR"' EXIT
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HOOKS_DIR="$REPO_DIR/.claude/hooks"
 
-# Create a fake project structure in TMPDIR
+# Create a fake project structure in TEST_DIR
 setup_test_project() {
-    rm -rf "$TMPDIR"
-    TMPDIR=$(mktemp -d)
-    mkdir -p "$TMPDIR/.claude/hooks" "$TMPDIR/.claude/state" "$TMPDIR/.claude/commands"
-    cp "$HOOKS_DIR/workflow-state.sh" "$TMPDIR/.claude/hooks/"
-    cp "$HOOKS_DIR/workflow-gate.sh" "$TMPDIR/.claude/hooks/"
-    cp "$HOOKS_DIR/bash-write-guard.sh" "$TMPDIR/.claude/hooks/"
+    rm -rf "$TEST_DIR"
+    TEST_DIR=$(mktemp -d)
+    mkdir -p "$TEST_DIR/.claude/hooks" "$TEST_DIR/.claude/state" "$TEST_DIR/.claude/commands"
+    cp "$HOOKS_DIR/workflow-state.sh" "$TEST_DIR/.claude/hooks/"
+    cp "$HOOKS_DIR/workflow-gate.sh" "$TEST_DIR/.claude/hooks/"
+    cp "$HOOKS_DIR/bash-write-guard.sh" "$TEST_DIR/.claude/hooks/"
     # Set CLAUDE_PROJECT_DIR for hooks
-    export CLAUDE_PROJECT_DIR="$TMPDIR"
+    export CLAUDE_PROJECT_DIR="$TEST_DIR"
 }
 
 # ============================================================
@@ -128,96 +128,96 @@ echo "=== workflow-state.sh ==="
 setup_test_project
 
 # Test: get_phase returns "off" when no state file exists
-RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_phase)
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
 assert_eq "off" "$RESULT" "get_phase defaults to 'off' when no state file"
 
 # Test: set_phase creates state file with correct phase
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-assert_file_exists "$TMPDIR/.claude/state/phase.json" "set_phase creates phase.json"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+assert_file_exists "$TEST_DIR/.claude/state/phase.json" "set_phase creates phase.json"
 
 # Test: get_phase returns "implement" after set_phase
-RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_phase)
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
 assert_eq "implement" "$RESULT" "get_phase returns 'implement' after set_phase"
 
 # Test: set_phase back to discuss
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_phase)
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
 assert_eq "discuss" "$RESULT" "set_phase can change back to 'discuss'"
 
 # Test: set_phase to review
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
-RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_phase)
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
 assert_eq "review" "$RESULT" "set_phase supports 'review' phase"
 
 # Test: state file contains timestamp
-CONTENT=$(cat "$TMPDIR/.claude/state/phase.json")
+CONTENT=$(cat "$TEST_DIR/.claude/state/phase.json")
 assert_contains "$CONTENT" "updated" "state file contains timestamp"
 
 # Test: set_phase initializes message_shown to false
 assert_contains "$CONTENT" '"message_shown": false' "set_phase initializes message_shown to false"
 
 # Test: get_message_shown returns false initially
-RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_message_shown)
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_message_shown)
 assert_eq "false" "$RESULT" "get_message_shown returns false initially"
 
 # Test: set_message_shown sets flag to true
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_message_shown
-RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_message_shown)
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_message_shown)
 assert_eq "true" "$RESULT" "set_message_shown sets flag to true"
 
 # Test: set_phase resets message_shown to false
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_message_shown)
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_message_shown)
 assert_eq "false" "$RESULT" "set_phase resets message_shown to false"
 
 # Test: set_phase creates state directory if missing
-rm -rf "$TMPDIR/.claude/state"
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-assert_file_exists "$TMPDIR/.claude/state/phase.json" "set_phase creates state dir if missing"
+rm -rf "$TEST_DIR/.claude/state"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+assert_file_exists "$TEST_DIR/.claude/state/phase.json" "set_phase creates state dir if missing"
 
 # Test: set_phase rejects invalid phase names
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-OUTPUT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "invalid_phase" 2>&1 || true)
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "invalid_phase" 2>&1 || true)
 assert_contains "$OUTPUT" "ERROR" "set_phase rejects invalid phase name"
 # Verify phase didn't change
-RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_phase)
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
 assert_eq "implement" "$RESULT" "set_phase keeps previous phase after rejection"
 
 # Test: set_phase accepts 'off' phase
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "off"
-RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_phase)
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
 assert_eq "off" "$RESULT" "set_phase accepts 'off' phase"
 
 # Test: set_phase accepts 'define' phase
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "define"
-RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_phase)
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "define"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
 assert_eq "define" "$RESULT" "set_phase accepts 'define' phase"
 
 # Test: set_phase cleans up review-status.json when leaving review
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && reset_review_status
-assert_file_exists "$TMPDIR/.claude/state/review-status.json" "review-status exists in review phase"
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-assert_file_not_exists "$TMPDIR/.claude/state/review-status.json" "set_phase deletes review-status when leaving review"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_review_status
+assert_file_exists "$TEST_DIR/.claude/state/review-status.json" "review-status exists in review phase"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+assert_file_not_exists "$TEST_DIR/.claude/state/review-status.json" "set_phase deletes review-status when leaving review"
 
 # Test: set_phase does NOT delete review-status.json when staying in review (re-run)
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && reset_review_status
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
-assert_file_exists "$TMPDIR/.claude/state/review-status.json" "re-entering review keeps review-status"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_review_status
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+assert_file_exists "$TEST_DIR/.claude/state/review-status.json" "re-entering review keeps review-status"
 
 # Test: reset_review_status creates review-status.json
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && reset_review_status
-assert_file_exists "$TMPDIR/.claude/state/review-status.json" "reset_review_status creates file"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_review_status
+assert_file_exists "$TEST_DIR/.claude/state/review-status.json" "reset_review_status creates file"
 
 # Test: review-status.json has correct initial fields
-CONTENT=$(cat "$TMPDIR/.claude/state/review-status.json")
+CONTENT=$(cat "$TEST_DIR/.claude/state/review-status.json")
 assert_contains "$CONTENT" '"verification_complete": false' "review-status has verification_complete false"
 assert_contains "$CONTENT" '"verification_skipped": false' "review-status has verification_skipped false"
 assert_contains "$CONTENT" '"agents_dispatched": false' "review-status has agents_dispatched false"
@@ -225,17 +225,17 @@ assert_contains "$CONTENT" '"findings_presented": false' "review-status has find
 assert_contains "$CONTENT" '"findings_acknowledged": false' "review-status has findings_acknowledged false"
 
 # Test: set_review_field updates a field
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_review_field "verification_complete" "true"
-RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_review_field "verification_complete")
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_review_field "verification_complete" "true"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_review_field "verification_complete")
 assert_eq "true" "$RESULT" "set_review_field updates verification_complete"
 
 # Test: get_review_field returns false for unset field
-RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_review_field "agents_dispatched")
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_review_field "agents_dispatched")
 assert_eq "false" "$RESULT" "get_review_field returns false for unset field"
 
 # Test: get_review_field returns empty when no file
-rm -f "$TMPDIR/.claude/state/review-status.json"
-RESULT=$(source "$TMPDIR/.claude/hooks/workflow-state.sh" && get_review_field "verification_complete")
+rm -f "$TEST_DIR/.claude/state/review-status.json"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_review_field "verification_complete")
 assert_eq "" "$RESULT" "get_review_field returns empty when no file"
 
 # ============================================================
@@ -247,43 +247,43 @@ echo "=== workflow-gate.sh ==="
 # Helper: run workflow-gate with a file path
 run_gate() {
     local file_path="$1"
-    echo "{\"tool_input\":{\"file_path\":\"$file_path\"}}" | "$TMPDIR/.claude/hooks/workflow-gate.sh" 2>&1 || true
+    echo "{\"tool_input\":{\"file_path\":\"$file_path\"}}" | "$TEST_DIR/.claude/hooks/workflow-gate.sh" 2>&1 || true
 }
 
 # Test: blocks Write to source files in DISCUSS phase
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_contains "$OUTPUT" "deny" "blocks Write/Edit to source files in DISCUSS phase"
 assert_contains "$OUTPUT" "BLOCKED" "shows BLOCKED message in DISCUSS"
 
 # Test: allows Write in IMPLEMENT phase
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_not_contains "$OUTPUT" "deny" "allows Write/Edit in IMPLEMENT phase"
 
 # Test: allows when no state file (first run)
 setup_test_project
-rm -f "$TMPDIR/.claude/state/phase.json"
+rm -f "$TEST_DIR/.claude/state/phase.json"
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_not_contains "$OUTPUT" "deny" "allows when no state file (first run)"
 
 # Test: allows Write in REVIEW phase (edits allowed for fixes)
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_not_contains "$OUTPUT" "deny" "allows Write/Edit in REVIEW phase"
 
 # Test: deny message mentions /approve
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_contains "$OUTPUT" "/approve" "deny message mentions /approve command"
 
 # Test: allows Write to .claude/state/ in DISCUSS phase (whitelist)
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 OUTPUT=$(run_gate "/project/.claude/state/phase.json")
 assert_not_contains "$OUTPUT" "deny" "allows Write to .claude/state/ in DISCUSS (whitelist)"
 
@@ -301,13 +301,13 @@ assert_contains "$OUTPUT" "deny" "blocks Write to non-whitelisted path in DISCUS
 
 # Test: allows Write in OFF phase (no enforcement)
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "off"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_not_contains "$OUTPUT" "deny" "allows Write/Edit in OFF phase"
 
 # Test: blocks Write/Edit in DEFINE phase
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "define"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "define"
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_contains "$OUTPUT" "deny" "blocks Write/Edit to source files in DEFINE phase"
 assert_contains "$OUTPUT" "BLOCKED" "shows BLOCKED message in DEFINE"
@@ -335,24 +335,24 @@ echo "=== bash-write-guard.sh ==="
 # Helper: run bash-write-guard with a command
 run_bash_guard() {
     local cmd="$1"
-    echo "{\"tool_input\":{\"command\":\"$cmd\"}}" | "$TMPDIR/.claude/hooks/bash-write-guard.sh" 2>&1 || true
+    echo "{\"tool_input\":{\"command\":\"$cmd\"}}" | "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>&1 || true
 }
 
 # Test: allows all Bash in IMPLEMENT phase
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 OUTPUT=$(run_bash_guard "echo hello > file.txt")
 assert_not_contains "$OUTPUT" "deny" "allows all Bash in IMPLEMENT phase"
 
 # Test: allows all Bash in REVIEW phase
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
 OUTPUT=$(run_bash_guard "echo hello > file.txt")
 assert_not_contains "$OUTPUT" "deny" "allows all Bash in REVIEW phase"
 
 # Test: allows read-only Bash in DISCUSS phase
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 OUTPUT=$(run_bash_guard "cat file.txt")
 assert_not_contains "$OUTPUT" "deny" "allows 'cat file.txt' in DISCUSS"
 
@@ -367,7 +367,7 @@ assert_not_contains "$OUTPUT" "deny" "allows 'grep -r pattern .' in DISCUSS"
 
 # Test: blocks redirect in DISCUSS phase
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 OUTPUT=$(run_bash_guard "echo hello > file.txt")
 assert_contains "$OUTPUT" "deny" "blocks 'echo hello > file.txt' in DISCUSS"
 
@@ -388,24 +388,24 @@ OUTPUT=$(run_bash_guard "cat > file.txt << EOF")
 assert_contains "$OUTPUT" "deny" "blocks 'cat > file.txt << EOF' in DISCUSS"
 
 # Test: blocks python file write in DISCUSS phase
-OUTPUT=$(echo '{"tool_input":{"command":"python3 -c \"open('"'"'f'"'"','"'"'w'"'"').write('"'"'x'"'"')\""}}' | "$TMPDIR/.claude/hooks/bash-write-guard.sh" 2>&1 || true)
+OUTPUT=$(echo '{"tool_input":{"command":"python3 -c \"open('"'"'f'"'"','"'"'w'"'"').write('"'"'x'"'"')\""}}' | "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>&1 || true)
 assert_contains "$OUTPUT" "deny" "blocks python3 -c file write in DISCUSS"
 
 # Test: allows all Bash in OFF phase
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "off"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
 OUTPUT=$(run_bash_guard "echo hello > file.txt")
 assert_not_contains "$OUTPUT" "deny" "allows all Bash in OFF phase"
 
 # Test: allows when no state file
 setup_test_project
-rm -f "$TMPDIR/.claude/state/phase.json"
+rm -f "$TEST_DIR/.claude/state/phase.json"
 OUTPUT=$(run_bash_guard "echo hello > file.txt")
 assert_not_contains "$OUTPUT" "deny" "allows Bash writes when no state file (first run)"
 
 # Test: allows writes to .claude/state/ in DISCUSS phase (whitelist)
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 OUTPUT=$(run_bash_guard "echo '{\"phase\":\"implement\"}' > .claude/state/phase.json")
 assert_not_contains "$OUTPUT" "deny" "allows Bash write to .claude/state/ in DISCUSS (whitelist)"
 
@@ -419,7 +419,7 @@ assert_not_contains "$OUTPUT" "deny" "allows Bash write to docs/plans/ in DISCUS
 
 # Test: blocks Bash redirect in DEFINE phase
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "define"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "define"
 OUTPUT=$(run_bash_guard "echo hello > file.txt")
 assert_contains "$OUTPUT" "deny" "blocks 'echo hello > file.txt' in DEFINE"
 
@@ -546,13 +546,13 @@ echo "=== post-tool-navigator.sh ==="
 # Helper: run navigator with a tool name
 run_navigator() {
     local tool="$1"
-    echo "{\"tool_name\":\"$tool\"}" | "$TMPDIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true
+    echo "{\"tool_name\":\"$tool\"}" | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true
 }
 
 # Test: shows message in IMPLEMENT phase on first Write
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Write")
 assert_contains "$OUTPUT" "IMPLEMENT phase" "navigator shows IMPLEMENT message on Write"
 
@@ -561,14 +561,14 @@ OUTPUT=$(run_navigator "Edit")
 assert_not_contains "$OUTPUT" "IMPLEMENT" "navigator silent after first message shown"
 
 # Test: phase change resets message_shown
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
 OUTPUT=$(run_navigator "Read")
 assert_contains "$OUTPUT" "REVIEW phase" "navigator shows REVIEW message after phase change"
 
 # Test: silent on Read/Grep in IMPLEMENT phase
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Read")
 assert_not_contains "$OUTPUT" "IMPLEMENT" "navigator silent on Read in IMPLEMENT"
 
@@ -577,43 +577,43 @@ assert_not_contains "$OUTPUT" "IMPLEMENT" "navigator silent on Grep in IMPLEMENT
 
 # Test: shows DISCUSS message
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Read")
 assert_contains "$OUTPUT" "DISCUSS phase" "navigator shows DISCUSS message"
 
 # Test: no message when no state file
 setup_test_project
-rm -f "$TMPDIR/.claude/state/phase.json"
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+rm -f "$TEST_DIR/.claude/state/phase.json"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Write")
 assert_not_contains "$OUTPUT" "phase" "navigator silent when no state file"
 
 # Test: REVIEW message mentions /complete
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "review"
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Bash")
 assert_contains "$OUTPUT" "/complete" "navigator REVIEW message mentions /complete"
 
 # Test: IMPLEMENT message mentions /review
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Write")
 assert_contains "$OUTPUT" "/review" "navigator IMPLEMENT message mentions /review"
 
 # Test: all messages mention /discuss
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Write")
 assert_contains "$OUTPUT" "/discuss" "navigator IMPLEMENT message mentions /discuss"
 
 # Test: shows DEFINE message
 setup_test_project
-source "$TMPDIR/.claude/hooks/workflow-state.sh" && set_phase "define"
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TMPDIR/.claude/hooks/"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "define"
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Read")
 assert_contains "$OUTPUT" "DEFINE phase" "navigator shows DEFINE message"
 

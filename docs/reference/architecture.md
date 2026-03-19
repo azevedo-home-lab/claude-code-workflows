@@ -115,11 +115,15 @@ your-project/
 │   ├── hooks/
 │   │   ├── workflow-state.sh       # State utility
 │   │   ├── workflow-gate.sh        # Write/Edit gate
-│   │   └── bash-write-guard.sh     # Bash write gate
+│   │   ├── bash-write-guard.sh     # Bash write gate
+│   │   └── post-tool-navigator.sh  # Phase guidance messages
 │   ├── commands/
 │   │   ├── define.md               # /define command
+│   │   ├── discuss.md              # /discuss command
 │   │   ├── approve.md              # /approve command
-│   │   └── discuss.md              # /discuss command
+│   │   ├── review.md               # /review command
+│   │   ├── complete.md             # /complete command
+│   │   └── override.md             # /override command
 │   ├── state/
 │   │   └── phase.json              # Phase state (gitignored)
 │   └── settings.json               # Hook configuration

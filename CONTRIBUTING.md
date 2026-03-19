@@ -32,7 +32,7 @@ Thank you for your interest in contributing.
 
 ## Code Style
 
-- **Shell scripts**: Use `set -euo pipefail`, quote variables, use `[[ ]]` for tests when possible
+- **Shell scripts**: Use `set -euo pipefail`, quote variables, use `[ ]` for conditionals (POSIX style, consistent with existing codebase)
 - **Markdown**: ATX-style headers (`##`), fenced code blocks with language tags
 - **JSON**: 2-space indentation, trailing newline
 - **Commits**: Conventional commits (`feat:`, `fix:`, `docs:`, `chore:`)

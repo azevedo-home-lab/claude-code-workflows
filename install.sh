@@ -50,11 +50,11 @@ fi
 
 # If running via curl pipe (or source not found), clone the repo to a temp dir
 if [ -z "$SCRIPT_DIR" ] || [ ! -f "$SCRIPT_DIR/.claude/hooks/workflow-gate.sh" ]; then
-    TMPDIR=$(mktemp -d)
-    trap 'rm -rf "$TMPDIR"' EXIT
+    CLONE_DIR=$(mktemp -d)
+    trap 'rm -rf "$CLONE_DIR"' EXIT
     echo "Downloading Workflow Manager..."
-    git clone --depth 1 --quiet https://github.com/azevedo-home-lab/claude-code-workflows.git "$TMPDIR"
-    SCRIPT_DIR="$TMPDIR"
+    git clone --depth 1 --quiet https://github.com/azevedo-home-lab/claude-code-workflows.git "$CLONE_DIR"
+    SCRIPT_DIR="$CLONE_DIR"
 fi
 
 # Colors
@@ -241,17 +241,18 @@ if [ -f "$GLOBAL_SETTINGS" ]; then
     else
         python3 -c "
 import json, sys
-with open('$GLOBAL_SETTINGS') as f:
+settings_path, statusline_cmd = sys.argv[1], sys.argv[2]
+with open(settings_path) as f:
     settings = json.load(f)
 settings['statusLine'] = {
     'type': 'command',
-    'command': '$STATUSLINE_DST',
+    'command': statusline_cmd,
     'padding': 2
 }
-with open('$GLOBAL_SETTINGS', 'w') as f:
+with open(settings_path, 'w') as f:
     json.dump(settings, f, indent=2)
     f.write('\n')
-" 2>/dev/null && ok "Added statusLine to global settings" || warn "Could not update global settings — add statusLine manually"
+" "$GLOBAL_SETTINGS" "$STATUSLINE_DST" 2>/dev/null && ok "Added statusLine to global settings" || warn "Could not update global settings — add statusLine manually"
     fi
 else
     cat > "$GLOBAL_SETTINGS" <<SLCFG
@@ -270,20 +271,21 @@ echo ""
 ok "Workflow Manager installed!"
 echo ""
 echo "Usage:"
+echo "  /define     — define problem and outcomes (optional first step)"
 echo "  /discuss    — start workflow (brainstorming, edits blocked)"
 echo "  /approve    — unlock code edits (after plan is approved)"
 echo "  /review     — run multi-agent review pipeline"
-echo "  /complete   — verified completion (back to off)"
-echo "  /override   — jump to any phase (off/discuss/implement/review)"
+echo "  /complete   — verified completion with outcome validation (back to off)"
+echo "  /override   — jump to any phase (off/define/discuss/implement/review)"
 echo ""
-echo "Sessions start in OFF phase (no enforcement). Use /discuss to begin a workflow."
+echo "Sessions start in OFF phase (no enforcement). Use /define or /discuss to begin a workflow."
 
 # ============================================================
 # Optional features — run if flags set, otherwise show menu
 # ============================================================
 
 ANY_OPT=false
-$OPT_CLAUDE_MD || $OPT_ITERM || $OPT_YUBIKEY && ANY_OPT=true
+if $OPT_CLAUDE_MD || $OPT_ITERM || $OPT_YUBIKEY; then ANY_OPT=true; fi
 
 # --- CLAUDE.md template ---
 if $OPT_CLAUDE_MD; then
