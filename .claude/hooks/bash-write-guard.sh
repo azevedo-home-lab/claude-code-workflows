@@ -9,7 +9,7 @@
 # Matcher: Bash
 # Catches: redirections, sed -i, tee, heredocs, python file writes
 #
-# Whitelisted paths (allowed in DISCUSS phase):
+# Whitelisted paths (allowed in DISCUSS and DEFINE phases):
 #   - .claude/state/              (workflow state files)
 #   - docs/superpowers/specs/     (design specs)
 #   - docs/superpowers/plans/     (implementation plans)

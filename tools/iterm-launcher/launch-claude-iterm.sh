@@ -24,6 +24,10 @@ PROJECT_DIR="${1:-$(pwd)}"
 PROJECT_NAME="$(basename "$PROJECT_DIR")"
 CLAUDE_BIN="${CLAUDE_BIN:-$HOME/.local/bin/claude}"
 
+# Escape single quotes for safe interpolation into AppleScript write text commands
+SAFE_PROJECT_DIR="${PROJECT_DIR//\'/\'\\\'\'}"
+SAFE_CLAUDE_BIN="${CLAUDE_BIN//\'/\'\\\'\'}"
+
 # Verify prerequisites
 if ! command -v osascript &>/dev/null; then
     echo "ERROR: osascript not found — this tool requires macOS." >&2
@@ -46,8 +50,8 @@ osascript \
     -e 'tell application "iTerm2"' \
     -e '  create window with profile "Claude Code"' \
     -e '  tell current session of current window' \
-    -e "    write text \"cd '$PROJECT_DIR'\"" \
+    -e "    write text \"cd '$SAFE_PROJECT_DIR'\"" \
     -e "    write text \"printf \\\"\\\\e]1337;SetBadgeFormat=%s\\\\a\\\" \\\"$(echo -n "Claude $PROJECT_NAME" | base64)\\\"\"" \
-    -e "    write text \"$CLAUDE_BIN\"" \
+    -e "    write text \"$SAFE_CLAUDE_BIN\"" \
     -e '  end tell' \
     -e 'end tell'

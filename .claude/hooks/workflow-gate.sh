@@ -8,7 +8,7 @@
 # Workflow Manager: blocks Write/Edit/MultiEdit/NotebookEdit in DISCUSS and DEFINE phases
 # Matcher: Write|Edit|MultiEdit|NotebookEdit
 #
-# Whitelisted paths (allowed in DISCUSS phase):
+# Whitelisted paths (allowed in DISCUSS and DEFINE phases):
 #   - .claude/state/              (workflow state files)
 #   - docs/superpowers/specs/     (design specs)
 #   - docs/superpowers/plans/     (implementation plans)

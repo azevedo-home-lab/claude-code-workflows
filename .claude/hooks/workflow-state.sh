@@ -11,7 +11,7 @@
 STATE_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/.claude/state"
 STATE_FILE="$STATE_DIR/phase.json"
 
-# Shared whitelist: paths allowed for writes during DISCUSS phase
+# Shared whitelist: paths allowed for writes during DISCUSS and DEFINE phases
 # Used by workflow-gate.sh and bash-write-guard.sh
 DISCUSS_WRITE_WHITELIST='(\.claude/state/|\.claude/hooks/|docs/superpowers/specs/|docs/superpowers/plans/|docs/plans/|\$STATE_DIR|\$WF_DIR/\.claude/)'
 
