@@ -23,14 +23,112 @@ A guide to structured, accountable development with Claude Code using complement
 
 Five-phase workflow that prevents cowboy coding. Start by defining the problem and outcomes, then plan, implement, and review. Claude **cannot** edit files until a plan is discussed and you approve it. After implementation, a multi-agent review pipeline verifies code quality, security, and architecture before the task is complete.
 
-```
-         ┌──(/define)──> DEFINE ──(/discuss)──┐
-OFF ─────┤                                    ├──> DISCUSS ──(/approve)──> IMPLEMENT ──(/review)──> REVIEW ──(/complete)──> OFF
-         └──(/discuss)────────────────────────┘         │                      │
-                                                        └───── (/discuss) ─────┘
+```mermaid
+flowchart LR
+    subgraph OFF_BOX ["OFF"]
+        OFF["No enforcement\nAll edits allowed"]
+    end
 
-                                    /override <phase>  — jump to any phase directly
+    subgraph DEFINE_BOX ["DEFINE"]
+        direction TB
+        D1["Problem Discovery\nwho, what pain, why now\n<b>skill: /define</b>"]
+        D2["Problem Statement\nHow Might We framing\n<b>skill: /define</b>"]
+        D3["Outcomes: FR and NFR\nfunctional, performance\nsecurity, reliability, UX\n<b>skill: /define</b>"]
+        D4["Success Metrics\ntargets and measurement\n<b>skill: /define</b>"]
+        D5["Scope\nin scope, out of scope\nconstraints, dependencies\n<b>skill: /define</b>"]
+        D1 --> D2 --> D3 --> D4 --> D5
+    end
+
+    subgraph DISCUSS_BOX ["DISCUSS"]
+        direction TB
+        P1["Explore Solutions\nrequirements, constraints\nalternatives, trade-offs\n<b>skill: brainstorming</b>"]
+        P2["Design the Solution\narchitecture, components\ndata flow, interfaces\n<b>skill: brainstorming</b>"]
+        P3["Write the Plan\nstep-by-step implementation\ntask decomposition\n<b>skill: writing-plans</b>"]
+        P1 --> P2 --> P3
+    end
+
+    subgraph IMPLEMENT_BOX ["IMPLEMENT"]
+        direction TB
+        I1["Execute the Plan\nstep-by-step with checkpoints\n<b>skill: executing-plans</b>"]
+        I2["Test-Driven Development\nwrite tests before code\n<b>skill: test-driven-development</b>"]
+        I3["Code + Tests\ncommit after each task\n<b>skill: subagent-driven-development</b>"]
+        I1 --> I2 --> I3
+    end
+
+    subgraph REVIEW_BOX ["REVIEW"]
+        direction TB
+        R1["Run Test Suite\n<b>skill: verification-before-completion</b>"]
+        R2["Detect Changed Files"]
+        subgraph R3 ["3 Parallel Review Agents"]
+            direction LR
+            R3A["Code Quality\nDRY, SOLID, YAGNI\ncomplexity, naming\n<b>skill: requesting-code-review</b>"]
+            R3B["Security\ninjection, credentials\nunsafe operations\n<b>skill: requesting-code-review</b>"]
+            R3C["Architecture\nplan compliance\npatterns, boundaries\n<b>skill: requesting-code-review</b>"]
+        end
+        R4["Verification Agent\nfilter false positives"]
+        R5["Consolidated Report\nfindings by severity"]
+        R6["Fix Findings\napply fixes, re-review\nuntil clean or acknowledged\n<b>skill: systematic-debugging</b>"]
+        R1 --> R2 --> R3 --> R4 --> R5 --> R6
+    end
+
+    subgraph COMPLETE_BOX ["COMPLETE"]
+        direction TB
+        C1["Smart Docs Detection\nrecommend doc updates"]
+        C2["Commit and Push\nstage, sign, push"]
+        C3["Plan Validation\nverify each deliverable\nwith behavioral evidence\n<b>skill: verification-before-completion</b>"]
+        C4["Outcome Validation\ncheck define.json outcomes\nand success metrics\n<b>skill: verification-before-completion</b>"]
+        C5["Handover\nclaude-mem observation\ncommit hash, decisions\n<b>tool: claude-mem</b>"]
+        C1 --> C2 --> C3 --> C4 --> C5
+    end
+
+    OFF_END(("OFF"))
+
+    OFF -- "/define" --> DEFINE_BOX
+    OFF -. "/discuss\n(skip define)" .-> DISCUSS_BOX
+    DEFINE_BOX -- "/discuss" --> DISCUSS_BOX
+    DISCUSS_BOX -- "/implement" --> IMPLEMENT_BOX
+    IMPLEMENT_BOX -- "/review" --> REVIEW_BOX
+    REVIEW_BOX -- "/complete" --> COMPLETE_BOX
+    COMPLETE_BOX --> OFF_END
+
+    style OFF_BOX fill:#f5f5f5,stroke:#999,color:#333
+    style DEFINE_BOX fill:#dbeafe,stroke:#3b82f6,color:#1e40af
+    style DISCUSS_BOX fill:#fef9c3,stroke:#eab308,color:#854d0e
+    style IMPLEMENT_BOX fill:#dcfce7,stroke:#22c55e,color:#166534
+    style REVIEW_BOX fill:#cffafe,stroke:#06b6d4,color:#155e75
+    style COMPLETE_BOX fill:#fce7f3,stroke:#ec4899,color:#9d174d
+    style OFF_END fill:#f5f5f5,stroke:#999,color:#333
+    style R3 fill:#e0f2fe,stroke:#0ea5e9,color:#0c4a6e
+
+    style OFF fill:#f5f5f5,stroke:#999,color:#333
+    style D1 fill:#dbeafe,stroke:#3b82f6,color:#1e40af
+    style D2 fill:#dbeafe,stroke:#3b82f6,color:#1e40af
+    style D3 fill:#dbeafe,stroke:#3b82f6,color:#1e40af
+    style D4 fill:#dbeafe,stroke:#3b82f6,color:#1e40af
+    style D5 fill:#dbeafe,stroke:#3b82f6,color:#1e40af
+    style P1 fill:#fef9c3,stroke:#eab308,color:#854d0e
+    style P2 fill:#fef9c3,stroke:#eab308,color:#854d0e
+    style P3 fill:#fef9c3,stroke:#eab308,color:#854d0e
+    style I1 fill:#dcfce7,stroke:#22c55e,color:#166534
+    style I2 fill:#dcfce7,stroke:#22c55e,color:#166534
+    style I3 fill:#dcfce7,stroke:#22c55e,color:#166534
+    style R1 fill:#cffafe,stroke:#06b6d4,color:#155e75
+    style R2 fill:#cffafe,stroke:#06b6d4,color:#155e75
+    style R3A fill:#e0f2fe,stroke:#0ea5e9,color:#0c4a6e
+    style R3B fill:#e0f2fe,stroke:#0ea5e9,color:#0c4a6e
+    style R3C fill:#e0f2fe,stroke:#0ea5e9,color:#0c4a6e
+    style R4 fill:#cffafe,stroke:#06b6d4,color:#155e75
+    style R5 fill:#cffafe,stroke:#06b6d4,color:#155e75
+    style R6 fill:#cffafe,stroke:#06b6d4,color:#155e75
+    style C1 fill:#fce7f3,stroke:#ec4899,color:#9d174d
+    style C2 fill:#fce7f3,stroke:#ec4899,color:#9d174d
+    style C3 fill:#fce7f3,stroke:#ec4899,color:#9d174d
+    style C4 fill:#fce7f3,stroke:#ec4899,color:#9d174d
+    style C5 fill:#fce7f3,stroke:#ec4899,color:#9d174d
 ```
+
+> **Note:** `/implement` is currently named `/approve` in the codebase. Renaming planned.
+> Escape hatches (not shown): `/discuss` from any phase returns to DISCUSS, `/override <phase>` jumps directly to any phase.
 
 | Phase | Write/Edit | Bash writes | What to do |
 |-------|-----------|-------------|------------|
