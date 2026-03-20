@@ -14,6 +14,9 @@
 # Workflow Manager state (per-session, not committed)
 .claude/state/
 
+# Git worktrees (isolated workspaces)
+.worktrees/
+
 # Context directories
 .claude/context/
 

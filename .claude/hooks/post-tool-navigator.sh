@@ -5,9 +5,12 @@
 # This file is part of Claude Code Workflows.
 # See LICENSE for details.
 
-# Workflow Manager: PostToolUse phase navigator
-# Fires once per phase transition to remind Claude of current phase and next steps.
-# After the message is shown once, it goes silent until the phase changes.
+# Workflow Manager: PostToolUse three-layer coaching system
+# Layer 1: Phase entry — objective, scope, done criteria (once per phase)
+# Layer 2: Professional standards reinforcement (periodic, contextual)
+# Layer 3: Anti-laziness checks (on every red-flag match)
+#
+# All messages prefixed with [Workflow Coach — PHASE] for user visibility.
 
 set -euo pipefail
 
@@ -19,58 +22,340 @@ if [ ! -f "$STATE_FILE" ]; then
     exit 0
 fi
 
-# Already shown message for this phase — stay silent
-if [ "$(get_message_shown)" = "true" ]; then
+PHASE=$(get_phase)
+
+# OFF phase = no coaching
+if [ "$PHASE" = "off" ]; then
     exit 0
 fi
 
-PHASE=$(get_phase)
-
-# Read tool name from stdin
+# Read tool name and input from stdin
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null || echo "")
 
-# IMPLEMENT phase: only fire on Write/Edit/Bash, skip Read/Grep/Glob
-if [ "$PHASE" = "implement" ]; then
-    case "$TOOL_NAME" in
-        Write|Edit|MultiEdit|NotebookEdit|Bash)
-            ;;
-        *)
-            exit 0
-            ;;
-    esac
+# Collect messages from all layers — may combine multiple
+MESSAGES=""
+
+# ============================================================
+# LAYER 1: Phase entry message (fires once per phase transition)
+# ============================================================
+
+if [ "$(get_message_shown)" != "true" ]; then
+    # IMPLEMENT phase: only fire on Write/Edit/Bash, skip Read/Grep/Glob
+    FIRE_LAYER1=true
+    if [ "$PHASE" = "implement" ]; then
+        case "$TOOL_NAME" in
+            Write|Edit|MultiEdit|NotebookEdit|Bash) ;;
+            *) FIRE_LAYER1=false ;;
+        esac
+    fi
+
+    if [ "$FIRE_LAYER1" = "true" ]; then
+        case "$PHASE" in
+            define)
+                MESSAGES="[Workflow Coach — DEFINE]
+Objective: Frame the problem and define measurable outcomes.
+You are in Diamond 1 (Problem Space). Diverge on understanding, converge on a clear problem statement.
+Done when: Decision record has a complete Problem section with measurable outcomes, approved by user."
+                ;;
+            discuss)
+                MESSAGES="[Workflow Coach — DISCUSS]
+Objective: Research solution approaches, choose one with documented rationale, write implementation plan.
+You are in Diamond 2 (Solution Space). Diverge on possibilities, converge through codebase and risk analysis.
+Done when: Decision record has Approaches Considered + Decision sections. Plan file created. User approved."
+                ;;
+            implement)
+                MESSAGES="[Workflow Coach — IMPLEMENT]
+Objective: Build the chosen solution following the approved plan with TDD discipline.
+Follow the plan. Flag deviations. Write tests before code.
+Done when: All plan steps implemented, tests passing, ready for review."
+                ;;
+            review)
+                MESSAGES="[Workflow Coach — REVIEW]
+Objective: Independent multi-agent validation of implementation quality.
+Report findings accurately. Don't downgrade severity. Quantify impact and fix effort.
+Done when: All agents dispatched, findings verified and persisted to decision record, user has responded."
+                ;;
+            complete)
+                MESSAGES="[Workflow Coach — COMPLETE]
+Objective: Verify outcomes were met, update documentation, hand over for future sessions.
+Be specific about failures. Recommend next steps. Audit tech debt. Write a useful handover.
+Done when: Validation results in decision record, README checked, claude-mem observation saved, phase OFF."
+                ;;
+        esac
+        set_message_shown
+    fi
 fi
 
-# Build phase-specific message
-case "$PHASE" in
-    define)
-        MSG="You are in DEFINE phase. Next steps: define the problem statement, outcomes, and success metrics. When definition is complete, use /discuss to proceed to discussion and planning."
-        ;;
-    discuss)
-        MSG="You are in DISCUSS phase. Next steps: use superpowers:brainstorming to explore requirements, then superpowers:writing-plans to create a plan. When plan is ready, user will /approve. User can /discuss to restart discussion at any time."
-        ;;
-    implement)
-        MSG="You are in IMPLEMENT phase. Code was modified. Next steps: continue implementing the approved plan, use superpowers:executing-plans with review checkpoints and superpowers:test-driven-development for tests before code. When implementation is complete, user will /review to enter review phase. User can /discuss to go back to discussion at any time."
-        ;;
-    review)
-        MSG="You are in REVIEW phase. The /review command has initiated the review pipeline. Follow the pipeline steps: run tests, detect changes, dispatch review agents, verify findings, present consolidated report. When review passes, user will /complete to finish. User can /discuss to go back at any time."
-        ;;
-    *)
-        exit 0
-        ;;
-esac
+# ============================================================
+# LAYER 2: Professional standards reinforcement (periodic)
+# ============================================================
 
-# Mark message as shown
-set_message_shown
+# Only fire if Layer 1 has already fired (message_shown = true means we're past entry)
+if [ "$(get_message_shown)" = "true" ]; then
+    # Track agent dispatch counter
+    if [ "$TOOL_NAME" = "Agent" ]; then
+        reset_coaching_counter
+    else
+        increment_coaching_counter
+    fi
 
-# Return message via hookSpecificOutput
-MSG="$MSG" python3 -c "
+    # Determine trigger type based on phase + tool pattern
+    TRIGGER=""
+    L2_MSG=""
+
+    case "$PHASE" in
+        define)
+            if [ "$TOOL_NAME" = "Agent" ]; then
+                TRIGGER="agent_return_define"
+                L2_MSG="[Workflow Coach — DEFINE] Challenge the first framing. Separate facts from interpretations. Are these findings changing the problem statement?"
+            fi
+            ;;
+        discuss)
+            if [ "$TOOL_NAME" = "Agent" ]; then
+                TRIGGER="agent_return_discuss"
+                L2_MSG="[Workflow Coach — DISCUSS] Every approach must have stated downsides. Unsourced claims are opinions. Does this trace back to the problem statement?"
+            elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+                # Check if writing to a plan file
+                FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
+                if echo "$FILE_PATH" | grep -qE '(docs/superpowers/plans/|docs/plans/)'; then
+                    TRIGGER="plan_write"
+                    L2_MSG="[Workflow Coach — DISCUSS] Does every plan step trace to the chosen approach? Flag scope creep. Did you document why this approach over alternatives?"
+                fi
+            fi
+            ;;
+        implement)
+            if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+                TRIGGER="source_edit"
+                L2_MSG="[Workflow Coach — IMPLEMENT] Does this follow the plan? Would you be proud to have this reviewed? Tests written first?"
+            elif [ "$TOOL_NAME" = "Bash" ]; then
+                COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
+                if echo "$COMMAND" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest)'; then
+                    TRIGGER="test_run"
+                    L2_MSG="[Workflow Coach — IMPLEMENT] If tests fail, diagnose the root cause. Don't patch the test to make it pass. Don't skip tests for small changes."
+                fi
+            fi
+            ;;
+        review)
+            if [ "$TOOL_NAME" = "Agent" ]; then
+                TRIGGER="agent_return_review"
+                L2_MSG="[Workflow Coach — REVIEW] Don't downgrade findings. Verify before reporting. Flag systemic issues, not just instances."
+            fi
+            ;;
+        complete)
+            if [ "$TOOL_NAME" = "Agent" ]; then
+                TRIGGER="agent_return_complete"
+                L2_MSG="[Workflow Coach — COMPLETE] Be specific about failures. Quantify fix effort. Recommend a next phase, don't just list options."
+            elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+                FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
+                if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
+                    TRIGGER="decision_record_edit"
+                    L2_MSG="[Workflow Coach — COMPLETE] Does the handover make sense to a stranger? Is tech debt visible? Does README match reality?"
+                fi
+            fi
+            ;;
+    esac
+
+    # Fire Layer 2 only if trigger matched and hasn't fired yet this phase
+    if [ -n "$TRIGGER" ] && [ -n "$L2_MSG" ]; then
+        if [ "$(has_coaching_fired "$TRIGGER")" != "true" ]; then
+            add_coaching_fired "$TRIGGER"
+            if [ -n "$MESSAGES" ]; then
+                MESSAGES="$MESSAGES
+
+$L2_MSG"
+            else
+                MESSAGES="$L2_MSG"
+            fi
+        fi
+    fi
+
+    # REVIEW Layer 2 trigger: "After presenting findings"
+    # Fires when writing review findings to user (Write/Edit/MultiEdit to decision record in review phase)
+    # This is separate from the agent_return_review trigger above
+    if [ "$PHASE" = "review" ]; then
+        if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+            FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
+            if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
+                FINDINGS_TRIGGER="findings_present"
+                if [ "$(has_coaching_fired "$FINDINGS_TRIGGER")" != "true" ]; then
+                    add_coaching_fired "$FINDINGS_TRIGGER"
+                    FINDINGS_MSG="[Workflow Coach — REVIEW] Quantify the cost of not fixing. Don't soften with 'but this is minor.' State facts, let user decide."
+                    if [ -n "$MESSAGES" ]; then
+                        MESSAGES="$MESSAGES
+
+$FINDINGS_MSG"
+                    else
+                        MESSAGES="$FINDINGS_MSG"
+                    fi
+                fi
+            fi
+        fi
+    fi
+fi
+
+# ============================================================
+# LAYER 3: Anti-laziness checks (fires on every match)
+# ============================================================
+
+L3_MSG=""
+
+# Check 1: Short agent prompts (< 150 chars)
+if [ "$TOOL_NAME" = "Agent" ]; then
+    PROMPT_LEN=$(echo "$INPUT" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+prompt = d.get('tool_input', {}).get('prompt', '')
+print(len(prompt))
+" 2>/dev/null || echo "999")
+    if [ "$PROMPT_LEN" -lt 150 ]; then
+        L3_MSG="[Workflow Coach — ${PHASE^^}] Agent prompts must be detailed enough for autonomous work. Include: context, specific task, expected output format, constraints. Short prompts produce shallow results."
+    fi
+fi
+
+# Check 2: Generic commit messages (< 30 chars)
+if [ "$TOOL_NAME" = "Bash" ]; then
+    COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
+    if echo "$COMMAND" | grep -qE 'git commit'; then
+        COMMIT_MSG_LEN=$(echo "$COMMAND" | python3 -c "
+import sys, re
+cmd = sys.stdin.read()
+m = re.search(r'-m\s+[\"'\''](.*?)[\"'\'']', cmd)
+if m:
+    print(len(m.group(1)))
+else:
+    print(999)
+" 2>/dev/null || echo "999")
+        if [ "$COMMIT_MSG_LEN" -lt 30 ]; then
+            L3_MSG="[Workflow Coach — ${PHASE^^}] Commit messages must explain why, not what. The diff shows what changed. Include context and reasoning."
+        fi
+    fi
+fi
+
+# Check 3: All findings downgraded (REVIEW phase, writing to decision record)
+if [ "$PHASE" = "review" ] && { [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; }; then
+    FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
+    if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
+        # Check if all findings are under Suggestions with no Critical or Warning entries
+        ALL_SUGGESTIONS=$(python3 -c "
+import sys
+try:
+    with open(sys.argv[1]) as f:
+        content = f.read()
+    in_review = False
+    has_critical = False
+    has_warning = False
+    for line in content.split('\n'):
+        if '## Review Findings' in line:
+            in_review = True
+        elif in_review and line.startswith('## ') and 'Review Findings' not in line:
+            break
+        elif in_review:
+            if '### Critical' in line: has_critical = True
+            if '### Warning' in line: has_warning = True
+    # If we found the section but no critical/warning headings with content
+    if in_review and not has_critical and not has_warning:
+        print('true')
+    else:
+        print('false')
+except Exception:
+    print('false')
+" "$FILE_PATH" 2>/dev/null || echo "false")
+        if [ "$ALL_SUGGESTIONS" = "true" ]; then
+            L3_MSG="[Workflow Coach — REVIEW] All findings were rated as suggestions. Review severity assessments. Are you downgrading to avoid friction?"
+        fi
+    fi
+fi
+
+# Check 4: Minimal handover (COMPLETE phase, claude-mem observation)
+if [ "$PHASE" = "complete" ] && echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
+    OBS_LEN=$(echo "$INPUT" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+ti = d.get('tool_input', {})
+text = ti.get('narrative', ti.get('text', ''))
+print(len(text))
+" 2>/dev/null || echo "999")
+    if [ "$OBS_LEN" -lt 200 ]; then
+        L3_MSG="[Workflow Coach — COMPLETE] The handover must be useful to someone who knows nothing about this session. Include: what was built, why these choices, gotchas, what's left."
+    fi
+fi
+
+# Check 5: Skipping research in DEFINE/DISCUSS (fires on every match per spec Layer 3)
+# Moved from Layer 2 to Layer 3 because spec says this fires on every match, not once per phase
+if [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ]; then
+    COUNTER=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        d = json.load(f)
+    print(d.get('coaching', {}).get('tool_calls_since_agent', 0))
+except Exception: print(0)
+" "$STATE_FILE" 2>/dev/null || echo "0")
+    if [ "$COUNTER" -gt 10 ]; then
+        SKIP_MSG="[Workflow Coach — ${PHASE^^}] You're in a research phase but haven't dispatched background agents. Is this trivial enough to skip? State explicitly."
+        if [ -n "$L3_MSG" ]; then
+            L3_MSG="$L3_MSG
+
+$SKIP_MSG"
+        else
+            L3_MSG="$SKIP_MSG"
+        fi
+    fi
+fi
+
+# Check 6: Options without recommendation (best-effort heuristic)
+# The hook can't read Claude's text, but can detect AskUserQuestion tool
+# following agent returns without an intervening recommendation signal.
+# This is approximate — may produce false positives. Fires in any active phase.
+if [ "$TOOL_NAME" = "AskUserQuestion" ]; then
+    # Check if any agent has returned in this phase (any agent_return_* trigger fired)
+    AGENTS_RETURNED=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        d = json.load(f)
+    fired = d.get('coaching', {}).get('layer2_fired', [])
+    has_agent = any(t.startswith('agent_return') for t in fired)
+    print('true' if has_agent else 'false')
+except Exception: print('false')
+" "$STATE_FILE" 2>/dev/null || echo "false")
+    if [ "$AGENTS_RETURNED" = "true" ]; then
+        L3_RECOMMEND="[Workflow Coach — ${PHASE^^}] Don't just list options. State which you recommend and why. The user needs your professional judgment, not a menu."
+        if [ -n "$L3_MSG" ]; then
+            L3_MSG="$L3_MSG
+
+$L3_RECOMMEND"
+        else
+            L3_MSG="$L3_RECOMMEND"
+        fi
+    fi
+fi
+
+# Append Layer 3 message if any
+if [ -n "$L3_MSG" ]; then
+    if [ -n "$MESSAGES" ]; then
+        MESSAGES="$MESSAGES
+
+$L3_MSG"
+    else
+        MESSAGES="$L3_MSG"
+    fi
+fi
+
+# ============================================================
+# OUTPUT: Return combined messages
+# ============================================================
+
+if [ -n "$MESSAGES" ]; then
+    MESSAGES="$MESSAGES" python3 -c "
 import json, os
 output = {
     'hookSpecificOutput': {
         'hookEventName': 'PostToolUse',
-        'systemMessage': os.environ['MSG']
+        'systemMessage': os.environ['MESSAGES']
     }
 }
 print(json.dumps(output))
 "
+fi

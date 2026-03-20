@@ -1,7 +1,7 @@
 # Public Release Preparation — Design Spec
 
 **Date:** 2026-03-19
-**Status:** Draft
+**Status:** Superseded by `2026-03-20-workflow-rework-design.md`
 **Scope:** DEFINE phase + outcome validation, GPL v3 licensing, community files, statusline updates
 
 ---

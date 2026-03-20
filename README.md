@@ -4,7 +4,7 @@
 
 A guide to structured, accountable development with Claude Code using complementary tools:
 
-- **Workflow Manager** — PreToolUse hooks that block code edits until a plan is discussed and approved
+- **Workflow Manager** — PreToolUse hooks that block code edits until a plan is discussed and you proceed to implement
 - **Superpowers** — Specialized skills (brainstorming, TDD, planning, debugging, code review)
 - **claude-mem** — Cross-session persistent memory via MCP server
 - **Status Line** — Minimal, color-coded status bar showing model, context usage, git branch, and worktree info
@@ -21,7 +21,11 @@ A guide to structured, accountable development with Claude Code using complement
 
 ## Workflow Manager
 
-Five-phase workflow that prevents cowboy coding. Start by defining the problem and outcomes, then plan, implement, and review. Claude **cannot** edit files until a plan is discussed and you approve it. After implementation, a multi-agent review pipeline verifies code quality, security, and architecture before the task is complete.
+Six-phase workflow that prevents cowboy coding. Start by defining the problem and outcomes, then plan, implement, review, and complete. Claude **cannot** edit files until a plan is discussed and you run `/implement`. After implementation, a multi-agent review pipeline verifies code quality, security, and architecture before the task is complete.
+
+Each workflow cycle produces a **decision record** — a versioned document that captures problem definition, approaches considered, chosen approach with rationale, review findings, and outcome verification. This record flows through every phase and is persisted for future reference.
+
+Beyond edit-blocking, a **coaching system** monitors tool usage patterns and provides contextual nudges when the workflow drifts from best practices. Each phase enforces **[professional standards](docs/reference/professional-standards.md)** — evidence before assertions, explicit trade-offs, quantified recommendations — loaded at phase entry and reinforced throughout.
 
 ```mermaid
 flowchart LR
@@ -29,22 +33,23 @@ flowchart LR
         OFF["No enforcement\nAll edits allowed"]
     end
 
-    subgraph DEFINE_BOX ["DEFINE"]
+    subgraph DEFINE_BOX ["DEFINE — Diamond 1: Problem Space"]
         direction TB
-        D1["Problem Discovery\nwho, what pain, why now\n<b>skill: /define</b>"]
-        D2["Problem Statement\nHow Might We framing\n<b>skill: /define</b>"]
-        D3["Outcomes: FR and NFR\nfunctional, performance\nsecurity, reliability, UX\n<b>skill: /define</b>"]
-        D4["Success Metrics\ntargets and measurement\n<b>skill: /define</b>"]
-        D5["Scope\nin scope, out of scope\nconstraints, dependencies\n<b>skill: /define</b>"]
+        D1["Problem Discovery\nwho, what pain, why now\n<b>skill: brainstorming</b>"]
+        D2["Diverge: Research Agents\ndomain research, context\nassumption challenging"]
+        D3["Problem Statement\nHow Might We framing"]
+        D4["Converge: Structure Agents\noutcomes, scope, metrics"]
+        D5["Decision Record\nProblem section"]
         D1 --> D2 --> D3 --> D4 --> D5
     end
 
-    subgraph DISCUSS_BOX ["DISCUSS"]
+    subgraph DISCUSS_BOX ["DISCUSS — Diamond 2: Solution Space"]
         direction TB
-        P1["Explore Solutions\nrequirements, constraints\nalternatives, trade-offs\n<b>skill: brainstorming</b>"]
-        P2["Design the Solution\narchitecture, components\ndata flow, interfaces\n<b>skill: brainstorming</b>"]
-        P3["Write the Plan\nstep-by-step implementation\ntask decomposition\n<b>skill: writing-plans</b>"]
-        P1 --> P2 --> P3
+        P1["Diverge: Solution Research\nweb search, case studies\nprior art\n<b>skill: brainstorming</b>"]
+        P2["Converge: Codebase Analysis\narchitecture fit, risks\ntrade-offs\n<b>skill: brainstorming</b>"]
+        P3["Decision Record\napproaches, rationale\nchosen approach"]
+        P4["Write the Plan\nstep-by-step implementation\n<b>skill: writing-plans</b>"]
+        P1 --> P2 --> P3 --> P4
     end
 
     subgraph IMPLEMENT_BOX ["IMPLEMENT"]
@@ -73,12 +78,13 @@ flowchart LR
 
     subgraph COMPLETE_BOX ["COMPLETE"]
         direction TB
-        C1["Smart Docs Detection\nrecommend doc updates"]
-        C2["Commit and Push\nstage, sign, push"]
-        C3["Plan Validation\nverify each deliverable\nwith behavioral evidence\n<b>skill: verification-before-completion</b>"]
-        C4["Outcome Validation\ncheck define.json outcomes\nand success metrics\n<b>skill: verification-before-completion</b>"]
-        C5["Handover\nclaude-mem observation\ncommit hash, decisions\n<b>tool: claude-mem</b>"]
-        C1 --> C2 --> C3 --> C4 --> C5
+        C1["Plan Validation\nverify each deliverable\nwith behavioral evidence\n<b>skill: verification-before-completion</b>"]
+        C2["Outcome Validation\ncheck decision record outcomes\nand success metrics\n<b>skill: verification-before-completion</b>"]
+        C3["Smart Docs Detection\nrecommend doc updates"]
+        C4["Commit and Push\nstage, sign, push"]
+        C5["Tech Debt Audit\nreview accepted trade-offs"]
+        C6["Handover\nclaude-mem observation\ncommit hash, decisions\n<b>tool: claude-mem</b>"]
+        C1 --> C2 --> C3 --> C4 --> C5 --> C6
     end
 
     OFF_END(("OFF"))
@@ -109,6 +115,7 @@ flowchart LR
     style P1 fill:#fef9c3,stroke:#eab308,color:#854d0e
     style P2 fill:#fef9c3,stroke:#eab308,color:#854d0e
     style P3 fill:#fef9c3,stroke:#eab308,color:#854d0e
+    style P4 fill:#fef9c3,stroke:#eab308,color:#854d0e
     style I1 fill:#dcfce7,stroke:#22c55e,color:#166534
     style I2 fill:#dcfce7,stroke:#22c55e,color:#166534
     style I3 fill:#dcfce7,stroke:#22c55e,color:#166534
@@ -125,10 +132,10 @@ flowchart LR
     style C3 fill:#fce7f3,stroke:#ec4899,color:#9d174d
     style C4 fill:#fce7f3,stroke:#ec4899,color:#9d174d
     style C5 fill:#fce7f3,stroke:#ec4899,color:#9d174d
+    style C6 fill:#fce7f3,stroke:#ec4899,color:#9d174d
 ```
 
-> **Note:** `/implement` is currently named `/approve` in the codebase. Renaming planned.
-> Escape hatches (not shown): `/discuss` from any phase returns to DISCUSS, `/override <phase>` jumps directly to any phase.
+Any `/phase` command can jump directly to any phase. Soft gates warn when skipping recommended steps.
 
 | Phase | Write/Edit | Bash writes | What to do |
 |-------|-----------|-------------|------------|
@@ -137,14 +144,14 @@ flowchart LR
 | **DISCUSS** | Blocked (except specs/plans) | Blocked (except specs/plans) | Brainstorm, plan, write design specs |
 | **IMPLEMENT** | Allowed | Allowed | Execute the approved plan with TDD |
 | **REVIEW** | Allowed | Allowed | Multi-agent review pipeline |
+| **COMPLETE** | Blocked (except docs) | Blocked (except docs) | Verified completion, outcome validation, handover |
 
 **Commands:**
 - `/define` — define the problem and outcomes (recommended first step, optional)
-- `/discuss` — start a workflow (brainstorming, edits blocked)
-- `/approve` — unlock code edits (plan approved, start implementing)
+- `/discuss` — research solutions, design approach, write implementation plan (edits blocked)
+- `/implement` — unlock code edits (plan approved, start implementing)
 - `/review` — run multi-agent review pipeline (3 parallel reviewers + verification)
 - `/complete` — verified completion with outcome validation (claude-mem observation, docs check, back to off)
-- `/override <phase>` — jump directly to any phase (off/define/discuss/implement/review)
 
 ### `/review` Pipeline
 
@@ -159,12 +166,14 @@ When you run `/review`, it executes a structured pipeline:
 ### `/complete` Pipeline
 
 When you run `/complete`, it verifies and closes the task:
-1. **Pre-completion checks** — blocks if review wasn't completed
-2. **Smart docs detection** — recommends documentation updates (included in commit)
-3. **Commit & Push** — stage, commit with conventional message, optional push
-4. **Plan validation** — if a plan file exists, verifies each deliverable with evidence (behavioral deliverables must be demonstrated, not just grep'd)
-5. **Handover** — claude-mem observation with commit hash and verification results
-6. **Phase transition** — resets to OFF (normal operation)
+1. **Soft gate** — warns if review wasn't completed (proceeds if user confirms)
+2. **Plan validation** — if a plan file exists, verifies each deliverable with behavioral evidence
+3. **Outcome validation** — checks decision record outcomes and success metrics
+4. **Smart docs detection** — recommends documentation and README updates
+5. **Commit & Push** — stage, commit with conventional message, optional push
+6. **Tech debt audit** — reviews accepted trade-offs from the decision record
+7. **Handover** — claude-mem observation with commit hash, decisions, and verification results
+8. **Phase transition** — resets to OFF (normal operation)
 
 **Install into any project:**
 ```bash
@@ -177,7 +186,7 @@ git clone https://github.com/azevedo-home-lab/claude-code-workflows.git
 ./claude-code-workflows/install.sh /path/to/your/project
 ```
 
-Uninstall: `./uninstall.sh` or manually remove `.claude/hooks/workflow-*.sh`, `.claude/hooks/bash-write-guard.sh`, `.claude/hooks/post-tool-navigator.sh`, and `.claude/commands/{define,approve,discuss,review,complete,override}.md`.
+Uninstall: `./uninstall.sh` or manually remove `.claude/hooks/workflow-*.sh`, `.claude/hooks/bash-write-guard.sh`, `.claude/hooks/post-tool-navigator.sh`, and `.claude/commands/{define,discuss,implement,review,complete}.md`.
 
 ## Tools
 

@@ -1,67 +1,80 @@
 Transition the workflow to DEFINE phase. Run this command:
 
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "define" && cat > "$STATE_DIR/active-skill.json" <<'SK'
-{"skill": "", "updated": "phase-transition"}
-SK
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "define" && set_active_skill ""
 echo "Phase set to DEFINE — code edits are blocked. Define the problem and outcomes first."
 ```
 
 Then confirm to the user that the phase has changed and code edits are blocked.
 
-**You are now in DEFINE phase.** Guide the user through these sections, one at a time. Ask questions conversationally — one question per message, prefer multiple choice when possible.
+**You are now in DEFINE phase (Diamond 1 — Problem Space).**
 
-## Section 1 — Problem Discovery
+Before proceeding:
+1. Read `docs/reference/professional-standards.md` — apply the Universal Standards and DEFINE Phase Standards throughout this phase.
 
-Understand the problem before trying to solve it:
+## Workflow
+
+Use `superpowers:brainstorming` with **problem-discovery context**. Focus on understanding the problem, not solving it. Update the skill tracker:
+
+```bash
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_active_skill "brainstorming"
+```
+
+### Diverge Phase
+
+Guide the user through problem discovery — one question per message, prefer multiple choice:
 - Who is affected by this problem?
 - What pain or friction are they experiencing?
 - What's the current state or workaround?
 - Why does this matter now?
 
-## Section 2 — Problem Statement
+After 2-3 exchanges when an initial problem framing emerges, **dispatch background research agents** (unless the problem is trivial — if so, state explicitly: "This problem is well-defined — skipping background research. If you want broader exploration, say so."):
 
-Synthesize the discovery into a crisp problem statement. Use a "How Might We" framing if appropriate.
-Present it to the user: "Is this the right problem?"
-Iterate until the user confirms.
+1. **Domain researcher** — Web search for the problem domain: similar pain points, industry context, standards, user research patterns. Tools: WebSearch, WebFetch.
+2. **Context gatherer** — Search project history for prior discussions, related decisions, failed attempts. Tools: claude-mem search, git log, Grep.
+3. **Assumption challenger** — Takes the emerging problem statement, looks for counterevidence, edge cases, overlooked stakeholders. Tools: WebSearch, Grep, Read.
 
-## Section 3 — Outcome Definition
+When agents return, synthesize findings into the conversation. Challenge the first framing — is this the real problem, or a symptom?
 
-Define what success looks like — observable, measurable criteria that can be verified.
+### Converge Phase
 
-For each outcome, capture:
-- **Description** — what should be true when we're done
+Once the user and you agree on the problem framing, synthesize into a crisp problem statement. Use "How Might We" framing if appropriate. Present to user: "Is this the right problem?" Iterate until confirmed.
+
+Then dispatch **converge agents**:
+
+1. **Outcome structurer** — Structure measurable outcomes with verification methods, acceptance criteria, success metrics. Reads the conversation context so far.
+2. **Scope boundary checker** — Identify in/out scope, hidden dependencies, unstated constraints, regulatory considerations. Tools: WebSearch, Read, Grep.
+
+Present structured outcomes to user for review. Each outcome must have:
+- **Description** — what should be true when done
 - **Type** — functional, performance, security, reliability, usability, maintainability, compatibility
 - **Verification method** — how to demonstrate it (not just prove code exists)
-- **Acceptance criteria** — the specific evidence that confirms it
+- **Acceptance criteria** — specific evidence that confirms it
 
-Present diverse examples appropriate to the project type. A CLI tool needs different examples than a web API, a library, or an infrastructure script. Outcomes must be verifiable — expressible as a test that can pass or fail. Verification means exercising the behavior end-to-end, not just proving code exists.
-
-**Success metrics** — quantifiable measures of whether the outcomes collectively solve the problem:
-- What to measure, what the target is, how to measure it
-- Some metrics are immediately verifiable; others are long-term (flag as "to monitor post-release")
-- Not every project needs formal metrics — don't force them when they'd be artificial
-
-## Section 4 — Boundaries
-
-- What's explicitly **in scope**?
-- What's explicitly **out of scope** (anti-goals)?
-- Any constraints or dependencies?
+Define success metrics and scope boundaries (in-scope, out-of-scope, constraints).
 
 ## Output
 
-After all sections are complete, save the definition to `docs/plans/define.json`. The file must capture:
-- The problem statement and who is affected
-- All defined outcomes with their type, verification method, and acceptance criteria
-- Success metrics with targets and how to measure them (if applicable)
-- Linkage between outcomes and the metrics they support
-- Scope boundaries (in-scope, out-of-scope, constraints)
-- Creation date
+Create the decision record at `docs/plans/YYYY-MM-DD-<topic>-decisions.md` with the **Problem** section populated:
 
-Confirm to the user: "Problem and outcomes saved to `docs/plans/define.json`. Use `/discuss` to proceed to discussion and planning."
+```markdown
+# Decision Record: <topic>
 
-**Important:** When transitioning, update the active skill tracker:
-```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && echo '{"skill": "SKILL_NAME", "updated": "now"}' > "$WF_DIR/.claude/state/active-skill.json"
+## Problem (DEFINE phase)
+- Problem statement
+- Who is affected and why it matters now
+- Current state / workarounds
+- Measurable outcomes with verification methods
+- Success metrics with targets
+- Scope: in / out / constraints
 ```
-Replace SKILL_NAME with the skill being used (e.g., "brainstorming", "writing-plans").
+
+Only the structured, converged version is written to the decision record (raw diverge findings are conversation context, not persisted).
+
+Register the decision record path:
+
+```bash
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_decision_record "docs/plans/YYYY-MM-DD-<topic>-decisions.md"
+```
+
+Confirm to the user: "Problem and outcomes saved to the decision record. Use `/discuss` to proceed to solution design."

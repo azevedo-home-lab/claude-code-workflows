@@ -50,20 +50,22 @@ Edit `CLAUDE.md` to fill in project-specific placeholders.
 
 ```
 "Add user authentication with JWT"       # Describe what you want
-/superpowers:brainstorming                # Clarify requirements (edits BLOCKED)
-/superpowers:writing-plans                # Generate plan (edits still BLOCKED)
+/define                                   # Define problem + outcomes (optional)
+/discuss                                  # Enter discussion (edits BLOCKED)
+/superpowers:brainstorming                # Clarify requirements
+/superpowers:writing-plans                # Generate plan
 # Review the plan
-/approve                                  # Unlock code edits
+/implement                                # Unlock code edits
 /superpowers:executing-plans              # Implement with review checkpoints
 /superpowers:test-driven-development      # Tests before implementation
 # Implementation done
 /review                                   # Enter review phase
 /superpowers:verification-before-completion  # Run tests, verify output
 /superpowers:requesting-code-review       # Security, best practices check
-/complete                                 # Task done, back to discuss
+/complete                                 # Verified completion, handover, back to OFF
 ```
 
-The hooks enforce the discuss-before-code boundary. Superpowers guides quality at each phase. The review phase ensures verification and code review before the task is complete.
+The six phases are: OFF, DEFINE, DISCUSS, IMPLEMENT, REVIEW, COMPLETE. The hooks enforce the discuss-before-code boundary. Superpowers guides quality at each phase. Soft gates warn when skipping recommended steps (e.g., implementing without a plan).
 
 ## Next Steps
 

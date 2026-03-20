@@ -6,10 +6,9 @@
 |---------|-------|-------------|
 | `/define` | DEFINE | Guide problem + outcome definition |
 | `/discuss` | DISCUSS | Start brainstorming and planning |
-| `/approve` | IMPLEMENT | Unlock code edits |
-| `/review` | REVIEW | Run multi-agent review pipeline |
-| `/complete` | OFF | Verified completion with outcome validation |
-| `/override <phase>` | Any | Jump to any phase |
+| `/implement` | IMPLEMENT | Unlock code edits (soft gate: warns if no plan) |
+| `/review` | REVIEW | Run multi-agent review pipeline (soft gate: warns if no changes) |
+| `/complete` | COMPLETE | Verified completion with outcome validation (soft gate: warns if no review) |
 
 ## Superpowers Skills
 
@@ -45,7 +44,7 @@
 /discuss                         → Enter discussion
 /superpowers:brainstorm          → Clarify requirements
 /superpowers:write-plan          → Generate plan
-Review and approve
+/implement                       → Unlock code edits
 /superpowers:execute-plan        → Implement with checkpoints
 /superpowers:verification-before-completion → Verify
 /complete                        → Validate outcomes + commit
