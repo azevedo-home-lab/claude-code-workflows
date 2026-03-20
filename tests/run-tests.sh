@@ -553,16 +553,16 @@ setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Write")
-assert_contains "$OUTPUT" "Workflow Coach — IMPLEMENT" "Layer 1 shows IMPLEMENT coaching message on Write"
+assert_contains "$OUTPUT" "Workflow Coach.*IMPLEMENT" "Layer 1 shows IMPLEMENT coaching message on Write"
 
 # Test: Layer 1 silent on second tool use (message_shown = true)
 OUTPUT=$(run_navigator "Edit")
-assert_not_contains "$OUTPUT" "Workflow Coach — IMPLEMENT" "Layer 1 silent after first message shown"
+assert_not_contains "$OUTPUT" "Workflow Coach.*IMPLEMENT" "Layer 1 silent after first message shown"
 
 # Test: phase change resets message_shown
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
 OUTPUT=$(run_navigator "Read")
-assert_contains "$OUTPUT" "Workflow Coach — REVIEW" "Layer 1 shows REVIEW message after phase change"
+assert_contains "$OUTPUT" "Workflow Coach.*REVIEW" "Layer 1 shows REVIEW message after phase change"
 
 # Test: Layer 1 silent on Read/Grep in IMPLEMENT phase
 setup_test_project
@@ -579,7 +579,7 @@ setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Read")
-assert_contains "$OUTPUT" "Workflow Coach — DISCUSS" "Layer 1 shows DISCUSS coaching message"
+assert_contains "$OUTPUT" "Workflow Coach.*DISCUSS" "Layer 1 shows DISCUSS coaching message"
 
 # Test: no message when no state file
 setup_test_project
@@ -593,14 +593,14 @@ setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "define"
 cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Read")
-assert_contains "$OUTPUT" "Workflow Coach — DEFINE" "Layer 1 shows DEFINE coaching message"
+assert_contains "$OUTPUT" "Workflow Coach.*DEFINE" "Layer 1 shows DEFINE coaching message"
 
 # Test: Layer 1 shows COMPLETE coaching message
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
 cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Read")
-assert_contains "$OUTPUT" "Workflow Coach — COMPLETE" "Layer 1 shows COMPLETE coaching message"
+assert_contains "$OUTPUT" "Workflow Coach.*COMPLETE" "Layer 1 shows COMPLETE coaching message"
 
 # Test: Layer 1 silent in OFF phase
 setup_test_project
