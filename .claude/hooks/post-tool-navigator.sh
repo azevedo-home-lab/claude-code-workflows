@@ -115,7 +115,7 @@ if [ "$(get_message_shown)" = "true" ]; then
             if [ "$TOOL_NAME" = "Agent" ]; then
                 TRIGGER="agent_return_discuss"
                 L2_MSG="[Workflow Coach — DISCUSS] Every approach must have stated downsides. Unsourced claims are opinions. Does this trace back to the problem statement?"
-            elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ]; then
+            elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
                 # Check if writing to a plan file
                 FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
                 if echo "$FILE_PATH" | grep -qE '(docs/superpowers/plans/|docs/plans/)'; then
@@ -146,7 +146,7 @@ if [ "$(get_message_shown)" = "true" ]; then
             if [ "$TOOL_NAME" = "Agent" ]; then
                 TRIGGER="agent_return_complete"
                 L2_MSG="[Workflow Coach — COMPLETE] Be specific about failures. Quantify fix effort. Recommend a next phase, don't just list options."
-            elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ]; then
+            elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
                 FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
                 if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
                     TRIGGER="decision_record_edit"
@@ -170,27 +170,24 @@ $L2_MSG"
         fi
     fi
 
-    # Check for skipping-research trigger (define/discuss with no agents dispatched)
-    if [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ]; then
-        COUNTER=$(python3 -c "
-import json, sys
-try:
-    with open(sys.argv[1]) as f:
-        d = json.load(f)
-    print(d.get('coaching', {}).get('tool_calls_since_agent', 0))
-except Exception: print(0)
-" "$STATE_FILE" 2>/dev/null || echo "0")
-        if [ "$COUNTER" -gt 10 ]; then
-            SKIP_TRIGGER="no_agent_dispatch"
-            if [ "$(has_coaching_fired "$SKIP_TRIGGER")" != "true" ]; then
-                add_coaching_fired "$SKIP_TRIGGER"
-                SKIP_MSG="[Workflow Coach — ${PHASE^^}] Have you gathered enough context to dispatch research agents? Don't converge prematurely on the first framing."
-                if [ -n "$MESSAGES" ]; then
-                    MESSAGES="$MESSAGES
+    # REVIEW Layer 2 trigger: "After presenting findings"
+    # Fires when writing review findings to user (Write/Edit/MultiEdit to decision record in review phase)
+    # This is separate from the agent_return_review trigger above
+    if [ "$PHASE" = "review" ]; then
+        if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+            FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
+            if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
+                FINDINGS_TRIGGER="findings_present"
+                if [ "$(has_coaching_fired "$FINDINGS_TRIGGER")" != "true" ]; then
+                    add_coaching_fired "$FINDINGS_TRIGGER"
+                    FINDINGS_MSG="[Workflow Coach — REVIEW] Quantify the cost of not fixing. Don't soften with 'but this is minor.' State facts, let user decide."
+                    if [ -n "$MESSAGES" ]; then
+                        MESSAGES="$MESSAGES
 
-$SKIP_MSG"
-                else
-                    MESSAGES="$SKIP_MSG"
+$FINDINGS_MSG"
+                    else
+                        MESSAGES="$FINDINGS_MSG"
+                    fi
                 fi
             fi
         fi
@@ -236,7 +233,7 @@ else:
 fi
 
 # Check 3: All findings downgraded (REVIEW phase, writing to decision record)
-if [ "$PHASE" = "review" ] && { [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ]; }; then
+if [ "$PHASE" = "review" ] && { [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; }; then
     FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
     if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
         # Check if all findings are under Suggestions with no Critical or Warning entries
@@ -284,22 +281,53 @@ print(len(text))
     fi
 fi
 
-# Check 5: Options without recommendation (best-effort heuristic)
+# Check 5: Skipping research in DEFINE/DISCUSS (fires on every match per spec Layer 3)
+# Moved from Layer 2 to Layer 3 because spec says this fires on every match, not once per phase
+if [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ]; then
+    COUNTER=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        d = json.load(f)
+    print(d.get('coaching', {}).get('tool_calls_since_agent', 0))
+except Exception: print(0)
+" "$STATE_FILE" 2>/dev/null || echo "0")
+    if [ "$COUNTER" -gt 10 ]; then
+        SKIP_MSG="[Workflow Coach — ${PHASE^^}] You're in a research phase but haven't dispatched background agents. Is this trivial enough to skip? State explicitly."
+        if [ -n "$L3_MSG" ]; then
+            L3_MSG="$L3_MSG
+
+$SKIP_MSG"
+        else
+            L3_MSG="$SKIP_MSG"
+        fi
+    fi
+fi
+
+# Check 6: Options without recommendation (best-effort heuristic)
 # The hook can't read Claude's text, but can detect AskUserQuestion tool
 # following agent returns without an intervening recommendation signal.
-# This is approximate — may produce false positives.
+# This is approximate — may produce false positives. Fires in any active phase.
 if [ "$TOOL_NAME" = "AskUserQuestion" ]; then
-    # If we're in a phase where recommendations are expected and agents have returned
-    if [ "$PHASE" = "discuss" ] || [ "$PHASE" = "complete" ]; then
-        if [ "$(has_coaching_fired "agent_return_discuss")" = "true" ] || [ "$(has_coaching_fired "agent_return_complete")" = "true" ]; then
-            L3_RECOMMEND="[Workflow Coach — ${PHASE^^}] Don't just list options. State which you recommend and why. The user needs your professional judgment, not a menu."
-            if [ -n "$L3_MSG" ]; then
-                L3_MSG="$L3_MSG
+    # Check if any agent has returned in this phase (any agent_return_* trigger fired)
+    AGENTS_RETURNED=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        d = json.load(f)
+    fired = d.get('coaching', {}).get('layer2_fired', [])
+    has_agent = any(t.startswith('agent_return') for t in fired)
+    print('true' if has_agent else 'false')
+except Exception: print('false')
+" "$STATE_FILE" 2>/dev/null || echo "false")
+    if [ "$AGENTS_RETURNED" = "true" ]; then
+        L3_RECOMMEND="[Workflow Coach — ${PHASE^^}] Don't just list options. State which you recommend and why. The user needs your professional judgment, not a menu."
+        if [ -n "$L3_MSG" ]; then
+            L3_MSG="$L3_MSG
 
 $L3_RECOMMEND"
-            else
-                L3_MSG="$L3_RECOMMEND"
-            fi
+        else
+            L3_MSG="$L3_RECOMMEND"
         fi
     fi
 fi
