@@ -5,15 +5,13 @@
 # This file is part of Claude Code Workflows.
 # See LICENSE for details.
 
-# Workflow Manager: blocks Bash write operations in DISCUSS and DEFINE phases
+# Workflow Manager: blocks Bash write operations in DEFINE, DISCUSS, and COMPLETE phases
 # Matcher: Bash
 # Catches: redirections, sed -i, tee, heredocs, python file writes
 #
-# Whitelisted paths (allowed in DISCUSS and DEFINE phases):
-#   - .claude/state/              (workflow state files)
-#   - docs/superpowers/specs/     (design specs)
-#   - docs/superpowers/plans/     (implementation plans)
-#   - docs/plans/                 (implementation plans, legacy path)
+# Whitelist tiers:
+#   Restrictive (DEFINE/DISCUSS): .claude/state/, docs/superpowers/specs/, docs/superpowers/plans/, docs/plans/
+#   Docs-allowed (COMPLETE):      .claude/state/, docs/ (all), *.md at project root
 
 set -euo pipefail
 
@@ -27,10 +25,17 @@ fi
 
 PHASE=$(get_phase)
 
-# Allow everything in non-discuss/non-define phases (off, implement, review)
-if [ "$PHASE" != "discuss" ] && [ "$PHASE" != "define" ]; then
-    exit 0
-fi
+# Allow everything in implement, review, and off phases
+case "$PHASE" in
+    implement|review|off) exit 0 ;;
+esac
+
+# Select whitelist based on phase
+case "$PHASE" in
+    define|discuss) WHITELIST="$RESTRICTED_WRITE_WHITELIST" ;;
+    complete)       WHITELIST="$COMPLETE_WRITE_WHITELIST" ;;
+    *)              exit 0 ;;
+esac
 
 # Read the tool input from stdin
 INPUT=$(cat)
@@ -43,12 +48,12 @@ if [ -z "$COMMAND" ]; then
     exit 0
 fi
 
-# Allow any command targeting whitelisted paths (state, specs, plans)
-# Also allow workflow state commands (set_phase, workflow-state.sh) for phase transitions
-if echo "$COMMAND" | grep -qE "$DISCUSS_WRITE_WHITELIST"; then
+# Allow any command targeting whitelisted paths
+if echo "$COMMAND" | grep -qE "$WHITELIST"; then
     exit 0
 fi
-if echo "$COMMAND" | grep -qE '(workflow-state\.sh|set_phase|reset_review_status|set_review_field)'; then
+# Allow workflow state commands for phase transitions and state management
+if echo "$COMMAND" | grep -qE '(workflow-state\.sh|set_phase|get_phase|reset_review_status|[sg]et_review_field|[sg]et_active_skill|[sg]et_decision_record|check_soft_gate|increment_coaching_counter|reset_coaching_counter|add_coaching_fired|has_coaching_fired)'; then
     exit 0
 fi
 
@@ -56,11 +61,12 @@ fi
 # Note: python3 -c only blocked when combined with file-write indicators (open/write)
 if echo "$COMMAND" | grep -qE '(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c.*\.(write|open)|echo[[:space:]].*>)'; then
     # Phase-aware deny message
-    if [ "$PHASE" = "define" ]; then
-        REASON="BLOCKED: Bash write operation detected in DEFINE phase. Code changes are not allowed until you define the problem and outcomes. Use /discuss to proceed to discussion."
-    else
-        REASON="BLOCKED: Bash write operation detected in DISCUSS phase. Code changes are not allowed until a plan is discussed and approved. Use /approve to proceed to implementation."
-    fi
+    case "$PHASE" in
+        define)   REASON="BLOCKED: Bash write operation detected in DEFINE phase. Code changes are not allowed until you define the problem and outcomes." ;;
+        discuss)  REASON="BLOCKED: Bash write operation detected in DISCUSS phase. Code changes are not allowed until a plan is discussed and approved. Use /implement to proceed to implementation." ;;
+        complete) REASON="BLOCKED: Bash write operation detected in COMPLETE phase. Code changes are not allowed during completion. Only documentation updates are permitted." ;;
+        *)        REASON="BLOCKED: Unexpected phase ($PHASE)." ;;
+    esac
 
     REASON="$REASON" python3 -c "
 import json, os
@@ -76,5 +82,5 @@ print(json.dumps(output))
     exit 0
 fi
 
-# Read-only Bash commands are allowed in discuss phase
+# Read-only Bash commands are allowed
 exit 0
