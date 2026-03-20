@@ -1,5 +1,7 @@
 # Public Release Preparation — Implementation Plan
 
+> **Superseded** by `2026-03-20-workflow-rework.md`. This plan was executed but the system was subsequently reworked.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add DEFINE phase with outcome validation, GPL v3 licensing, and community files to prepare the repo for public release.
