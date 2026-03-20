@@ -320,7 +320,7 @@ assert_not_contains "$OUTPUT" "deny" "allows Write to .claude/state/ in DEFINE (
 OUTPUT=$(run_gate "/project/docs/superpowers/specs/design.md")
 assert_not_contains "$OUTPUT" "deny" "allows Write to docs/superpowers/specs/ in DEFINE (whitelist)"
 
-OUTPUT=$(run_gate "/project/docs/plans/define.json")
+OUTPUT=$(run_gate "/project/docs/plans/2026-01-01-test-decisions.md")
 assert_not_contains "$OUTPUT" "deny" "allows Write to docs/plans/ in DEFINE (whitelist)"
 
 # Test: deny message in DEFINE mentions problem definition
@@ -432,7 +432,7 @@ assert_not_contains "$OUTPUT" "deny" "allows 'cat file.txt' in DEFINE"
 OUTPUT=$(run_bash_guard "echo test > .claude/state/workflow.json")
 assert_not_contains "$OUTPUT" "deny" "allows Bash write to .claude/state/ in DEFINE (whitelist)"
 
-OUTPUT=$(run_bash_guard "echo 'plan' > docs/plans/define.json")
+OUTPUT=$(run_bash_guard "echo 'plan' > docs/plans/decisions.md")
 assert_not_contains "$OUTPUT" "deny" "allows Bash write to docs/plans/ in DEFINE (whitelist)"
 
 # ============================================================

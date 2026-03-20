@@ -284,6 +284,26 @@ print(len(text))
     fi
 fi
 
+# Check 5: Options without recommendation (best-effort heuristic)
+# The hook can't read Claude's text, but can detect AskUserQuestion tool
+# following agent returns without an intervening recommendation signal.
+# This is approximate — may produce false positives.
+if [ "$TOOL_NAME" = "AskUserQuestion" ]; then
+    # If we're in a phase where recommendations are expected and agents have returned
+    if [ "$PHASE" = "discuss" ] || [ "$PHASE" = "complete" ]; then
+        if [ "$(has_coaching_fired "agent_return_discuss")" = "true" ] || [ "$(has_coaching_fired "agent_return_complete")" = "true" ]; then
+            L3_RECOMMEND="[Workflow Coach — ${PHASE^^}] Don't just list options. State which you recommend and why. The user needs your professional judgment, not a menu."
+            if [ -n "$L3_MSG" ]; then
+                L3_MSG="$L3_MSG
+
+$L3_RECOMMEND"
+            else
+                L3_MSG="$L3_RECOMMEND"
+            fi
+        fi
+    fi
+fi
+
 # Append Layer 3 message if any
 if [ -n "$L3_MSG" ]; then
     if [ -n "$MESSAGES" ]; then
