@@ -92,12 +92,19 @@ cp "$SCRIPT_DIR/.claude/hooks/post-tool-navigator.sh" "$TARGET/.claude/hooks/"
 chmod +x "$TARGET/.claude/hooks/"*.sh
 
 # Copy commands
-cp "$SCRIPT_DIR/.claude/commands/approve.md" "$TARGET/.claude/commands/"
+cp "$SCRIPT_DIR/.claude/commands/implement.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/discuss.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/review.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/complete.md" "$TARGET/.claude/commands/"
-cp "$SCRIPT_DIR/.claude/commands/override.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/define.md" "$TARGET/.claude/commands/"
+
+# Copy professional standards
+mkdir -p "$TARGET/docs/reference"
+cp "$SCRIPT_DIR/docs/reference/professional-standards.md" "$TARGET/docs/reference/"
+
+# Migration: remove old command files if upgrading
+rm -f "$TARGET/.claude/commands/approve.md"
+rm -f "$TARGET/.claude/commands/override.md"
 
 # Save installer and optional feature files for re-running with flags
 cp "$SCRIPT_DIR/install.sh" "$TARGET/.claude/install.sh"
@@ -214,17 +221,41 @@ else
 fi
 
 # Initialize workflow state to OFF phase (only if not already set)
-if [ ! -f "$TARGET/.claude/state/phase.json" ]; then
-    cat > "$TARGET/.claude/state/phase.json" <<'INIT'
+# Migration: if old phase.json exists, migrate to workflow.json
+if [ -f "$TARGET/.claude/state/phase.json" ] && [ ! -f "$TARGET/.claude/state/workflow.json" ]; then
+    MIGRATED_PHASE=$(grep -o '"phase"[[:space:]]*:[[:space:]]*"[^"]*"' "$TARGET/.claude/state/phase.json" | grep -o '"[^"]*"$' | tr -d '"')
+    cat > "$TARGET/.claude/state/workflow.json" <<MIGRATE
+{
+  "phase": "${MIGRATED_PHASE:-off}",
+  "message_shown": false,
+  "active_skill": "",
+  "decision_record": "",
+  "coaching": {
+    "tool_calls_since_agent": 0,
+    "layer2_fired": []
+  },
+  "updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+MIGRATE
+    rm -f "$TARGET/.claude/state/phase.json" "$TARGET/.claude/state/active-skill.json" "$TARGET/.claude/state/review-status.json"
+    ok "Migrated workflow state from phase.json to workflow.json (phase: ${MIGRATED_PHASE:-off})"
+elif [ ! -f "$TARGET/.claude/state/workflow.json" ]; then
+    cat > "$TARGET/.claude/state/workflow.json" <<'INIT'
 {
   "phase": "off",
   "message_shown": false,
+  "active_skill": "",
+  "decision_record": "",
+  "coaching": {
+    "tool_calls_since_agent": 0,
+    "layer2_fired": []
+  },
   "updated": "auto-initialized by installer"
 }
 INIT
     ok "Initialized workflow state to OFF phase"
 else
-    ok "Workflow state preserved ($(grep -o '"phase": "[^"]*"' "$TARGET/.claude/state/phase.json"))"
+    ok "Workflow state preserved ($(grep -o '"phase": "[^"]*"' "$TARGET/.claude/state/workflow.json"))"
 fi
 
 # Install statusline globally
@@ -273,10 +304,10 @@ echo ""
 echo "Usage:"
 echo "  /define     — define problem and outcomes (optional first step)"
 echo "  /discuss    — start workflow (brainstorming, edits blocked)"
-echo "  /approve    — unlock code edits (after plan is approved)"
+echo "  /implement  — unlock code edits (after plan is approved)"
 echo "  /review     — run multi-agent review pipeline"
 echo "  /complete   — verified completion with outcome validation (back to off)"
-echo "  /override   — jump to any phase (off/define/discuss/implement/review)"
+echo "  Note: Any /phase command can jump directly to any phase."
 echo ""
 echo "Sessions start in OFF phase (no enforcement). Use /define or /discuss to begin a workflow."
 

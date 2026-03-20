@@ -21,13 +21,17 @@ rm -f "$TARGET/.claude/hooks/workflow-gate.sh"
 rm -f "$TARGET/.claude/hooks/bash-write-guard.sh"
 rm -f "$TARGET/.claude/hooks/post-tool-navigator.sh"
 
-# Remove commands
-rm -f "$TARGET/.claude/commands/approve.md"
+# Remove commands (current + legacy names)
+rm -f "$TARGET/.claude/commands/implement.md"
 rm -f "$TARGET/.claude/commands/discuss.md"
 rm -f "$TARGET/.claude/commands/review.md"
 rm -f "$TARGET/.claude/commands/complete.md"
-rm -f "$TARGET/.claude/commands/override.md"
 rm -f "$TARGET/.claude/commands/define.md"
+rm -f "$TARGET/.claude/commands/approve.md"
+rm -f "$TARGET/.claude/commands/override.md"
+
+# Remove professional standards
+rm -f "$TARGET/docs/reference/professional-standards.md"
 
 # Remove state
 rm -rf "$TARGET/.claude/state"
