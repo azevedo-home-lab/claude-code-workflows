@@ -23,6 +23,10 @@ A guide to structured, accountable development with Claude Code using complement
 
 Six-phase workflow that prevents cowboy coding. Start by defining the problem and outcomes, then plan, implement, review, and complete. Claude **cannot** edit files until a plan is discussed and you run `/implement`. After implementation, a multi-agent review pipeline verifies code quality, security, and architecture before the task is complete.
 
+Each workflow cycle produces a **decision record** — a versioned document that captures problem definition, approaches considered, chosen approach with rationale, review findings, and outcome verification. This record flows through every phase and is persisted for future reference.
+
+Beyond edit-blocking, a **coaching system** monitors tool usage patterns and provides contextual nudges when the workflow drifts from best practices. Each phase enforces **[professional standards](docs/reference/professional-standards.md)** — evidence before assertions, explicit trade-offs, quantified recommendations — loaded at phase entry and reinforced throughout.
+
 ```mermaid
 flowchart LR
     subgraph OFF_BOX ["OFF"]
@@ -144,7 +148,7 @@ Any `/phase` command can jump directly to any phase. Soft gates warn when skippi
 
 **Commands:**
 - `/define` — define the problem and outcomes (recommended first step, optional)
-- `/discuss` — start a workflow (brainstorming, edits blocked)
+- `/discuss` — research solutions, design approach, write implementation plan (edits blocked)
 - `/implement` — unlock code edits (plan approved, start implementing)
 - `/review` — run multi-agent review pipeline (3 parallel reviewers + verification)
 - `/complete` — verified completion with outcome validation (claude-mem observation, docs check, back to off)

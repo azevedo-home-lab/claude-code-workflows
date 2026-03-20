@@ -45,9 +45,22 @@ ti = d.get('tool_input', {})
 print(ti.get('file_path', ''))
 " 2>/dev/null || echo "")
 
+# Reject path traversal attempts
+if [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE '\.\.'; then
+    FILE_PATH=""  # Force deny — traversal paths are never whitelisted
+fi
+
+# Normalize path: strip project root prefix for consistent matching
+# (Claude Code may pass absolute paths like /Users/.../project/README.md)
+PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+NORMALIZED_PATH="$FILE_PATH"
+if [ -n "$PROJECT_ROOT" ]; then
+    NORMALIZED_PATH="${FILE_PATH#"$PROJECT_ROOT"/}"
+fi
+
 # Allow writes to whitelisted paths
-if [ -n "$FILE_PATH" ]; then
-    if echo "$FILE_PATH" | grep -qE "$WHITELIST"; then
+if [ -n "$NORMALIZED_PATH" ]; then
+    if echo "$NORMALIZED_PATH" | grep -qE "$WHITELIST"; then
         exit 0
     fi
 fi

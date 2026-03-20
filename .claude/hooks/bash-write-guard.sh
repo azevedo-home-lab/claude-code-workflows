@@ -60,16 +60,19 @@ print(json.dumps(output))
     exit 0
 fi
 
-# Allow workflow state commands ONLY when they are the primary command
-# (prevents bypass by embedding function names in arbitrary commands)
+# Allow workflow state commands ONLY when they are the sole command
+# (prevents bypass by chaining: source workflow-state.sh && echo pwned > evil)
 if echo "$COMMAND" | grep -qE '^[[:space:]]*(source[[:space:]]|\.[ /]).*workflow-state\.sh'; then
-    exit 0
+    # Reject if command contains chain operators after the source
+    if ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
+        exit 0
+    fi
 fi
 
 # Detect write patterns: redirections, sed -i, tee, heredocs, python file writes,
 # cp, mv, install, curl -o, wget -O (common file-writing commands)
 # Note: python3 -c only blocked when combined with file-write indicators (open/write)
-WRITE_PATTERN='(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c.*\.(write|open)|echo[[:space:]].*>|^[[:space:]]*cp[[:space:]]|^[[:space:]]*mv[[:space:]]|^[[:space:]]*install[[:space:]]|curl[[:space:]].*-o[[:space:]]|wget[[:space:]].*-O[[:space:]])'
+WRITE_PATTERN='(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c.*\.(write|open)|echo[[:space:]].*>|^[[:space:]]*cp[[:space:]]|^[[:space:]]*mv[[:space:]]|^[[:space:]]*install[[:space:]]|curl[[:space:]].*-o[[:space:]]|wget[[:space:]].*-O[[:space:]]|dd[[:space:]].*of=|^[[:space:]]*patch[[:space:]]|^[[:space:]]*ln[[:space:]])'
 if echo "$COMMAND" | grep -qE "$WRITE_PATTERN"; then
     # Extract the write target path from the command for whitelist checking
     # For redirections: extract path after > or >>
@@ -89,6 +92,11 @@ else:
     else:
         print('')
 " 2>/dev/null || echo "")
+
+    # Reject path traversal attempts (../ in the target)
+    if [ -n "$WRITE_TARGET" ] && echo "$WRITE_TARGET" | grep -qE '\.\.'; then
+        WRITE_TARGET=""  # Force deny — traversal paths are never whitelisted
+    fi
 
     # If we can identify a write target, check it against the whitelist
     if [ -n "$WRITE_TARGET" ] && echo "$WRITE_TARGET" | grep -qE "$WHITELIST"; then

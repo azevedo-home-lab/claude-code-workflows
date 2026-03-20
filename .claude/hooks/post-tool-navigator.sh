@@ -178,7 +178,7 @@ try:
     with open(sys.argv[1]) as f:
         d = json.load(f)
     print(d.get('coaching', {}).get('tool_calls_since_agent', 0))
-except: print(0)
+except Exception: print(0)
 " "$STATE_FILE" 2>/dev/null || echo "0")
         if [ "$COUNTER" -gt 10 ]; then
             SKIP_TRIGGER="no_agent_dispatch"
@@ -261,7 +261,7 @@ try:
         print('true')
     else:
         print('false')
-except:
+except Exception:
     print('false')
 " "$FILE_PATH" 2>/dev/null || echo "false")
         if [ "$ALL_SUGGESTIONS" = "true" ]; then
