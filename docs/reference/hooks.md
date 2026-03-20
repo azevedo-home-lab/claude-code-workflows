@@ -47,8 +47,9 @@ New sessions default to OFF if no state file exists.
 .claude/
 ├── hooks/
 │   ├── workflow-state.sh       # State read/write utility (sourced by other scripts)
-│   ├── workflow-gate.sh        # PreToolUse: blocks Write/Edit in DISCUSS
-│   └── bash-write-guard.sh     # PreToolUse: blocks Bash writes in DISCUSS
+│   ├── workflow-gate.sh        # PreToolUse: blocks Write/Edit in DEFINE/DISCUSS/COMPLETE
+│   ├── bash-write-guard.sh     # PreToolUse: blocks Bash writes in DEFINE/DISCUSS/COMPLETE
+│   └── post-tool-navigator.sh  # PostToolUse: three-layer coaching system
 ├── commands/
 │   ├── define.md               # /define → OFF to DEFINE
 │   ├── discuss.md              # /discuss → any phase to DISCUSS
@@ -79,8 +80,15 @@ New sessions default to OFF if no state file exists.
 ### workflow-state.sh
 
 - **Not a hook** — sourced by other scripts.
-- **Functions**: `get_phase` (reads state, defaults to "off"), `set_phase <phase>` (writes state with timestamp).
-- **State file**: `.claude/state/workflow.json` — consolidated state (phase, active skill, review status).
+- **State file**: `.claude/state/workflow.json` — consolidated state (phase, active skill, decision record, review status, coaching state).
+- **Phase functions**: `get_phase`, `set_phase <phase>` (validates: off/define/discuss/implement/review/complete)
+- **Message functions**: `get_message_shown`, `set_message_shown`
+- **Skill tracking**: `set_active_skill <name>`, `get_active_skill`
+- **Decision record**: `set_decision_record <path>`, `get_decision_record`
+- **Soft gates**: `check_soft_gate <target_phase>` — returns warning message or empty string
+- **Review status**: `reset_review_status`, `get_review_field <field>`, `set_review_field <field> <value>`
+- **Coaching state**: `increment_coaching_counter`, `reset_coaching_counter`, `add_coaching_fired <type>`, `has_coaching_fired <type>`
+- **Whitelists**: `RESTRICTED_WRITE_WHITELIST` (DEFINE/DISCUSS), `COMPLETE_WRITE_WHITELIST` (COMPLETE)
 
 ## Commands
 
@@ -131,13 +139,13 @@ Add to `.claude/settings.json`:
 
 The `post-tool-navigator.sh` hook provides a three-layer coaching system via PostToolUse messages:
 
-| Layer | Purpose | When |
-|-------|---------|------|
-| **Phase entry** | Orients Claude to the current phase's goals and allowed actions | On phase transitions |
-| **Standards reinforcement** | References professional standards (docs/reference/professional-standards.md) | Periodically during IMPLEMENT and REVIEW |
-| **Anti-laziness** | Detects shortcuts like placeholder code, incomplete implementations, skipped tests | After Write/Edit in IMPLEMENT |
+| Layer | Purpose | When | Phases |
+|-------|---------|------|--------|
+| **Phase entry** | Orients Claude to the current phase's objectives and done criteria | Once per phase transition | All active phases |
+| **Standards reinforcement** | Contextual reminders from professional-standards.md | After specific tool patterns (Agent returns, Write/Edit to code, test runs, plan writes) | DEFINE, DISCUSS, IMPLEMENT, REVIEW, COMPLETE |
+| **Anti-laziness** | Detects lazy behavior patterns | On every match: short agent prompts (<150 chars), generic commits (<30 chars), skipped research (>10 tool calls without agents in DEFINE/DISCUSS), all findings downgraded, minimal handovers | All active phases |
 
-Coaching messages are non-blocking guidance — they inform Claude's behavior but do not prevent tool use.
+All coaching messages are prefixed with `[Workflow Coach — PHASE]` and visible to the user. They are non-blocking guidance — they inform Claude's behavior but do not prevent tool use.
 
 ## Known Limitations
 

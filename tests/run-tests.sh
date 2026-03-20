@@ -407,7 +407,7 @@ assert_not_contains "$OUTPUT" "deny" "allows Bash writes when no state file (fir
 # Test: allows writes to .claude/state/ in DISCUSS phase (whitelist)
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-OUTPUT=$(run_bash_guard "echo '{\"phase\":\"implement\"}' > .claude/state/workflow.json")
+OUTPUT=$(run_bash_guard "echo test > .claude/state/workflow.json")
 assert_not_contains "$OUTPUT" "deny" "allows Bash write to .claude/state/ in DISCUSS (whitelist)"
 
 # Test: allows writes to docs/superpowers/specs/ in DISCUSS phase (whitelist)
@@ -429,7 +429,7 @@ OUTPUT=$(run_bash_guard "cat file.txt")
 assert_not_contains "$OUTPUT" "deny" "allows 'cat file.txt' in DEFINE"
 
 # Test: allows writes to whitelisted paths in DEFINE
-OUTPUT=$(run_bash_guard "echo '{\"phase\":\"discuss\"}' > .claude/state/workflow.json")
+OUTPUT=$(run_bash_guard "echo test > .claude/state/workflow.json")
 assert_not_contains "$OUTPUT" "deny" "allows Bash write to .claude/state/ in DEFINE (whitelist)"
 
 OUTPUT=$(run_bash_guard "echo 'plan' > docs/plans/define.json")

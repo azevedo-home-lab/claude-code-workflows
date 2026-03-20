@@ -43,23 +43,57 @@ INPUT=$(cat)
 # Extract the command from JSON (handles escaped quotes in values)
 COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
 
-# If we can't extract the command, allow (fail open)
+# If we can't extract the command, deny (fail closed — security over availability)
 if [ -z "$COMMAND" ]; then
+    REASON="BLOCKED: Could not parse Bash command in $PHASE phase. Fail-closed for security."
+    REASON="$REASON" python3 -c "
+import json, os
+output = {
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'deny',
+        'permissionDecisionReason': os.environ['REASON']
+    }
+}
+print(json.dumps(output))
+"
     exit 0
 fi
 
-# Allow any command targeting whitelisted paths
-if echo "$COMMAND" | grep -qE "$WHITELIST"; then
-    exit 0
-fi
-# Allow workflow state commands for phase transitions and state management
-if echo "$COMMAND" | grep -qE '(workflow-state\.sh|set_phase|get_phase|reset_review_status|[sg]et_review_field|[sg]et_active_skill|[sg]et_decision_record|check_soft_gate|increment_coaching_counter|reset_coaching_counter|add_coaching_fired|has_coaching_fired)'; then
+# Allow workflow state commands ONLY when they are the primary command
+# (prevents bypass by embedding function names in arbitrary commands)
+if echo "$COMMAND" | grep -qE '^[[:space:]]*(source[[:space:]]|\.[ /]).*workflow-state\.sh'; then
     exit 0
 fi
 
-# Detect write patterns: redirections, sed -i, tee, heredocs, python file writes
+# Detect write patterns: redirections, sed -i, tee, heredocs, python file writes,
+# cp, mv, install, curl -o, wget -O (common file-writing commands)
 # Note: python3 -c only blocked when combined with file-write indicators (open/write)
-if echo "$COMMAND" | grep -qE '(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c.*\.(write|open)|echo[[:space:]].*>)'; then
+WRITE_PATTERN='(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c.*\.(write|open)|echo[[:space:]].*>|^[[:space:]]*cp[[:space:]]|^[[:space:]]*mv[[:space:]]|^[[:space:]]*install[[:space:]]|curl[[:space:]].*-o[[:space:]]|wget[[:space:]].*-O[[:space:]])'
+if echo "$COMMAND" | grep -qE "$WRITE_PATTERN"; then
+    # Extract the write target path from the command for whitelist checking
+    # For redirections: extract path after > or >>
+    # For cp/mv: extract the last argument
+    WRITE_TARGET=$(echo "$COMMAND" | python3 -c "
+import sys, re
+cmd = sys.stdin.read().strip()
+# Try redirect target first (most common)
+m = re.search(r'>{1,2}\s*(\S+)', cmd)
+if m:
+    print(m.group(1))
+else:
+    # For cp/mv/install: last argument is typically the target
+    parts = cmd.split()
+    if len(parts) >= 3 and parts[0] in ('cp', 'mv', 'install'):
+        print(parts[-1])
+    else:
+        print('')
+" 2>/dev/null || echo "")
+
+    # If we can identify a write target, check it against the whitelist
+    if [ -n "$WRITE_TARGET" ] && echo "$WRITE_TARGET" | grep -qE "$WHITELIST"; then
+        exit 0
+    fi
     # Phase-aware deny message
     case "$PHASE" in
         define)   REASON="BLOCKED: Bash write operation detected in DEFINE phase. Code changes are not allowed until you define the problem and outcomes." ;;

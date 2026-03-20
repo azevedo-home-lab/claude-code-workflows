@@ -79,42 +79,49 @@ Skills load on-demand when contextually relevant, not preloaded.
 ## Workflow
 
 ```
-DEFINE PHASE (edits blocked, optional):
-  /define → guided problem + outcome definition
-  Define problem statement, outcomes, success metrics
-  Save to docs/plans/define.json
+DEFINE PHASE (Diamond 1 — Problem Space, edits blocked, optional):
+  /define → brainstorming with problem-discovery context
+  Diverge: domain research, context gathering, assumption challenging agents
+  Converge: outcome structurer, scope boundary checker agents
+  Output: decision record with Problem section
 
-TRANSITION: /discuss → proceed to discussion
+TRANSITION: /discuss → proceed to solution design
 
-DISCUSS PHASE (edits blocked):
-  Describe what you want
-  /superpowers:brainstorming → Q&A refinement
-  /superpowers:writing-plans → numbered plan
-  Review the plan
+DISCUSS PHASE (Diamond 2 — Solution Space, edits blocked):
+  /discuss → brainstorming with solution-design context
+  Diverge: solution researchers, prior art scanner agents
+  Converge: codebase analyst, risk assessor agents
+  Output: decision record enriched with Approaches + Decision sections
+  /superpowers:writing-plans → implementation plan
 
-TRANSITION: /implement → unlock edits
+TRANSITION: /implement → unlock edits (soft gate: warns if no plan)
 
 IMPLEMENT PHASE (edits allowed):
   /superpowers:executing-plans → step-by-step with checkpoints
   /superpowers:test-driven-development → tests before code
 
-TRANSITION: /review → enter review
+TRANSITION: /review → enter review (soft gate: warns if no changes)
 
 REVIEW PHASE (edits allowed for fixes):
-  /superpowers:verification-before-completion → run tests, verify claims
-  /superpowers:requesting-code-review → security, best practices, requirements
-  Fix any issues found
+  3 parallel review agents: code quality, security, architecture
+  Verification agent filters false positives
+  Findings persisted to decision record
+  Fix issues or acknowledge
 
-TRANSITION: /complete → enter completion phase
+TRANSITION: /complete → enter completion (soft gate: warns if no review)
 
-COMPLETE PHASE (edits blocked except docs):
-  Smart docs detection → recommend doc updates
+COMPLETE PHASE (code blocked, docs allowed):
+  Plan validation → verify deliverables with behavioral evidence
+  Outcome validation → check decision record outcomes and metrics
+  Smart docs detection → recommend doc/README updates
   Commit and push
-  Plan validation → verify each deliverable with behavioral evidence
-  Outcome validation → check define.json outcomes and success metrics
+  Tech debt audit → review accepted trade-offs
   Handover → claude-mem observation with commit hash and decisions
 
 TRANSITION: completes → back to OFF
+
+Note: Any /phase command can jump directly to any phase.
+Soft gates warn when skipping recommended steps but never block.
 ```
 
 ## File Organization

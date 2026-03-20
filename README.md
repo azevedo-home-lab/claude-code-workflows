@@ -73,12 +73,13 @@ flowchart LR
 
     subgraph COMPLETE_BOX ["COMPLETE"]
         direction TB
-        C1["Smart Docs Detection\nrecommend doc updates"]
-        C2["Commit and Push\nstage, sign, push"]
-        C3["Plan Validation\nverify each deliverable\nwith behavioral evidence\n<b>skill: verification-before-completion</b>"]
-        C4["Outcome Validation\ncheck define.json outcomes\nand success metrics\n<b>skill: verification-before-completion</b>"]
-        C5["Handover\nclaude-mem observation\ncommit hash, decisions\n<b>tool: claude-mem</b>"]
-        C1 --> C2 --> C3 --> C4 --> C5
+        C1["Plan Validation\nverify each deliverable\nwith behavioral evidence\n<b>skill: verification-before-completion</b>"]
+        C2["Outcome Validation\ncheck decision record outcomes\nand success metrics\n<b>skill: verification-before-completion</b>"]
+        C3["Smart Docs Detection\nrecommend doc updates"]
+        C4["Commit and Push\nstage, sign, push"]
+        C5["Tech Debt Audit\nreview accepted trade-offs"]
+        C6["Handover\nclaude-mem observation\ncommit hash, decisions\n<b>tool: claude-mem</b>"]
+        C1 --> C2 --> C3 --> C4 --> C5 --> C6
     end
 
     OFF_END(("OFF"))
