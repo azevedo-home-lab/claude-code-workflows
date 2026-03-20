@@ -97,7 +97,7 @@ fi
 OUTPUT+="  ${DIM}│${RESET}  ${DIM}${SHORT_CWD}${RESET}"
 
 # Workflow Manager detection
-WM_STATE_FILE="${CWD}/.claude/state/phase.json"
+WM_STATE_FILE="${CWD}/.claude/state/workflow.json"
 WM_GATE_FILE="${CWD}/.claude/hooks/workflow-gate.sh"
 if [ -f "$WM_GATE_FILE" ]; then
   OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Workflow Manager ✓${RESET}"
@@ -114,6 +114,8 @@ if [ -f "$WM_GATE_FILE" ]; then
       OUTPUT+=" ${GREEN}[IMPLEMENT]${RESET}"
     elif [ "$WM_PHASE" = "review" ]; then
       OUTPUT+=" ${CYAN}[REVIEW]${RESET}"
+    elif [ "$WM_PHASE" = "complete" ]; then
+      OUTPUT+=" ${MAGENTA}[COMPLETE]${RESET}"
     fi
   fi
 else
@@ -122,12 +124,11 @@ fi
 
 # Superpowers detection
 SP_PLUGIN_DIR="$HOME/.claude/plugins/cache/superpowers-marketplace"
-ACTIVE_SKILL_FILE="${CWD}/.claude/state/active-skill.json"
 if [ -d "$SP_PLUGIN_DIR" ]; then
   OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Superpowers ✓${RESET}"
-  # Show active skill if set
-  if [ -f "$ACTIVE_SKILL_FILE" ]; then
-    ACTIVE_SKILL=$(grep -o '"skill"[[:space:]]*:[[:space:]]*"[^"]*"' "$ACTIVE_SKILL_FILE" | grep -o '"[^"]*"$' | tr -d '"')
+  # Read active skill from workflow.json (same file as phase)
+  if [ -f "$WM_STATE_FILE" ]; then
+    ACTIVE_SKILL=$(grep -o '"active_skill"[[:space:]]*:[[:space:]]*"[^"]*"' "$WM_STATE_FILE" | grep -o '"[^"]*"$' | tr -d '"')
     if [ -n "$ACTIVE_SKILL" ]; then
       OUTPUT+=" ${CYAN}[${ACTIVE_SKILL}]${RESET}"
     fi
