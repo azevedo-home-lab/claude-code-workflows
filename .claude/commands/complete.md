@@ -110,13 +110,53 @@ Stage all changed files relevant to the task and commit:
 
 If clean working tree: skip and note "Nothing to commit."
 
-### Step 6: Tech Debt Audit
+### Step 6: Branch Integration & Worktree Cleanup
+
+Check if work was done on a feature branch or in a worktree:
+
+```bash
+CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+MAIN_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|origin/||' || echo "main")
+IN_WORKTREE=$(git rev-parse --git-common-dir 2>/dev/null | grep -q "\.git/worktrees" && echo "true" || echo "false")
+echo "Current branch: $CURRENT_BRANCH"
+echo "Main branch: $MAIN_BRANCH"
+echo "In worktree: $IN_WORKTREE"
+```
+
+**If on a feature branch (not main/master):**
+
+Use `superpowers:finishing-a-development-branch` to present integration options:
+1. **Create PR and merge** — create a pull request, review it, merge to main
+2. **Merge directly** — fast-forward or merge commit to main locally
+3. **Leave on branch** — keep changes on the feature branch for later
+
+Recommend option 1 (PR) for non-trivial changes, option 2 for small fixes.
+
+After merge, push main to remote if the user approves.
+
+**If in a worktree:**
+
+After the branch is merged, clean up:
+```bash
+# From the main project directory (not the worktree)
+WORKTREE_PATH=$(git rev-parse --show-toplevel)
+MAIN_PROJECT=$(git rev-parse --git-common-dir | sed 's|/\.git/worktrees/.*||')
+echo "Worktree at: $WORKTREE_PATH"
+echo "Main project at: $MAIN_PROJECT"
+echo "Clean up worktree? (yes / no)"
+```
+If **yes**: `git worktree remove <path>` and `git branch -d <branch>`
+If **no**: note that worktree is still active
+
+**If on main already:** skip this step.
+
+### Step 7: Tech Debt Audit
 
 Before closing, review the decision record for any "accepted trade-offs" or "tech debt acknowledged" entries. Present them:
 
 "During this cycle we accepted these trade-offs: [list]. These should be tracked for future work."
 
-### Step 7: Handover (Claude-Mem Observation)
+### Step 8: Handover (Claude-Mem Observation)
 
 Dispatch a **Handover writer agent** to prepare a claude-mem observation. The handover must be useful to a stranger — include:
 - What was built or changed
@@ -129,7 +169,7 @@ Dispatch a **Handover writer agent** to prepare a claude-mem observation. The ha
 
 Save via the `save_observation` MCP tool. Set `project` to match the current project.
 
-### Step 8: Phase Transition
+### Step 9: Phase Transition
 
 ```bash
 WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"

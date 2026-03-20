@@ -82,9 +82,10 @@ flowchart LR
         C2["Outcome Validation\ncheck decision record outcomes\nand success metrics\n<b>skill: verification-before-completion</b>"]
         C3["Smart Docs Detection\nrecommend doc updates"]
         C4["Commit and Push\nstage, sign, push"]
-        C5["Tech Debt Audit\nreview accepted trade-offs"]
-        C6["Handover\nclaude-mem observation\ncommit hash, decisions\n<b>tool: claude-mem</b>"]
-        C1 --> C2 --> C3 --> C4 --> C5 --> C6
+        C5["Branch Integration\nmerge PR, clean worktree\n<b>skill: finishing-a-development-branch</b>"]
+        C6["Tech Debt Audit\nreview accepted trade-offs"]
+        C7["Handover\nclaude-mem observation\ncommit hash, decisions\n<b>tool: claude-mem</b>"]
+        C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> C7
     end
 
     OFF_END(("OFF"))
@@ -133,6 +134,7 @@ flowchart LR
     style C4 fill:#fce7f3,stroke:#ec4899,color:#9d174d
     style C5 fill:#fce7f3,stroke:#ec4899,color:#9d174d
     style C6 fill:#fce7f3,stroke:#ec4899,color:#9d174d
+    style C7 fill:#fce7f3,stroke:#ec4899,color:#9d174d
 ```
 
 Any `/phase` command can jump directly to any phase. Soft gates warn when skipping recommended steps.
@@ -171,9 +173,10 @@ When you run `/complete`, it verifies and closes the task:
 3. **Outcome validation** — checks decision record outcomes and success metrics
 4. **Smart docs detection** — recommends documentation and README updates
 5. **Commit & Push** — stage, commit with conventional message, optional push
-6. **Tech debt audit** — reviews accepted trade-offs from the decision record
-7. **Handover** — claude-mem observation with commit hash, decisions, and verification results
-8. **Phase transition** — resets to OFF (normal operation)
+6. **Branch integration** — if on a feature branch/worktree, merge to main and clean up (uses `superpowers:finishing-a-development-branch`)
+7. **Tech debt audit** — reviews accepted trade-offs from the decision record
+8. **Handover** — claude-mem observation with commit hash, decisions, and verification results
+9. **Phase transition** — resets to OFF (normal operation)
 
 **Install into any project:**
 ```bash
