@@ -4,7 +4,7 @@
 
 A guide to structured, accountable development with Claude Code using complementary tools:
 
-- **Workflow Manager** — PreToolUse hooks that block code edits until a plan is discussed and approved
+- **Workflow Manager** — PreToolUse hooks that block code edits until a plan is discussed and you proceed to implement
 - **Superpowers** — Specialized skills (brainstorming, TDD, planning, debugging, code review)
 - **claude-mem** — Cross-session persistent memory via MCP server
 - **Status Line** — Minimal, color-coded status bar showing model, context usage, git branch, and worktree info
@@ -21,7 +21,7 @@ A guide to structured, accountable development with Claude Code using complement
 
 ## Workflow Manager
 
-Six-phase workflow that prevents cowboy coding. Start by defining the problem and outcomes, then plan, implement, review, and complete. Claude **cannot** edit files until a plan is discussed and you approve it. After implementation, a multi-agent review pipeline verifies code quality, security, and architecture before the task is complete.
+Six-phase workflow that prevents cowboy coding. Start by defining the problem and outcomes, then plan, implement, review, and complete. Claude **cannot** edit files until a plan is discussed and you run `/implement`. After implementation, a multi-agent review pipeline verifies code quality, security, and architecture before the task is complete.
 
 ```mermaid
 flowchart LR
@@ -29,22 +29,23 @@ flowchart LR
         OFF["No enforcement\nAll edits allowed"]
     end
 
-    subgraph DEFINE_BOX ["DEFINE"]
+    subgraph DEFINE_BOX ["DEFINE — Diamond 1: Problem Space"]
         direction TB
-        D1["Problem Discovery\nwho, what pain, why now\n<b>skill: /define</b>"]
-        D2["Problem Statement\nHow Might We framing\n<b>skill: /define</b>"]
-        D3["Outcomes: FR and NFR\nfunctional, performance\nsecurity, reliability, UX\n<b>skill: /define</b>"]
-        D4["Success Metrics\ntargets and measurement\n<b>skill: /define</b>"]
-        D5["Scope\nin scope, out of scope\nconstraints, dependencies\n<b>skill: /define</b>"]
+        D1["Problem Discovery\nwho, what pain, why now\n<b>skill: brainstorming</b>"]
+        D2["Diverge: Research Agents\ndomain research, context\nassumption challenging"]
+        D3["Problem Statement\nHow Might We framing"]
+        D4["Converge: Structure Agents\noutcomes, scope, metrics"]
+        D5["Decision Record\nProblem section"]
         D1 --> D2 --> D3 --> D4 --> D5
     end
 
-    subgraph DISCUSS_BOX ["DISCUSS"]
+    subgraph DISCUSS_BOX ["DISCUSS — Diamond 2: Solution Space"]
         direction TB
-        P1["Explore Solutions\nrequirements, constraints\nalternatives, trade-offs\n<b>skill: brainstorming</b>"]
-        P2["Design the Solution\narchitecture, components\ndata flow, interfaces\n<b>skill: brainstorming</b>"]
-        P3["Write the Plan\nstep-by-step implementation\ntask decomposition\n<b>skill: writing-plans</b>"]
-        P1 --> P2 --> P3
+        P1["Diverge: Solution Research\nweb search, case studies\nprior art\n<b>skill: brainstorming</b>"]
+        P2["Converge: Codebase Analysis\narchitecture fit, risks\ntrade-offs\n<b>skill: brainstorming</b>"]
+        P3["Decision Record\napproaches, rationale\nchosen approach"]
+        P4["Write the Plan\nstep-by-step implementation\n<b>skill: writing-plans</b>"]
+        P1 --> P2 --> P3 --> P4
     end
 
     subgraph IMPLEMENT_BOX ["IMPLEMENT"]
@@ -110,6 +111,7 @@ flowchart LR
     style P1 fill:#fef9c3,stroke:#eab308,color:#854d0e
     style P2 fill:#fef9c3,stroke:#eab308,color:#854d0e
     style P3 fill:#fef9c3,stroke:#eab308,color:#854d0e
+    style P4 fill:#fef9c3,stroke:#eab308,color:#854d0e
     style I1 fill:#dcfce7,stroke:#22c55e,color:#166534
     style I2 fill:#dcfce7,stroke:#22c55e,color:#166534
     style I3 fill:#dcfce7,stroke:#22c55e,color:#166534
@@ -126,6 +128,7 @@ flowchart LR
     style C3 fill:#fce7f3,stroke:#ec4899,color:#9d174d
     style C4 fill:#fce7f3,stroke:#ec4899,color:#9d174d
     style C5 fill:#fce7f3,stroke:#ec4899,color:#9d174d
+    style C6 fill:#fce7f3,stroke:#ec4899,color:#9d174d
 ```
 
 Any `/phase` command can jump directly to any phase. Soft gates warn when skipping recommended steps.
@@ -159,12 +162,14 @@ When you run `/review`, it executes a structured pipeline:
 ### `/complete` Pipeline
 
 When you run `/complete`, it verifies and closes the task:
-1. **Pre-completion checks** — blocks if review wasn't completed
-2. **Smart docs detection** — recommends documentation updates (included in commit)
-3. **Commit & Push** — stage, commit with conventional message, optional push
-4. **Plan validation** — if a plan file exists, verifies each deliverable with evidence (behavioral deliverables must be demonstrated, not just grep'd)
-5. **Handover** — claude-mem observation with commit hash and verification results
-6. **Phase transition** — resets to OFF (normal operation)
+1. **Soft gate** — warns if review wasn't completed (proceeds if user confirms)
+2. **Plan validation** — if a plan file exists, verifies each deliverable with behavioral evidence
+3. **Outcome validation** — checks decision record outcomes and success metrics
+4. **Smart docs detection** — recommends documentation and README updates
+5. **Commit & Push** — stage, commit with conventional message, optional push
+6. **Tech debt audit** — reviews accepted trade-offs from the decision record
+7. **Handover** — claude-mem observation with commit hash, decisions, and verification results
+8. **Phase transition** — resets to OFF (normal operation)
 
 **Install into any project:**
 ```bash
