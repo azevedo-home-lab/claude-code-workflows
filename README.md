@@ -21,7 +21,7 @@ A guide to structured, accountable development with Claude Code using complement
 
 ## Workflow Manager
 
-Five-phase workflow that prevents cowboy coding. Start by defining the problem and outcomes, then plan, implement, and review. Claude **cannot** edit files until a plan is discussed and you approve it. After implementation, a multi-agent review pipeline verifies code quality, security, and architecture before the task is complete.
+Six-phase workflow that prevents cowboy coding. Start by defining the problem and outcomes, then plan, implement, review, and complete. Claude **cannot** edit files until a plan is discussed and you approve it. After implementation, a multi-agent review pipeline verifies code quality, security, and architecture before the task is complete.
 
 ```mermaid
 flowchart LR
@@ -127,8 +127,7 @@ flowchart LR
     style C5 fill:#fce7f3,stroke:#ec4899,color:#9d174d
 ```
 
-> **Note:** `/implement` is currently named `/approve` in the codebase. Renaming planned.
-> Escape hatches (not shown): `/discuss` from any phase returns to DISCUSS, `/override <phase>` jumps directly to any phase.
+Any `/phase` command can jump directly to any phase. Soft gates warn when skipping recommended steps.
 
 | Phase | Write/Edit | Bash writes | What to do |
 |-------|-----------|-------------|------------|
@@ -137,14 +136,14 @@ flowchart LR
 | **DISCUSS** | Blocked (except specs/plans) | Blocked (except specs/plans) | Brainstorm, plan, write design specs |
 | **IMPLEMENT** | Allowed | Allowed | Execute the approved plan with TDD |
 | **REVIEW** | Allowed | Allowed | Multi-agent review pipeline |
+| **COMPLETE** | Blocked (except docs) | Blocked (except docs) | Verified completion, outcome validation, handover |
 
 **Commands:**
 - `/define` — define the problem and outcomes (recommended first step, optional)
 - `/discuss` — start a workflow (brainstorming, edits blocked)
-- `/approve` — unlock code edits (plan approved, start implementing)
+- `/implement` — unlock code edits (plan approved, start implementing)
 - `/review` — run multi-agent review pipeline (3 parallel reviewers + verification)
 - `/complete` — verified completion with outcome validation (claude-mem observation, docs check, back to off)
-- `/override <phase>` — jump directly to any phase (off/define/discuss/implement/review)
 
 ### `/review` Pipeline
 
@@ -177,7 +176,7 @@ git clone https://github.com/azevedo-home-lab/claude-code-workflows.git
 ./claude-code-workflows/install.sh /path/to/your/project
 ```
 
-Uninstall: `./uninstall.sh` or manually remove `.claude/hooks/workflow-*.sh`, `.claude/hooks/bash-write-guard.sh`, `.claude/hooks/post-tool-navigator.sh`, and `.claude/commands/{define,approve,discuss,review,complete,override}.md`.
+Uninstall: `./uninstall.sh` or manually remove `.claude/hooks/workflow-*.sh`, `.claude/hooks/bash-write-guard.sh`, `.claude/hooks/post-tool-navigator.sh`, and `.claude/commands/{define,discuss,implement,review,complete}.md`.
 
 ## Tools
 

@@ -7,7 +7,7 @@ How Workflow Manager, Superpowers, and claude-mem work together in Claude Code.
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                        User                             │
-│            /define  /approve  /discuss                    │
+│            /define  /implement  /discuss                   │
 └───────────────────┬─────────────────────────────────────┘
                     │
                     ↓
@@ -31,7 +31,7 @@ How Workflow Manager, Superpowers, and claude-mem work together in Claude Code.
 
 | Layer | Mechanism | What it does | Can Claude bypass? |
 |-------|-----------|-------------|-------------------|
-| **Hooks** | PreToolUse deny | Blocks Write/Edit in DEFINE and DISCUSS phases | No |
+| **Hooks** | PreToolUse deny | Blocks Write/Edit in DEFINE, DISCUSS, and COMPLETE phases | No |
 | **Superpowers** | Prompt instructions | Guides brainstorm → plan → execute → verify | Yes (but less likely with hooks backing it up) |
 
 The hooks enforce the **discuss-before-code boundary**. Superpowers handles the **quality of each phase**.
@@ -40,24 +40,26 @@ The hooks enforce the **discuss-before-code boundary**. Superpowers handles the 
 
 ```
          ┌──(/define)──> DEFINE ──(/discuss)──┐
-OFF ─────┤                                    ├──> DISCUSS ──(/approve)──> IMPLEMENT ──(/review)──> REVIEW ──(/complete)──> OFF
-         └──(/discuss)────────────────────────┘         │                      │
-                                                        └───── (/discuss) ─────┘
+OFF ─────┤                                    ├──> DISCUSS ──(/implement)──> IMPLEMENT ──(/review)──> REVIEW ──(/complete)──> COMPLETE ──> OFF
+         └──(/discuss)────────────────────────┘
 
-DEFINE:     Write/Edit BLOCKED, Bash writes BLOCKED, Read/Grep ALLOWED (optional phase)
-DISCUSS:    Write/Edit BLOCKED, Bash writes BLOCKED, Read/Grep ALLOWED
+Any /phase command can jump directly to any phase. Soft gates warn when skipping recommended steps.
+
+DEFINE:     Write/Edit BLOCKED (except specs/plans), Bash writes BLOCKED (except specs/plans)
+DISCUSS:    Write/Edit BLOCKED (except specs/plans), Bash writes BLOCKED (except specs/plans)
 IMPLEMENT:  Everything ALLOWED
 REVIEW:     Everything ALLOWED (fixes from review)
+COMPLETE:   Write/Edit BLOCKED (except docs), Bash writes BLOCKED (except docs)
 ```
 
 ## Component Responsibilities
 
 ### Workflow Manager — Hard Gates
 
-- `workflow-gate.sh` — blocks Write/Edit/MultiEdit in DEFINE and DISCUSS phases
-- `bash-write-guard.sh` — blocks Bash write operations in DEFINE and DISCUSS phases
+- `workflow-gate.sh` — blocks Write/Edit/MultiEdit in DEFINE, DISCUSS, and COMPLETE phases (with different whitelist tiers)
+- `bash-write-guard.sh` — blocks Bash write operations in DEFINE, DISCUSS, and COMPLETE phases
 - `workflow-state.sh` — state read/write utility
-- State: `.claude/state/phase.json` (gitignored)
+- State: `.claude/state/workflow.json` (gitignored)
 
 ### Superpowers — Development Techniques
 
@@ -90,7 +92,7 @@ DISCUSS PHASE (edits blocked):
   /superpowers:writing-plans → numbered plan
   Review the plan
 
-TRANSITION: /approve → unlock edits
+TRANSITION: /implement → unlock edits
 
 IMPLEMENT PHASE (edits allowed):
   /superpowers:executing-plans → step-by-step with checkpoints
@@ -103,8 +105,16 @@ REVIEW PHASE (edits allowed for fixes):
   /superpowers:requesting-code-review → security, best practices, requirements
   Fix any issues found
 
-TRANSITION: /complete → task done, back to discuss
-           /discuss → abort, rethink
+TRANSITION: /complete → enter completion phase
+
+COMPLETE PHASE (edits blocked except docs):
+  Smart docs detection → recommend doc updates
+  Commit and push
+  Plan validation → verify each deliverable with behavioral evidence
+  Outcome validation → check define.json outcomes and success metrics
+  Handover → claude-mem observation with commit hash and decisions
+
+TRANSITION: completes → back to OFF
 ```
 
 ## File Organization
@@ -120,12 +130,11 @@ your-project/
 │   ├── commands/
 │   │   ├── define.md               # /define command
 │   │   ├── discuss.md              # /discuss command
-│   │   ├── approve.md              # /approve command
+│   │   ├── implement.md            # /implement command
 │   │   ├── review.md               # /review command
-│   │   ├── complete.md             # /complete command
-│   │   └── override.md             # /override command
+│   │   └── complete.md             # /complete command
 │   ├── state/
-│   │   └── phase.json              # Phase state (gitignored)
+│   │   └── workflow.json           # Consolidated workflow state (gitignored)
 │   └── settings.json               # Hook configuration
 ├── docs/
 │   └── plans/                      # Implementation plans
