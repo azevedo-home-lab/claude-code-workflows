@@ -1,19 +1,24 @@
-Transition the workflow to REVIEW phase. First check the current phase:
+Transition the workflow to REVIEW phase. First check for soft gate warnings:
 
 ```bash
 WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh"
-PHASE=$(get_phase)
-if [ "$PHASE" != "implement" ] && [ "$PHASE" != "review" ]; then
-    echo "ERROR: Cannot run /review from $PHASE phase. Use /approve first to enter IMPLEMENT, then /review."
-    exit 1
+WARN=$(check_soft_gate "review")
+if [ -n "$WARN" ]; then
+    echo "WARNING: $WARN"
 fi
-set_phase "review" && reset_review_status && cat > "$STATE_DIR/active-skill.json" <<'SK'
-{"skill": "review-pipeline", "updated": "phase-transition"}
-SK
+```
+
+If a warning was shown, ask the user: "Proceed anyway? (yes/no)". If they say no, stop. If yes or no warning, continue:
+
+```bash
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "review" && reset_review_status && set_active_skill "review-pipeline"
 echo "Phase set to REVIEW — running review pipeline."
 ```
 
 Then confirm the phase change and execute the review pipeline below.
+
+Before proceeding:
+1. Read `docs/reference/professional-standards.md` — apply the Universal Standards and REVIEW Phase Standards throughout this phase.
 
 ---
 
@@ -37,8 +42,6 @@ Update state after this step:
 ```bash
 WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh"
 set_review_field "verification_complete" "true"
-# If no tests were found, also set:
-# set_review_field "verification_skipped" "true"
 ```
 
 ### Step 2: Detect Changed Files
@@ -76,24 +79,26 @@ After all 3 review agents return, dispatch a single verification agent (subagent
 
 Prompt: "You are a code review verifier. Check each candidate finding against actual code to filter false positives. Candidate findings: [ALL FINDINGS FROM STEP 3]. For each finding: (1) Read the actual file and line range, (2) Check if issue is real — 'unused function' grep for calls, 'hardcoded credential' check if placeholder/comment, 'command injection' check if input is user-controlled, (3) Verdict: CONFIRMED / FALSE_POSITIVE / DOWNGRADE. Output only CONFIRMED and DOWNGRADED findings with: severity, file:line, description, which reviewer found it, brief verification evidence."
 
-### Step 5: Consolidate and Present Findings
+### Step 5: Consolidate, Persist, and Present Findings
 
-Take the verified findings and present a unified report:
+Take the verified findings and:
 
 1. Deduplicate: same file+line from multiple agents → merge
-2. Rank by severity: 🔴 Critical → 🟡 Warning → 🟢 Suggestion
-3. Present the report in this format:
+2. Rank by severity: Critical → Warning → Suggestion
+3. **Persist to decision record**: Read `get_decision_record` for the path. If a decision record exists, write the findings to its Review Findings section. If no decision record, skip persistence and note it.
+
+4. Present the report:
 
 ```
 ## Review Findings
 
-### 🔴 Critical (must fix before merge)
+### Critical (must fix before merge)
 - [findings or "None"]
 
-### 🟡 Warnings (should fix)
+### Warnings (should fix)
 - [findings or "None"]
 
-### 🟢 Suggestions (nice to have)
+### Suggestions (nice to have)
 - [findings or "None"]
 
 ---

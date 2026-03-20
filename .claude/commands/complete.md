@@ -1,58 +1,102 @@
-Complete the current task after a successful review. Run the pre-completion checks first:
+Transition the workflow to COMPLETE phase. First check for soft gate warnings:
 
 ```bash
 WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh"
-PHASE=$(get_phase)
-if [ "$PHASE" != "review" ]; then
-    echo "ERROR: Not in REVIEW phase (current: $PHASE). Run /review first."
-    exit 1
+WARN=$(check_soft_gate "complete")
+if [ -n "$WARN" ]; then
+    echo "WARNING: $WARN"
 fi
-VC=$(get_review_field "verification_complete")
-AD=$(get_review_field "agents_dispatched")
-FP=$(get_review_field "findings_presented")
-FA=$(get_review_field "findings_acknowledged")
-echo "Pre-completion checks:"
-echo "  verification_complete: $VC"
-echo "  agents_dispatched: $AD"
-echo "  findings_presented: $FP"
-echo "  findings_acknowledged: $FA"
-if [ "$VC" != "true" ] || [ "$AD" != "true" ] || [ "$FP" != "true" ] || [ "$FA" != "true" ]; then
-    echo ""
-    echo "BLOCKED: Review not complete. Run /review first and respond to findings."
-    exit 1
-fi
-echo ""
-echo "All checks passed. Proceeding with task completion."
 ```
 
-If pre-completion checks fail, report what's missing and do NOT proceed. The user needs to run `/review` first.
+If a warning was shown, ask the user: "Review hasn't been run. The workflow should be followed for best results. Proceed anyway?" If they say no, stop. If yes or no warning, continue:
 
-If all checks pass, execute the completion pipeline below.
+```bash
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete" && set_active_skill "completion-pipeline"
+echo "Phase set to COMPLETE — running completion pipeline. Code edits blocked, doc updates allowed."
+```
+
+Then confirm the phase change and execute the completion pipeline below.
+
+Before proceeding:
+1. Read `docs/reference/professional-standards.md` — apply the Universal Standards and COMPLETE Phase Standards throughout this phase.
 
 ---
 
 ## Completion Pipeline
 
-### Step 1: Smart Documentation Detection
+**Execute all steps in order. Missing artifacts cause steps to be skipped gracefully — the pipeline never hard-blocks.**
 
-Analyze what changed (from `git diff --name-only main...HEAD` plus unstaged/untracked files) and recommend documentation updates:
-- Services modified → suggest updating relevant service doc in `docs/services/`
-- CLAUDE.md-referenced features changed → suggest updating CLAUDE.md
-- New scripts/commands added → suggest updating README or `docs/operations/script-reference.md`
-- Infrastructure changed → suggest updating `docs/infrastructure/HARDWARE.md`
-- Nothing needs updating → report "No documentation updates needed"
+### Step 1: Plan Validation
+
+**Before starting validation**, invoke the `superpowers:verification-before-completion` skill to load evidence-before-assertions rules into context.
+
+Read the decision record path:
+```bash
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh"
+echo "Decision record: $(get_decision_record)"
+```
+
+**If a plan file exists** (check `docs/superpowers/plans/`, `docs/plans/`, or any plan referenced in the decision record):
+
+Dispatch a **Plan validator agent** to:
+1. Read the plan file
+2. Extract every deliverable, acceptance criterion, and expected outcome
+3. Classify each as structural (file exists) or behavioral (must demonstrate)
+4. For behavioral deliverables: exercise and show output, don't just grep
+5. Return a checklist with PASS/FAIL and evidence for each
+
+**If no plan file exists**: report "No plan file found — skipping plan validation" and continue.
+
+### Step 2: Outcome Validation
+
+**If the decision record has a Problem section with outcomes:**
+
+Dispatch an **Outcome validator agent** to:
+1. Read the decision record's Problem section
+2. Extract every outcome and success metric
+3. For each outcome, require behavioral evidence — demonstrate, don't just grep
+4. For each success metric: verify if immediately testable, flag as "TO MONITOR" if long-term
+5. Return an outcome checklist with PASS/FAIL and evidence
+
+**If no decision record or no Problem section**: report "No outcome definition found — skipping outcome validation" and continue.
+
+### Step 3: Present Validation Results
+
+Combine plan and outcome validation results. Enrich the decision record with the **Outcome Verification** section:
+
+```markdown
+## Outcome Verification (COMPLETE phase)
+- [x] Outcome 1: <description> — PASS — evidence: <what was observed>
+- [ ] Outcome 2: <description> — FAIL — evidence: <what went wrong>
+- Success metric 1: <target> — MET/NOT MET/TO MONITOR
+- **Unresolved items:** what's left for future work
+- **Tech debt incurred:** what should be addressed next
+```
+
+**If any validation fails:**
+- Present specific diagnosis with quantified fix effort
+- Recommend the right next phase: "This is a code fix — I recommend `/implement` to address it, then `/review` to validate"
+- Don't let the user skip without understanding consequences: "Acknowledging this gap means X. Are you comfortable shipping with that?"
+- User decides: fix (jump to `/implement`), re-review, or acknowledge
+
+### Step 4: Smart Documentation Detection
+
+Dispatch a **Docs detector agent** to:
+- Analyze `git diff --name-only main...HEAD` plus unstaged/untracked files
+- Recommend which docs/README need updating based on what changed
+- Return specific recommendations
 
 Present recommendations and ask: "Update these now? (yes / no / skip)"
-- If **yes** → make the documentation updates (they'll be included in the commit)
+- If **yes** → make the documentation updates
 - If **no/skip** → proceed without docs update
 
-### Step 2: Commit & Push
+### Step 5: Commit & Push
 
-Stage all changed files relevant to the task and commit. Follow the project's commit conventions:
+Stage all changed files relevant to the task and commit:
 
-1. Run `git status` and `git diff --stat` to see what needs committing
+1. Run `git status` and `git diff --stat`
 2. Stage the relevant files (prefer specific files over `git add -A`)
-3. Draft a concise conventional commit message summarizing the work
+3. Draft a concise conventional commit message explaining why
 4. Commit with YubiKey touch banner:
    ```bash
    echo "========== YUBIKEY: TOUCH NOW FOR GIT COMMIT ==========" && git commit -m "$(cat <<'EOF'
@@ -62,107 +106,34 @@ Stage all changed files relevant to the task and commit. Follow the project's co
    EOF
    )"
    ```
-5. Ask the user: "Push to remote? (yes / no)"
-   - If **yes** → push with YubiKey touch banner:
-     ```bash
-     echo "========== YUBIKEY: TOUCH NOW FOR GIT PUSH ==========" && git push
-     ```
-   - If **no** → skip push, note that changes are committed locally
+5. Ask: "Push to remote? (yes / no)"
 
-If there are no changes to commit (clean working tree and no new commits beyond main), skip this step and note "Nothing to commit."
+If clean working tree: skip and note "Nothing to commit."
 
-### Step 3: Plan Validation
+### Step 6: Tech Debt Audit
 
-Tests already ran during `/review`. This step validates that the **plan deliverables and spec outcomes** were actually delivered.
+Before closing, review the decision record for any "accepted trade-offs" or "tech debt acknowledged" entries. Present them:
 
-**Before starting validation**, invoke the `superpowers:verification-before-completion` skill to load evidence-before-assertions rules into context.
+"During this cycle we accepted these trade-offs: [list]. These should be tracked for future work."
 
-**If a plan file exists** (check `docs/superpowers/plans/`, `docs/plans/`, or any plan referenced in the session):
+### Step 7: Handover (Claude-Mem Observation)
 
-1. Read the plan file
-2. Extract every deliverable, acceptance criterion, and expected outcome
-3. Classify each deliverable:
-   - **Structural** (file/config exists) → `ls` or `cat` is sufficient
-   - **Behavioral** (endpoint works, bug fixed, security hardened, feature functions) → must **demonstrate the behavior**, not just prove code exists
-4. For behavioral deliverables, grep/cat is NOT sufficient evidence. You must:
-   - Endpoint protection? → `curl` with a malicious input, show it's rejected
-   - Security fix? → attempt the attack vector, show it's blocked
-   - Feature works? → exercise it and show the output
-   - Bug fixed? → reproduce the original trigger, show it no longer fails
-5. Present a checklist to the user:
-   ```
-   ## Plan Validation
-   - [x] Deliverable 1 (structural) — evidence: file exists at path
-   - [x] Deliverable 2 (behavioral) — evidence: curl with malicious redirect_uri → 400 rejected
-   - [ ] Deliverable 3 (behavioral) — FAILED: curl shows attack still succeeds
-   ```
-6. If any item fails:
-   - Report what's missing and ask: "Fix now and re-commit, or proceed anyway?"
-   - If fix → make fixes, create new commit, re-validate the failed items
-   - If proceed → note the gaps in the handover observation
+Dispatch a **Handover writer agent** to prepare a claude-mem observation. The handover must be useful to a stranger — include:
+- What was built or changed
+- Commit hash (from `git rev-parse --short HEAD`)
+- Verification results (tests, deliverables, outcomes)
+- Key decisions made
+- Gotchas or learnings for future sessions
+- Files modified (key files, not exhaustive)
+- Tech debt and unresolved items
 
-**If no plan file exists**: report "No plan file found — skipping plan validation" and continue.
+Save via the `save_observation` MCP tool. Set `project` to match the current project.
 
-### Step 3b: Outcome Validation
+### Step 8: Phase Transition
 
-If `docs/plans/define.json` exists, validate that the defined outcomes were achieved:
-
-1. Read `docs/plans/define.json`
-2. Extract every outcome and success metric
-3. For each outcome, require **behavioral evidence** — demonstrate the behavior, don't just grep for code:
-   - Functional outcome? → exercise it and show the result
-   - Performance outcome? → measure under realistic conditions
-   - Security outcome? → attempt the attack vector, show it's blocked
-   - Reliability outcome? → simulate the failure, observe recovery
-   - Usability outcome? → exercise the user path
-4. For each success metric, check coverage:
-   - Immediately verifiable → validate with evidence
-   - Long-term metric (cannot verify pre-release) → flag as "TO MONITOR"
-   - No outcomes linked to this metric → flag as "WARNING: no outcomes verify this metric"
-5. Present the outcome checklist:
-   ```
-   Outcome Validation:
-     [x] <outcome description> — evidence: <what was observed>
-     [ ] <outcome description> — FAILED: <what went wrong>
-
-   Success Metrics:
-     [x] <metric> <target> — linked to: <outcome(s)> (passed)
-     [!] <metric> <target> — TO MONITOR: cannot verify pre-release
-     [!] <metric> <target> — WARNING: no outcomes verify this metric
-   ```
-6. If any outcome fails:
-   - Report what failed and ask: "Fix now and re-commit, or proceed anyway?"
-   - If fix → make fixes, create new commit, re-validate failed outcomes
-   - If proceed → note the gaps in the handover observation
-
-If `docs/plans/define.json` does not exist, report "No outcome definition found — skipping outcome validation" and continue.
-
-### Step 4: Handover (Claude-Mem Observation)
-
-Save a summary observation to claude-mem using the `save_observation` MCP tool. This captures the full session context for future sessions.
-
-Include:
-- **What was built or changed** (summarize the work done)
-- **Commit hash** (from `git rev-parse --short HEAD`)
-- **Verification results** (tests passed/failed/skipped, deliverables confirmed)
-- **Key decisions** made during the session
-- **Gotchas or learnings** discovered that future sessions should know
-- **Files modified** (key files, not exhaustive list)
-
-Set the `project` parameter to match the current project name.
-
-This always runs — it ensures future sessions have context about this work.
-
-### Step 5: Phase Transition
-
-Run this command to complete the task:
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "off" && cat > "$STATE_DIR/active-skill.json" <<'SK'
-{"skill": "", "updated": "phase-transition"}
-SK
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
 echo "Task complete. Phase set to OFF — workflow enforcement disabled."
 ```
 
-Note: `set_phase("off")` automatically deletes `review-status.json` since we're leaving the review phase.
-
-Confirm to the user that the task is complete and the workflow has reset to OFF phase (normal Claude Code operation). To start a new workflow cycle, use `/discuss`.
+Confirm to the user that the task is complete and the workflow has reset to OFF phase.
