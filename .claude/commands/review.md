@@ -69,7 +69,10 @@ Prompt: "Review these changed files for code quality issues. Changed files: [LIS
 Prompt: "Review these changed files for security vulnerabilities. Changed files: [LIST]. Check for: command injection, hardcoded credentials/tokens/API keys, exposed internal IPs, XSS/SQL injection, unsafe file operations, insecure defaults. IMPORTANT: Consider execution context — scripts run by the user on their own infrastructure are NOT command injection. Only flag where untrusted input reaches a command. For each finding report: Severity (CRITICAL/WARNING/SUGGESTION), File and line range, Description and threat model, Recommended fix. If no issues: 'No security issues found.' Keep output concise — findings only, limit to 2000 tokens."
 
 **Agent 3 — Architecture & Plan Compliance Reviewer** (subagent_type: "code-review")
-Prompt: "Review these changed files for architectural issues and plan compliance. Changed files: [LIST]. Check for: does implementation match the plan/spec, are existing patterns followed, are component boundaries respected, new undocumented dependencies, regressions. For each finding report: Severity (CRITICAL/WARNING/SUGGESTION), File and line range, Description, Recommended fix. If no issues: 'No architectural issues found.' Keep output concise — findings only, limit to 2000 tokens."
+
+Before dispatching Agent 3, find the plan file path: check `docs/superpowers/plans/` and `docs/plans/` for the most recent `.md` file. If found, include it in the prompt.
+
+Prompt: "Review these changed files for architectural issues and plan compliance. Changed files: [LIST]. Plan file: [PLAN_PATH or 'no plan file found']. If a plan file is provided, read it and verify each task was implemented correctly. Check for: does implementation match the plan/spec, are existing patterns followed, are component boundaries respected, new undocumented dependencies, regressions. For each finding report: Severity (CRITICAL/WARNING/SUGGESTION), File and line range, Description, Recommended fix. If no issues: 'No architectural issues found.' Keep output concise — findings only, limit to 2000 tokens."
 
 If any agent fails or times out, note which agent failed and proceed with findings from agents that succeeded.
 
