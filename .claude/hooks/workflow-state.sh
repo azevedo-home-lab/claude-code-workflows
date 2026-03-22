@@ -105,6 +105,47 @@ with open(filepath, 'w') as f:
 " "$level" "$ts" "$STATE_FILE"
 }
 
+# ---------------------------------------------------------------------------
+# Last observation ID tracking (claude-mem)
+# ---------------------------------------------------------------------------
+
+get_last_observation_id() {
+    if [ ! -f "$STATE_FILE" ]; then
+        echo ""
+        return
+    fi
+    python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        d = json.load(f)
+    v = d.get('last_observation_id', '')
+    print(v if v else '')
+except Exception:
+    print('')
+" "$STATE_FILE" 2>/dev/null
+}
+
+set_last_observation_id() {
+    local obs_id="$1"
+    if [ ! -f "$STATE_FILE" ]; then
+        return
+    fi
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    python3 -c "
+import json, sys
+obs_id, ts, filepath = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(filepath, 'r') as f:
+    d = json.load(f)
+d['last_observation_id'] = int(obs_id) if obs_id else ''
+d['updated'] = ts
+with open(filepath, 'w') as f:
+    json.dump(d, f, indent=2)
+    f.write('\n')
+" "$obs_id" "$ts" "$STATE_FILE"
+}
+
 set_phase() {
     local new_phase="$1"
 
@@ -123,19 +164,22 @@ set_phase() {
     local existing_active_skill=""
     local existing_decision_record=""
     local existing_autonomy_level=""
+    local existing_last_observation_id=""
     local current_phase="off"
     if [ -f "$STATE_FILE" ]; then
         current_phase=$(get_phase)
         existing_active_skill=$(get_active_skill)
         existing_decision_record=$(get_decision_record)
         existing_autonomy_level=$(get_autonomy_level)
+        existing_last_observation_id=$(get_last_observation_id)
     fi
 
-    # If new phase is off, clear active_skill, decision_record, and autonomy_level (cycle complete)
+    # If new phase is off, clear active_skill, decision_record, autonomy_level, and last_observation_id (cycle complete)
     if [ "$new_phase" = "off" ]; then
         existing_active_skill=""
         existing_decision_record=""
         existing_autonomy_level=""
+        existing_last_observation_id=""
     fi
 
     # Initialize autonomy_level to 2 when transitioning from OFF to active phase.
@@ -159,6 +203,7 @@ decision_record = sys.argv[4]
 ts = sys.argv[5]
 filepath = sys.argv[6]
 autonomy_level = sys.argv[7]
+last_observation_id = sys.argv[8]
 
 state = {
     'phase': new_phase,
@@ -175,6 +220,9 @@ state = {
 if autonomy_level:
     state['autonomy_level'] = int(autonomy_level)
 
+if last_observation_id:
+    state['last_observation_id'] = int(last_observation_id)
+
 # Only include review sub-object if we are NOT leaving review
 # (i.e., if current was review and new is not, we omit it)
 # The review sub-object is only present during REVIEW phase
@@ -183,7 +231,7 @@ if autonomy_level:
 with open(filepath, 'w') as f:
     json.dump(state, f, indent=2)
     f.write('\n')
-" "$new_phase" "$current_phase" "$existing_active_skill" "$existing_decision_record" "$ts" "$STATE_FILE" "$existing_autonomy_level"
+" "$new_phase" "$current_phase" "$existing_active_skill" "$existing_decision_record" "$ts" "$STATE_FILE" "$existing_autonomy_level" "$existing_last_observation_id"
 }
 
 get_message_shown() {

@@ -307,6 +307,31 @@ OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_leve
 assert_contains "$OUTPUT" "WARNING" "set_autonomy_level warns when no state file"
 assert_file_not_exists "$TEST_DIR/.claude/state/workflow.json" "set_autonomy_level does not create state file"
 
+# --- Last observation ID tracking ---
+
+# Test: get_last_observation_id returns empty when no state file
+setup_test_project
+rm -f "$TEST_DIR/.claude/state/workflow.json"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_last_observation_id)
+assert_eq "" "$RESULT" "get_last_observation_id returns empty when no state file"
+
+# Test: set and get last_observation_id
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_last_observation_id 3007
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_last_observation_id)
+assert_eq "3007" "$RESULT" "set/get_last_observation_id roundtrip"
+
+# Test: last_observation_id preserved across phase transitions
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_last_observation_id)
+assert_eq "3007" "$RESULT" "last_observation_id preserved across phase transitions"
+
+# Test: set_phase("off") clears last_observation_id
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_last_observation_id)
+assert_eq "" "$RESULT" "set_phase off clears last_observation_id"
+
 # ============================================================
 # TEST SUITE: workflow-gate.sh
 # ============================================================
