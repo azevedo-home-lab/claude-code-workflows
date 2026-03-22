@@ -240,7 +240,7 @@ Dispatch a **Handover writer agent** to prepare a claude-mem observation. The ha
 - Files modified (key files, not exhaustive)
 - Tech debt and unresolved items
 
-Save via the `save_observation` MCP tool. Set `project` to match the current project.
+Save via the `save_observation` MCP tool. **Set `project` to the GitHub repo name.** Derive it: `git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`
 
 #### Step 8 Review Gate
 

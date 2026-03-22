@@ -31,7 +31,7 @@ Guide the user through problem discovery — one question per message, prefer mu
 After 2-3 exchanges when an initial problem framing emerges, **dispatch background research agents** (unless the problem is trivial — if so, state explicitly: "This problem is well-defined — skipping background research. If you want broader exploration, say so."):
 
 1. **Domain researcher** — Web search for the problem domain: similar pain points, industry context, standards, user research patterns. Tools: WebSearch, WebFetch.
-2. **Context gatherer** — Search project history for prior discussions, related decisions, failed attempts. Tools: claude-mem search, git log, Grep.
+2. **Context gatherer** — Search project history for prior discussions, related decisions, failed attempts. Tools: claude-mem search, git log, Grep. **Always pass `project` parameter to claude-mem tools.** Derive repo name: `git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`
 3. **Assumption challenger** — Takes the emerging problem statement, looks for counterevidence, edge cases, overlooked stakeholders. Tools: WebSearch, Grep, Read.
 
 When agents return, synthesize findings into the conversation. Challenge the first framing — is this the real problem, or a symptom?

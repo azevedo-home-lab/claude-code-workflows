@@ -40,7 +40,7 @@ Once the problem statement is confirmed (from DEFINE's decision record or from b
 
 1. **Solution researcher A** — Web search for technical approaches, libraries, frameworks, implementation patterns. Tools: WebSearch, WebFetch.
 2. **Solution researcher B** — Web search for case studies, how others solved similar problems, lessons learned. Tools: WebSearch, WebFetch.
-3. **Prior art scanner** — Search project history and codebase for previous related implementations or decisions. Tools: claude-mem search, git log, Grep, Read.
+3. **Prior art scanner** — Search project history and codebase for previous related implementations or decisions. Tools: claude-mem search, git log, Grep, Read. **Always pass `project` parameter to claude-mem tools.** Derive repo name: `git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`
 
 Present findings to user. Every approach must have stated downsides. Unsourced claims are opinions, not research.
 
