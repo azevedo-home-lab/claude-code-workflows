@@ -78,3 +78,5 @@ WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd
 ```
 
 Confirm to the user: "Problem and outcomes saved to the decision record. Use `/discuss` to proceed to solution design."
+
+**Level 3 auto-transition:** If autonomy level is 3, invoke `/discuss` now. Do not wait for the user.

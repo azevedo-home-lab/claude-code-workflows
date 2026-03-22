@@ -36,3 +36,5 @@ Follow this workflow:
 WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_active_skill "SKILL_NAME"
 ```
 Replace SKILL_NAME with the skill being used (e.g., "executing-plans", "test-driven-development").
+
+**Level 3 auto-transition:** If autonomy level is 3, invoke `/review` now when all plan tasks are complete and tests pass. Do not wait for the user.
