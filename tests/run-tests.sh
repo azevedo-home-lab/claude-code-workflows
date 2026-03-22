@@ -239,6 +239,67 @@ rm -f "$TEST_DIR/.claude/state/workflow.json"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_review_field "verification_complete")
 assert_eq "" "$RESULT" "get_review_field returns empty when no file"
 
+# --- Autonomy level management ---
+
+# Test: get_autonomy_level returns default 2 when no state file
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
+assert_eq "2" "$RESULT" "get_autonomy_level defaults to 2 when no state file"
+
+# Test: get_autonomy_level returns default 2 for old-format workflow.json (backward compat)
+setup_test_project
+# Create a workflow.json WITHOUT autonomy_level (simulates pre-feature state file)
+echo '{"phase": "implement", "message_shown": true, "active_skill": "", "decision_record": "", "coaching": {"tool_calls_since_agent": 0, "layer2_fired": []}, "updated": "2026-03-22T00:00:00Z"}' > "$TEST_DIR/.claude/state/workflow.json"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
+assert_eq "2" "$RESULT" "get_autonomy_level defaults to 2 for old-format state file (backward compat)"
+
+# Test: set_autonomy_level accepts valid values
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
+assert_eq "1" "$RESULT" "set_autonomy_level sets level to 1"
+
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
+assert_eq "2" "$RESULT" "set_autonomy_level sets level to 2"
+
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
+assert_eq "3" "$RESULT" "set_autonomy_level sets level to 3"
+
+# Test: set_autonomy_level rejects invalid values
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 0 2>&1 || true)
+assert_contains "$OUTPUT" "ERROR" "set_autonomy_level rejects 0"
+
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 4 2>&1 || true)
+assert_contains "$OUTPUT" "ERROR" "set_autonomy_level rejects 4"
+
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level abc 2>&1 || true)
+assert_contains "$OUTPUT" "ERROR" "set_autonomy_level rejects non-numeric input"
+
+# Test: autonomy_level preserved across set_phase transitions
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
+assert_eq "3" "$RESULT" "autonomy_level preserved across phase transitions"
+
+# Test: set_phase from OFF initializes autonomy_level to 2
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "define"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
+assert_eq "2" "$RESULT" "set_phase from OFF initializes autonomy_level to 2"
+
+# Test: set_phase("off") clears autonomy_level
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
+assert_eq "2" "$RESULT" "set_phase off clears autonomy_level (returns default 2)"
+
 # ============================================================
 # TEST SUITE: workflow-gate.sh
 # ============================================================

@@ -41,6 +41,48 @@ except Exception:
     echo "${phase:-off}"
 }
 
+get_autonomy_level() {
+    if [ ! -f "$STATE_FILE" ]; then
+        echo "2"
+        return
+    fi
+    local level
+    level=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        d = json.load(f)
+    print(d.get('autonomy_level', 2))
+except Exception:
+    print(2)
+" "$STATE_FILE" 2>/dev/null)
+    echo "${level:-2}"
+}
+
+set_autonomy_level() {
+    local level="$1"
+    case "$level" in
+        1|2|3) ;;
+        *) echo "ERROR: Invalid autonomy level: $level (valid: 1, 2, 3)" >&2; return 1 ;;
+    esac
+    if [ ! -f "$STATE_FILE" ]; then
+        return
+    fi
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    python3 -c "
+import json, sys
+level, ts, filepath = int(sys.argv[1]), sys.argv[2], sys.argv[3]
+with open(filepath, 'r') as f:
+    d = json.load(f)
+d['autonomy_level'] = level
+d['updated'] = ts
+with open(filepath, 'w') as f:
+    json.dump(d, f, indent=2)
+    f.write('\n')
+" "$level" "$ts" "$STATE_FILE"
+}
+
 set_phase() {
     local new_phase="$1"
 
@@ -58,20 +100,28 @@ set_phase() {
     # Read existing state to preserve fields
     local existing_active_skill=""
     local existing_decision_record=""
+    local existing_autonomy_level=""
     local current_phase="off"
     if [ -f "$STATE_FILE" ]; then
         current_phase=$(get_phase)
         existing_active_skill=$(get_active_skill)
         existing_decision_record=$(get_decision_record)
+        existing_autonomy_level=$(get_autonomy_level)
     fi
 
-    # If new phase is off, clear active_skill and decision_record (cycle complete)
+    # If new phase is off, clear active_skill, decision_record, and autonomy_level (cycle complete)
     if [ "$new_phase" = "off" ]; then
         existing_active_skill=""
         existing_decision_record=""
+        existing_autonomy_level=""
     fi
 
-    # Build the new state: preserve active_skill and decision_record,
+    # Initialize autonomy_level to 2 when transitioning from OFF to active phase
+    if [ "$current_phase" = "off" ] && [ "$new_phase" != "off" ] && [ -z "$existing_autonomy_level" ]; then
+        existing_autonomy_level="2"
+    fi
+
+    # Build the new state: preserve active_skill, decision_record, and autonomy_level,
     # reset message_shown, fresh coaching, clean up review if leaving review
     python3 -c "
 import json, sys
@@ -82,6 +132,7 @@ active_skill = sys.argv[3]
 decision_record = sys.argv[4]
 ts = sys.argv[5]
 filepath = sys.argv[6]
+autonomy_level = sys.argv[7]
 
 state = {
     'phase': new_phase,
@@ -95,6 +146,9 @@ state = {
     'updated': ts
 }
 
+if autonomy_level:
+    state['autonomy_level'] = int(autonomy_level)
+
 # Only include review sub-object if we are NOT leaving review
 # (i.e., if current was review and new is not, we omit it)
 # The review sub-object is only present during REVIEW phase
@@ -103,7 +157,7 @@ state = {
 with open(filepath, 'w') as f:
     json.dump(state, f, indent=2)
     f.write('\n')
-" "$new_phase" "$current_phase" "$existing_active_skill" "$existing_decision_record" "$ts" "$STATE_FILE"
+" "$new_phase" "$current_phase" "$existing_active_skill" "$existing_decision_record" "$ts" "$STATE_FILE" "$existing_autonomy_level"
 }
 
 get_message_shown() {
