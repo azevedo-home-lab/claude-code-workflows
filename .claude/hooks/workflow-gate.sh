@@ -24,9 +24,33 @@ fi
 
 PHASE=$(get_phase)
 
-# Allow everything in implement, review, and off phases
+# OFF phase: no enforcement
 case "$PHASE" in
-    implement|review|off) exit 0 ;;
+    off) exit 0 ;;
+esac
+
+# Autonomy Level 1: block ALL writes regardless of phase
+AUTONOMY_LEVEL=$(get_autonomy_level)
+if [ "$AUTONOMY_LEVEL" = "1" ]; then
+    cat > /dev/null  # consume stdin
+    REASON="BLOCKED: ▶ Level 1 (supervised) — read-only mode. No file writes allowed. Run /autonomy 2 to enable writes."
+    REASON="$REASON" python3 -c "
+import json, os
+output = {
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'deny',
+        'permissionDecisionReason': os.environ['REASON']
+    }
+}
+print(json.dumps(output))
+"
+    exit 0
+fi
+
+# Allow everything in implement and review phases (Level 2/3 only reach here)
+case "$PHASE" in
+    implement|review) exit 0 ;;
 esac
 
 # Select whitelist based on phase

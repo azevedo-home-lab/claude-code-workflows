@@ -397,6 +397,64 @@ assert_contains "$OUTPUT" "deny" "blocks path traversal in Write target (workflo
 OUTPUT=$(run_gate "/project/.claude/state/../hooks/evil.sh")
 assert_contains "$OUTPUT" "deny" "blocks path traversal via ../ in normalized path (workflow-gate)"
 
+# --- Autonomy level enforcement ---
+
+# Test: Level 1 blocks Write in IMPLEMENT phase (normally allowed)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
+OUTPUT=$(run_gate "/project/src/main.py")
+assert_contains "$OUTPUT" "deny" "Level 1 blocks Write in IMPLEMENT phase"
+
+# Test: Level 1 denial message mentions /autonomy
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
+OUTPUT=$(run_gate "/project/src/main.py")
+assert_contains "$OUTPUT" "/autonomy" "Level 1 deny message mentions /autonomy command"
+
+# Test: Level 1 does NOT block writes when phase is OFF
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
+python3 -c "
+import json
+with open('$TEST_DIR/.claude/state/workflow.json', 'r') as f:
+    d = json.load(f)
+d['autonomy_level'] = 1
+with open('$TEST_DIR/.claude/state/workflow.json', 'w') as f:
+    json.dump(d, f, indent=2)
+"
+OUTPUT=$(run_gate "/project/src/main.py")
+assert_not_contains "$OUTPUT" "deny" "Level 1 does NOT block writes when phase is OFF"
+
+# Test: Level 2 allows writes in IMPLEMENT (current behavior)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
+OUTPUT=$(run_gate "/project/src/main.py")
+assert_not_contains "$OUTPUT" "deny" "Level 2 allows writes in IMPLEMENT"
+
+# Test: Level 3 allows writes in IMPLEMENT (current behavior)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
+OUTPUT=$(run_gate "/project/src/main.py")
+assert_not_contains "$OUTPUT" "deny" "Level 3 allows writes in IMPLEMENT"
+
+# Test: Level 2 still blocks writes in DISCUSS (phase gate preserved)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
+OUTPUT=$(run_gate "/project/src/main.py")
+assert_contains "$OUTPUT" "deny" "Level 2 blocks writes in DISCUSS (phase gate)"
+
+# Test: Level 3 still blocks writes in DISCUSS (phase gate preserved)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
+OUTPUT=$(run_gate "/project/src/main.py")
+assert_contains "$OUTPUT" "deny" "Level 3 blocks writes in DISCUSS (phase gate)"
+
 # ============================================================
 # TEST SUITE: bash-write-guard.sh
 # ============================================================
