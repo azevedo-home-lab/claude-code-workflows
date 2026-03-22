@@ -4,7 +4,7 @@ Git commit signing and push authentication via YubiKey FIDO2, with visible touch
 
 ## What It Does
 
-- **git-yubikey**: Git wrapper that shows a prominent "TOUCH NOW" banner before commit/push/tag operations. All other git commands pass through silently.
+- **git-yubikey**: Git wrapper with tiered YubiKey enforcement. Checks presence (blocks all git if absent), passes safe commands through silently, and requires confirmation for destructive operations (push --force, push --delete, branch -D/-M).
 - **git-ssh-sign**: Bypasses macOS ssh-agent to sign commits directly via YubiKey (libfido2).
 - **git-ssh-auth**: Bypasses macOS ssh-agent to authenticate push/pull directly via YubiKey.
 - **ssh-askpass-wrapper**: Filters SSH askpass popups — only allows git signing and GitHub auth.
@@ -30,6 +30,21 @@ The installer:
 3. Configures `git config --global` for signing and auth
 4. Merges the YubiKey section into your project's `CLAUDE.md` (if present)
 
+## Key Setup
+
+The no-touch-required SSH key allows YubiKey presence to authorize safe operations without physical tap.
+
+```bash
+# Generate no-touch key (one-time)
+ssh-keygen -t ed25519-sk -O no-touch-required -O resident -C "yubikey-no-touch"
+
+# Then register on GitHub:
+# 1. Add the .pub as a signing key
+# 2. Add the .pub as an authentication key
+# 3. Update ~/.ssh/allowed_signers
+# 4. Update git config: git config --global user.signingkey ~/.ssh/<new-key>.pub
+```
+
 ## Prerequisites
 
 - macOS with YubiKey FIDO2 key already set up (ed25519-sk resident key)
@@ -40,20 +55,23 @@ This tool installs the **wrappers and banner** — it does not set up the YubiKe
 
 ## Usage
 
-Use `git-yubikey` instead of `git` for operations that need YubiKey touch:
+Use `git-yubikey` instead of `git` for all git operations:
 
 ```bash
-git-yubikey commit -m "my message"    # shows banner, then commits
-git-yubikey push                      # shows banner, then pushes
-git-yubikey tag v1.0                  # shows banner, then tags
-git-yubikey log                       # no banner, passes through
+git-yubikey commit -m "my message"    # passes through (no touch needed)
+git-yubikey push origin main          # passes through (no touch needed)
+git-yubikey push --force origin main  # shows DESTRUCTIVE warning, asks confirmation
+git-yubikey branch -D old-branch      # shows DESTRUCTIVE warning, asks confirmation
+git-yubikey log                       # passes through
+# With YubiKey unplugged:
+git-yubikey status                    # blocked — "YubiKey not detected"
 ```
 
 ## Customization
 
 ### SSH key path
 
-Default: `~/.ssh/id_ed25519_sk`
+Default: `~/.ssh/id_ed25519_sk_no_touch`
 
 Override with environment variable:
 ```bash
@@ -73,7 +91,7 @@ export REAL_ASKPASS=/path/to/ssh-askpass
 
 | File | Installs to | Purpose |
 |------|-------------|---------|
-| `git-yubikey` | `~/bin/` | Touch banner wrapper |
+| `git-yubikey` | `~/bin/` | Presence check + destructive gate |
 | `git-ssh-sign.sh` | `/usr/local/bin/git-ssh-sign` | Commit signing (bypasses ssh-agent) |
 | `git-ssh-auth.sh` | `/usr/local/bin/git-ssh-auth` | Push/pull auth (bypasses ssh-agent) |
 | `ssh-askpass-wrapper.sh` | `/usr/local/bin/ssh-askpass-wrapper` | Askpass popup filter |

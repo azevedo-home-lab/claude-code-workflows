@@ -14,9 +14,9 @@
 #   sudo cp git-ssh-auth.sh /usr/local/bin/git-ssh-auth
 #   git config --global core.sshCommand /usr/local/bin/git-ssh-auth
 #
-# CUSTOMIZE: Change the -i path to your ed25519-sk key file.
+# CUSTOMIZE: Change the -i path to your no-touch ed25519-sk key file.
 
-YUBIKEY_SSH_KEY="${YUBIKEY_SSH_KEY:-$HOME/.ssh/id_ed25519_sk}"
+YUBIKEY_SSH_KEY="${YUBIKEY_SSH_KEY:-$HOME/.ssh/id_ed25519_sk_no_touch}"
 
 unset SSH_AUTH_SOCK
 unset SSH_ASKPASS

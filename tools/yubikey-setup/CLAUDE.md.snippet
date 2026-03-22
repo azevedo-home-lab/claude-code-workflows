@@ -1,25 +1,23 @@
-## 🔑 YubiKey Git Signing & Auth
+## YubiKey Git Signing & Auth
 
-**All git commits are signed and all GitHub pushes are authenticated via YubiKey FIDO2. There are NO GUI popups — the YubiKey blinks silently and waits for physical touch.**
+**All git commits are signed and all GitHub pushes are authenticated via YubiKey FIDO2. The YubiKey must be plugged in for any git operation.**
 
 ### Rules for Claude Code Sessions
 
-1. **Before every `git commit` or `git push`**: Use `git-yubikey` instead of `git`. It shows a visible touch banner automatically.
-2. **If "agent refused operation" error**: User didn't touch in time. Remind them and retry.
-3. **NEVER use `commit.gpgsign=false`** or `--no-gpg-sign` — YubiKey signing is a security requirement.
+1. **Use `git-yubikey` instead of `git`** for all git commands. It checks YubiKey presence and gates destructive operations.
+2. **Safe commands** (commit, push, pull, fetch, tag): no touch needed — YubiKey presence is enough.
+3. **Destructive commands** (push --force, push --delete, branch -D/-M): require explicit confirmation.
+4. **If YubiKey is unplugged**: all git operations are blocked. Ask user to insert YubiKey.
+5. **NEVER use `commit.gpgsign=false`** or `--no-gpg-sign` — YubiKey signing is a security requirement.
 
 ### How It Works
 
-Three wrappers bypass the macOS ssh-agent (which can't prompt for FIDO touch in non-tty contexts like Claude Code):
-
-| Wrapper | Purpose | Git Config | What It Does |
-|---------|---------|------------|--------------|
-| `/usr/local/bin/git-ssh-sign` | Commit signing | `gpg.ssh.program` | Unsets `SSH_AUTH_SOCK`, sets `SSH_SK_PROVIDER`, calls `ssh-keygen` directly |
-| `/usr/local/bin/git-ssh-auth` | Push/pull auth | `core.sshCommand` | Same approach for SSH connections to GitHub |
-| `/usr/local/bin/ssh-askpass-wrapper` | Popup filter | `SSH_ASKPASS` in `~/.zshenv` | Blocks spurious askpass popups, logs all calls |
-| `~/bin/git-yubikey` | Touch banner | Used directly | Shows "YUBIKEY: TOUCH NOW" banner, then calls `/usr/bin/git` |
-
-**Result**: YubiKey touch only (no PIN popup, no GUI dialog) for commits and pushes.
+| Wrapper | Purpose | Git Config |
+|---------|---------|------------|
+| `/usr/local/bin/git-ssh-sign` | Commit signing | `gpg.ssh.program` |
+| `/usr/local/bin/git-ssh-auth` | Push/pull auth | `core.sshCommand` |
+| `/usr/local/bin/ssh-askpass-wrapper` | Popup filter | `SSH_ASKPASS` in `~/.zshenv` |
+| `~/bin/git-yubikey` | Presence check + destructive gate | Used directly |
 
 ### Reinstall (if wrappers are lost)
 
