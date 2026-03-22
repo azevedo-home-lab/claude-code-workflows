@@ -333,6 +333,27 @@ print(len(text))
     fi
 fi
 
+# Check 4b: save_observation without project field (any phase)
+if echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
+    HAS_PROJECT=$(echo "$INPUT" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+ti = d.get('tool_input', {})
+project = ti.get('project', '')
+print('true' if project else 'false')
+" 2>/dev/null || echo "false")
+    if [ "$HAS_PROJECT" = "false" ]; then
+        PROJ_MSG="[Workflow Coach — ${PHASE^^}] save_observation called without project parameter. Always pass project to scope observations to this repo."
+        if [ -n "$L3_MSG" ]; then
+            L3_MSG="$L3_MSG
+
+$PROJ_MSG"
+        else
+            L3_MSG="$PROJ_MSG"
+        fi
+    fi
+fi
+
 # Check 5: Skipping research in DEFINE/DISCUSS (fires on every match per spec Layer 3)
 # Moved from Layer 2 to Layer 3 because spec says this fires on every match, not once per phase
 if [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ]; then

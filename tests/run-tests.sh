@@ -997,6 +997,24 @@ with open('$TEST_DIR/.claude/state/workflow.json', 'w') as f:
 OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/project/src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_not_contains "$OUTPUT" "Level 3" "Level 2 coaching does not mention Level 3"
 
+# --- Claude-mem project enforcement ---
+
+# Test: coaching fires when save_observation has no project field
+setup_test_project
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+OUTPUT=$(echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"some observation"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "without project" "coaching fires when save_observation missing project field"
+
+# Test: coaching does NOT fire when save_observation has project field
+setup_test_project
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+OUTPUT=$(echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"some observation","project":"claude-code-workflows"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_not_contains "$OUTPUT" "without project" "no coaching when save_observation has project field"
+
 # ============================================================
 # TEST SUITE: statusline.sh
 # ============================================================
