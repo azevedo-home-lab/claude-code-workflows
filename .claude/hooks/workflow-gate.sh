@@ -33,18 +33,7 @@ esac
 AUTONOMY_LEVEL=$(get_autonomy_level)
 if [ "$AUTONOMY_LEVEL" = "1" ]; then
     cat > /dev/null  # consume stdin
-    REASON="BLOCKED: ▶ Level 1 (supervised) — read-only mode. No file writes allowed. Run /autonomy 2 to enable writes."
-    REASON="$REASON" python3 -c "
-import json, os
-output = {
-    'hookSpecificOutput': {
-        'hookEventName': 'PreToolUse',
-        'permissionDecision': 'deny',
-        'permissionDecisionReason': os.environ['REASON']
-    }
-}
-print(json.dumps(output))
-"
+    emit_deny "BLOCKED: ▶ Level 1 (supervised) — read-only mode. No file writes allowed. Run /autonomy 2 to enable writes."
     exit 0
 fi
 
@@ -97,15 +86,5 @@ case "$PHASE" in
     *)        REASON="BLOCKED: Unexpected phase ($PHASE)." ;;
 esac
 
-REASON="$REASON" python3 -c "
-import json, os
-output = {
-    'hookSpecificOutput': {
-        'hookEventName': 'PreToolUse',
-        'permissionDecision': 'deny',
-        'permissionDecisionReason': os.environ['REASON']
-    }
-}
-print(json.dumps(output))
-"
+emit_deny "$REASON"
 exit 0

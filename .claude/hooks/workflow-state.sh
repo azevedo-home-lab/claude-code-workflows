@@ -20,6 +20,27 @@ RESTRICTED_WRITE_WHITELIST='(\.claude/state/|docs/superpowers/specs/|docs/superp
 COMPLETE_WRITE_WHITELIST='(\.claude/state/|docs/|^[^/]*\.md$)'
 
 # ---------------------------------------------------------------------------
+# Shared hook helpers
+# ---------------------------------------------------------------------------
+
+# Emit a PreToolUse deny JSON response. Used by workflow-gate.sh and bash-write-guard.sh.
+# Usage: emit_deny "reason message"
+emit_deny() {
+    local reason="$1"
+    REASON="$reason" python3 -c "
+import json, os
+output = {
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'deny',
+        'permissionDecisionReason': os.environ['REASON']
+    }
+}
+print(json.dumps(output))
+"
+}
+
+# ---------------------------------------------------------------------------
 # Phase management
 # ---------------------------------------------------------------------------
 
@@ -66,7 +87,8 @@ set_autonomy_level() {
         *) echo "ERROR: Invalid autonomy level: $level (valid: 1, 2, 3)" >&2; return 1 ;;
     esac
     if [ ! -f "$STATE_FILE" ]; then
-        return
+        echo "WARNING: No workflow state file. Start a workflow phase first (e.g., /define)." >&2
+        return 1
     fi
     local ts
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -116,7 +138,11 @@ set_phase() {
         existing_autonomy_level=""
     fi
 
-    # Initialize autonomy_level to 2 when transitioning from OFF to active phase
+    # Initialize autonomy_level to 2 when transitioning from OFF to active phase.
+    # Note: this guard only fires on the very first set_phase call (no state file yet),
+    # because get_autonomy_level returns "2" as default when a file exists.
+    # After set_phase("off") clears autonomy_level, the next get_autonomy_level still
+    # returns "2" (default), so existing_autonomy_level is never empty in normal cycling.
     if [ "$current_phase" = "off" ] && [ "$new_phase" != "off" ] && [ -z "$existing_autonomy_level" ]; then
         existing_autonomy_level="2"
     fi

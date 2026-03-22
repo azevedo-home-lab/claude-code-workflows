@@ -35,39 +35,49 @@ case "$PHASE" in
     off) exit 0 ;;
 esac
 
+# ---------------------------------------------------------------------------
+# Shared command parsing — runs once, used by both autonomy and phase-gate paths
+# ---------------------------------------------------------------------------
+
+INPUT=$(cat)
+
+COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
+
+# If we can't extract the command, deny (fail-closed — security over availability)
+if [ -z "$COMMAND" ]; then
+    emit_deny "BLOCKED: Could not parse Bash command in $PHASE phase. Fail-closed for security."
+    exit 0
+fi
+
+# Allow workflow state commands ONLY when they are the sole command
+# (prevents bypass by chaining: source workflow-state.sh && echo pwned > evil)
+if echo "$COMMAND" | grep -qE '^[[:space:]]*(source[[:space:]]|\.[ /]).*workflow-state\.sh'; then
+    if ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
+        exit 0
+    fi
+fi
+
+# Strip safe redirects before checking write patterns
+# 2>/dev/null, 2>&1, 1>&2 etc. are not file writes
+CLEAN_CMD=$(echo "$COMMAND" | sed -E 's/[0-9]+>\/dev\/null//g; s/[0-9]*>&[0-9]+//g')
+
+# ---------------------------------------------------------------------------
 # Autonomy Level 1: block ALL Bash write commands regardless of phase
+# ---------------------------------------------------------------------------
+
 AUTONOMY_LEVEL=$(get_autonomy_level)
 if [ "$AUTONOMY_LEVEL" = "1" ]; then
-    INPUT=$(cat)
-    COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
-    if [ -z "$COMMAND" ]; then exit 0; fi
-
-    # Allow workflow state commands
-    if echo "$COMMAND" | grep -qE '^[[:space:]]*(source[[:space:]]|\.[ /]).*workflow-state\.sh'; then
-        if ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
-            exit 0
-        fi
-    fi
-
-    CLEAN_CMD=$(echo "$COMMAND" | sed -E 's/[0-9]+>\/dev\/null//g; s/[0-9]*>&[0-9]+//g')
     if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN"; then
-        REASON="BLOCKED: ▶ Level 1 (supervised) — read-only mode. No Bash write operations allowed. Run /autonomy 2 to enable writes."
-        REASON="$REASON" python3 -c "
-import json, os
-output = {
-    'hookSpecificOutput': {
-        'hookEventName': 'PreToolUse',
-        'permissionDecision': 'deny',
-        'permissionDecisionReason': os.environ['REASON']
-    }
-}
-print(json.dumps(output))
-"
+        emit_deny "BLOCKED: ▶ Level 1 (supervised) — read-only mode. No Bash write operations allowed. Run /autonomy 2 to enable writes."
         exit 0
     fi
     # Read-only Bash commands allowed at Level 1
     exit 0
 fi
+
+# ---------------------------------------------------------------------------
+# Phase-gate: Level 2/3 enforcement by phase
+# ---------------------------------------------------------------------------
 
 # Allow everything in implement and review phases (Level 2/3 only reach here)
 case "$PHASE" in
@@ -80,42 +90,6 @@ case "$PHASE" in
     complete)       WHITELIST="$COMPLETE_WRITE_WHITELIST" ;;
     *)              exit 0 ;;
 esac
-
-# Read the tool input from stdin
-INPUT=$(cat)
-
-# Extract the command from JSON (handles escaped quotes in values)
-COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
-
-# If we can't extract the command, deny (fail closed — security over availability)
-if [ -z "$COMMAND" ]; then
-    REASON="BLOCKED: Could not parse Bash command in $PHASE phase. Fail-closed for security."
-    REASON="$REASON" python3 -c "
-import json, os
-output = {
-    'hookSpecificOutput': {
-        'hookEventName': 'PreToolUse',
-        'permissionDecision': 'deny',
-        'permissionDecisionReason': os.environ['REASON']
-    }
-}
-print(json.dumps(output))
-"
-    exit 0
-fi
-
-# Allow workflow state commands ONLY when they are the sole command
-# (prevents bypass by chaining: source workflow-state.sh && echo pwned > evil)
-if echo "$COMMAND" | grep -qE '^[[:space:]]*(source[[:space:]]|\.[ /]).*workflow-state\.sh'; then
-    # Reject if command contains chain operators after the source
-    if ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
-        exit 0
-    fi
-fi
-
-# Strip safe redirects before checking write patterns
-# 2>/dev/null, 2>&1, 1>&2 etc. are not file writes
-CLEAN_CMD=$(echo "$COMMAND" | sed -E 's/[0-9]+>\/dev\/null//g; s/[0-9]*>&[0-9]+//g')
 
 if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN"; then
     # Extract the write target path from the command for whitelist checking
@@ -154,17 +128,7 @@ else:
         *)        REASON="BLOCKED: Unexpected phase ($PHASE)." ;;
     esac
 
-    REASON="$REASON" python3 -c "
-import json, os
-output = {
-    'hookSpecificOutput': {
-        'hookEventName': 'PreToolUse',
-        'permissionDecision': 'deny',
-        'permissionDecisionReason': os.environ['REASON']
-    }
-}
-print(json.dumps(output))
-"
+    emit_deny "$REASON"
     exit 0
 fi
 

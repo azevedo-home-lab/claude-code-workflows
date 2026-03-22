@@ -300,6 +300,13 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
 assert_eq "2" "$RESULT" "set_phase off clears autonomy_level (returns default 2)"
 
+# Test: set_autonomy_level warns and returns 1 when no state file
+setup_test_project
+rm -f "$TEST_DIR/.claude/state/workflow.json"
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2 2>&1 || true)
+assert_contains "$OUTPUT" "WARNING" "set_autonomy_level warns when no state file"
+assert_file_not_exists "$TEST_DIR/.claude/state/workflow.json" "set_autonomy_level does not create state file"
+
 # ============================================================
 # TEST SUITE: workflow-gate.sh
 # ============================================================
@@ -647,6 +654,13 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
 OUTPUT=$(run_bash_guard 'ls -la')
 assert_not_contains "$OUTPUT" "deny" "Level 1 allows read-only Bash in IMPLEMENT"
+
+# Test: Level 1 rejects chained workflow-state command (bypass attempt)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
+OUTPUT=$(run_bash_guard 'source .claude/hooks/workflow-state.sh && echo pwned > evil.txt')
+assert_contains "$OUTPUT" "deny" "Level 1 blocks chained workflow-state bypass"
 
 # ============================================================
 # TEST SUITE: install.sh

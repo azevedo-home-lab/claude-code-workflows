@@ -5,6 +5,12 @@ Set the Workflow Manager autonomy level. This controls how much independence Cla
 - `2` (▶▶ Semi-Auto): Writes allowed per phase rules. Stops at each phase transition for user approval.
 - `3` (▶▶▶ Unattended): Full autonomy. Auto-transitions between phases, auto-commits. Stops only for user input in DISCUSS/DEFINE and before git push.
 
+## Usage
+
+```
+/autonomy 1|2|3
+```
+
 ## Execution
 
 Run this to set the level:
