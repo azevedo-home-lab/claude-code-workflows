@@ -608,6 +608,46 @@ assert_contains "$OUTPUT" "deny" "blocks path traversal in write target"
 OUTPUT=$(run_bash_guard "cp evil.sh ../../../outside")
 assert_contains "$OUTPUT" "deny" "blocks path traversal in cp target"
 
+# --- Autonomy level enforcement ---
+
+# Test: Level 1 blocks Bash write in IMPLEMENT phase
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
+OUTPUT=$(run_bash_guard 'echo data > output.txt')
+assert_contains "$OUTPUT" "deny" "Level 1 blocks Bash write in IMPLEMENT phase"
+
+# Test: Level 1 denial message mentions /autonomy
+assert_contains "$OUTPUT" "/autonomy" "Level 1 bash deny message mentions /autonomy"
+
+# Test: Level 2 allows Bash write in IMPLEMENT
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
+OUTPUT=$(run_bash_guard 'echo data > output.txt')
+assert_not_contains "$OUTPUT" "deny" "Level 2 allows Bash write in IMPLEMENT"
+
+# Test: Level 3 allows Bash write in IMPLEMENT
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
+OUTPUT=$(run_bash_guard 'echo data > output.txt')
+assert_not_contains "$OUTPUT" "deny" "Level 3 allows Bash write in IMPLEMENT"
+
+# Test: Level 2 still blocks Bash write in DISCUSS (phase gate preserved)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
+OUTPUT=$(run_bash_guard 'echo data > output.txt')
+assert_contains "$OUTPUT" "deny" "Level 2 blocks Bash write in DISCUSS (phase gate)"
+
+# Test: Level 1 allows read-only Bash commands in IMPLEMENT
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
+OUTPUT=$(run_bash_guard 'ls -la')
+assert_not_contains "$OUTPUT" "deny" "Level 1 allows read-only Bash in IMPLEMENT"
+
 # ============================================================
 # TEST SUITE: install.sh
 # ============================================================

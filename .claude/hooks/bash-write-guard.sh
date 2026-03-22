@@ -18,6 +18,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/workflow-state.sh"
 
+# Detect write patterns: redirections, sed -i, tee, heredocs, python file writes,
+# cp, mv, install, curl -o, wget -O (common file-writing commands)
+# Note: python3 -c only blocked when combined with file-write indicators (open/write)
+WRITE_PATTERN='(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c.*\.(write|open)|echo[[:space:]].*>|^[[:space:]]*cp[[:space:]]|^[[:space:]]*mv[[:space:]]|^[[:space:]]*rm[[:space:]]|^[[:space:]]*install[[:space:]]|curl[[:space:]].*-o[[:space:]]|wget[[:space:]].*-O[[:space:]]|dd[[:space:]].*of=|^[[:space:]]*patch[[:space:]]|^[[:space:]]*ln[[:space:]])'
+
 # No state file = no enforcement (first run, hooks not yet activated)
 if [ ! -f "$STATE_FILE" ]; then
     exit 0
@@ -25,9 +30,48 @@ fi
 
 PHASE=$(get_phase)
 
-# Allow everything in implement, review, and off phases
+# OFF phase: no enforcement
 case "$PHASE" in
-    implement|review|off) exit 0 ;;
+    off) exit 0 ;;
+esac
+
+# Autonomy Level 1: block ALL Bash write commands regardless of phase
+AUTONOMY_LEVEL=$(get_autonomy_level)
+if [ "$AUTONOMY_LEVEL" = "1" ]; then
+    INPUT=$(cat)
+    COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
+    if [ -z "$COMMAND" ]; then exit 0; fi
+
+    # Allow workflow state commands
+    if echo "$COMMAND" | grep -qE '^[[:space:]]*(source[[:space:]]|\.[ /]).*workflow-state\.sh'; then
+        if ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
+            exit 0
+        fi
+    fi
+
+    CLEAN_CMD=$(echo "$COMMAND" | sed -E 's/[0-9]+>\/dev\/null//g; s/[0-9]*>&[0-9]+//g')
+    if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN"; then
+        REASON="BLOCKED: ▶ Level 1 (supervised) — read-only mode. No Bash write operations allowed. Run /autonomy 2 to enable writes."
+        REASON="$REASON" python3 -c "
+import json, os
+output = {
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'deny',
+        'permissionDecisionReason': os.environ['REASON']
+    }
+}
+print(json.dumps(output))
+"
+        exit 0
+    fi
+    # Read-only Bash commands allowed at Level 1
+    exit 0
+fi
+
+# Allow everything in implement and review phases (Level 2/3 only reach here)
+case "$PHASE" in
+    implement|review) exit 0 ;;
 esac
 
 # Select whitelist based on phase
@@ -68,11 +112,6 @@ if echo "$COMMAND" | grep -qE '^[[:space:]]*(source[[:space:]]|\.[ /]).*workflow
         exit 0
     fi
 fi
-
-# Detect write patterns: redirections, sed -i, tee, heredocs, python file writes,
-# cp, mv, install, curl -o, wget -O (common file-writing commands)
-# Note: python3 -c only blocked when combined with file-write indicators (open/write)
-WRITE_PATTERN='(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c.*\.(write|open)|echo[[:space:]].*>|^[[:space:]]*cp[[:space:]]|^[[:space:]]*mv[[:space:]]|^[[:space:]]*rm[[:space:]]|^[[:space:]]*install[[:space:]]|curl[[:space:]].*-o[[:space:]]|wget[[:space:]].*-O[[:space:]]|dd[[:space:]].*of=|^[[:space:]]*patch[[:space:]]|^[[:space:]]*ln[[:space:]])'
 
 # Strip safe redirects before checking write patterns
 # 2>/dev/null, 2>&1, 1>&2 etc. are not file writes
