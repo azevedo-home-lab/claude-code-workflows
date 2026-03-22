@@ -1070,6 +1070,56 @@ assert_contains "$OUTPUT" "COMPLETE" "statusline shows COMPLETE phase label"
 assert_contains "$OUTPUT" '\[35m' "statusline uses magenta (\\033[35m) for COMPLETE phase"
 rm -rf "$SL_COMPLETE_DIR"
 
+# --- Autonomy level symbols ---
+
+# Test: Level 1 renders ▶ before phase
+SL_AUTO1_DIR=$(mktemp -d)
+mkdir -p "$SL_AUTO1_DIR/.claude/state" "$SL_AUTO1_DIR/.claude/hooks"
+echo '{"phase": "implement", "autonomy_level": 1, "message_shown": false, "active_skill": ""}' > "$SL_AUTO1_DIR/.claude/state/workflow.json"
+touch "$SL_AUTO1_DIR/.claude/hooks/workflow-gate.sh"
+OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_AUTO1_DIR\"}")
+assert_contains "$OUTPUT" "▶ " "statusline shows ▶ for Level 1"
+assert_contains "$OUTPUT" "IMPLEMENT" "statusline still shows phase at Level 1"
+rm -rf "$SL_AUTO1_DIR"
+
+# Test: Level 2 renders ▶▶ before phase
+SL_AUTO2_DIR=$(mktemp -d)
+mkdir -p "$SL_AUTO2_DIR/.claude/state" "$SL_AUTO2_DIR/.claude/hooks"
+echo '{"phase": "discuss", "autonomy_level": 2, "message_shown": false, "active_skill": ""}' > "$SL_AUTO2_DIR/.claude/state/workflow.json"
+touch "$SL_AUTO2_DIR/.claude/hooks/workflow-gate.sh"
+OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_AUTO2_DIR\"}")
+assert_contains "$OUTPUT" "▶▶ " "statusline shows ▶▶ for Level 2"
+rm -rf "$SL_AUTO2_DIR"
+
+# Test: Level 3 renders ▶▶▶ before phase
+SL_AUTO3_DIR=$(mktemp -d)
+mkdir -p "$SL_AUTO3_DIR/.claude/state" "$SL_AUTO3_DIR/.claude/hooks"
+echo '{"phase": "review", "autonomy_level": 3, "message_shown": false, "active_skill": ""}' > "$SL_AUTO3_DIR/.claude/state/workflow.json"
+touch "$SL_AUTO3_DIR/.claude/hooks/workflow-gate.sh"
+OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_AUTO3_DIR\"}")
+assert_contains "$OUTPUT" "▶▶▶ " "statusline shows ▶▶▶ for Level 3"
+rm -rf "$SL_AUTO3_DIR"
+
+# Test: No symbol when workflow is OFF
+SL_AUTOOFF_DIR=$(mktemp -d)
+mkdir -p "$SL_AUTOOFF_DIR/.claude/state" "$SL_AUTOOFF_DIR/.claude/hooks"
+echo '{"phase": "off", "message_shown": false, "active_skill": ""}' > "$SL_AUTOOFF_DIR/.claude/state/workflow.json"
+touch "$SL_AUTOOFF_DIR/.claude/hooks/workflow-gate.sh"
+OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_AUTOOFF_DIR\"}")
+CLEAN_OUTPUT=$(echo "$OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
+assert_not_contains "$CLEAN_OUTPUT" "▶" "statusline shows no autonomy symbol when OFF"
+rm -rf "$SL_AUTOOFF_DIR"
+
+# Test: No symbol when autonomy_level field absent
+SL_AUTOABS_DIR=$(mktemp -d)
+mkdir -p "$SL_AUTOABS_DIR/.claude/state" "$SL_AUTOABS_DIR/.claude/hooks"
+echo '{"phase": "implement", "message_shown": false, "active_skill": ""}' > "$SL_AUTOABS_DIR/.claude/state/workflow.json"
+touch "$SL_AUTOABS_DIR/.claude/hooks/workflow-gate.sh"
+OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_AUTOABS_DIR\"}")
+CLEAN_OUTPUT=$(echo "$OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
+assert_not_contains "$CLEAN_OUTPUT" "▶" "statusline shows no autonomy symbol when field absent"
+rm -rf "$SL_AUTOABS_DIR"
+
 # ============================================================
 # TEST SUITE: COMPLETE phase edit-blocking
 # ============================================================

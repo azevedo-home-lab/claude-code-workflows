@@ -104,18 +104,28 @@ if [ -f "$WM_GATE_FILE" ]; then
   # Show phase if state file exists
   if [ -f "$WM_STATE_FILE" ]; then
     WM_PHASE=$(grep -o '"phase"[[:space:]]*:[[:space:]]*"[^"]*"' "$WM_STATE_FILE" | grep -o '"[^"]*"$' | tr -d '"')
+    WM_AUTONOMY=$(grep -o '"autonomy_level"[[:space:]]*:[[:space:]]*[0-9]*' "$WM_STATE_FILE" | grep -o '[0-9]*$')
+    # Autonomy symbol (only when phase is not OFF and level is set)
+    AUTONOMY_SYM=""
+    if [ "$WM_PHASE" != "off" ] && [ -n "$WM_AUTONOMY" ]; then
+      case "$WM_AUTONOMY" in
+        1) AUTONOMY_SYM="▶ " ;;
+        2) AUTONOMY_SYM="▶▶ " ;;
+        3) AUTONOMY_SYM="▶▶▶ " ;;
+      esac
+    fi
     if [ "$WM_PHASE" = "off" ]; then
       OUTPUT+=" ${DIM}[OFF]${RESET}"
     elif [ "$WM_PHASE" = "define" ]; then
-      OUTPUT+=" ${BLUE}[DEFINE]${RESET}"
+      OUTPUT+=" ${BLUE}${AUTONOMY_SYM}[DEFINE]${RESET}"
     elif [ "$WM_PHASE" = "discuss" ]; then
-      OUTPUT+=" ${YELLOW}[DISCUSS]${RESET}"
+      OUTPUT+=" ${YELLOW}${AUTONOMY_SYM}[DISCUSS]${RESET}"
     elif [ "$WM_PHASE" = "implement" ]; then
-      OUTPUT+=" ${GREEN}[IMPLEMENT]${RESET}"
+      OUTPUT+=" ${GREEN}${AUTONOMY_SYM}[IMPLEMENT]${RESET}"
     elif [ "$WM_PHASE" = "review" ]; then
-      OUTPUT+=" ${CYAN}[REVIEW]${RESET}"
+      OUTPUT+=" ${CYAN}${AUTONOMY_SYM}[REVIEW]${RESET}"
     elif [ "$WM_PHASE" = "complete" ]; then
-      OUTPUT+=" ${MAGENTA}[COMPLETE]${RESET}"
+      OUTPUT+=" ${MAGENTA}${AUTONOMY_SYM}[COMPLETE]${RESET}"
     fi
   fi
 else
