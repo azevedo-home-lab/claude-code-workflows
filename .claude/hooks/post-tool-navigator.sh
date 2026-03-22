@@ -87,6 +87,28 @@ Done when: Validation results in decision record, README checked, claude-mem obs
     fi
 fi
 
+# Early exit for tools that don't participate in Layer 2/3
+# These tools don't need coaching evaluation or counter tracking
+case "$TOOL_NAME" in
+    Agent|Write|Edit|MultiEdit|NotebookEdit|Bash|AskUserQuestion) ;;
+    mcp*save_observation) ;;
+    *) # Tool is irrelevant to coaching — output any Layer 1 message and exit
+        if [ -n "$MESSAGES" ]; then
+            MESSAGES="$MESSAGES" python3 -c "
+import json, os
+output = {
+    'hookSpecificOutput': {
+        'hookEventName': 'PostToolUse',
+        'systemMessage': os.environ['MESSAGES']
+    }
+}
+print(json.dumps(output))
+"
+        fi
+        exit 0
+        ;;
+esac
+
 # ============================================================
 # LAYER 2: Professional standards reinforcement (periodic)
 # ============================================================

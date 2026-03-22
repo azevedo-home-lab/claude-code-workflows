@@ -609,6 +609,31 @@ cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Read")
 assert_not_contains "$OUTPUT" "Workflow Coach" "Layer 1 silent in OFF phase"
 
+# Test: hook exits cleanly (exit 0) for irrelevant tool types in active phase
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+
+# These tools should exit cleanly with no output and exit code 0
+for TOOL in Read Glob Grep TaskCreate TaskUpdate Skill ToolSearch; do
+    EXIT_CODE=0
+    OUTPUT=$(echo "{\"tool_name\":\"$TOOL\"}" | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1) || EXIT_CODE=$?
+    assert_eq "0" "$EXIT_CODE" "hook exits 0 for $TOOL in DISCUSS"
+    assert_not_contains "$OUTPUT" "Workflow Coach" "no coaching for $TOOL in DISCUSS"
+done
+
+# Test: irrelevant tools don't increment coaching counter
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+echo '{"tool_name":"Read"}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
+echo '{"tool_name":"Glob"}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
+echo '{"tool_name":"Grep"}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
+CONTENT=$(cat "$TEST_DIR/.claude/state/workflow.json")
+assert_contains "$CONTENT" '"tool_calls_since_agent": 0' "irrelevant tools don't increment coaching counter"
+
 # ============================================================
 # TEST SUITE: statusline.sh
 # ============================================================
