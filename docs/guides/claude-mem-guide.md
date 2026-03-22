@@ -117,6 +117,39 @@ Some projects use a file-based memory system (e.g., `memory/MEMORY.md` with topi
 
 **Use both**: claude-mem for quick cross-session recall, file-based memory for durable project knowledge that persists across machines and collaborators.
 
+## Project Scoping
+
+All claude-mem calls should pass a `project` parameter to keep observations from different repositories separate.
+
+### Deriving the project name
+
+Use the git remote URL to derive a stable, human-readable project name:
+
+```bash
+git remote get-url origin 2>/dev/null \
+  | sed 's/.*[:/]\([^/]*\)\.git$/\1/' \
+  | sed 's/.*[:/]\([^/]*\)$/\1/'
+```
+
+This produces values like `MyApp` or `ClaudeWorkflows` regardless of whether the remote uses HTTPS or SSH.
+
+### Passing the project parameter
+
+When calling `save_observation` or `get_observations`, include the derived name:
+
+```
+save_observation project="MyApp" content="..."
+get_observations project="MyApp"
+```
+
+### Coaching enforcement
+
+The coaching system will warn if `save_observation` is called without a `project` parameter (Layer 3 anti-laziness check). This is a non-blocking reminder, not a hard block. Fix it by re-issuing the call with the correct project name.
+
+### Why this matters
+
+Without `project` scoping, observations from all repositories on the machine are mixed together. A search for "auth bug" in one project may surface irrelevant results from another. Scoping ensures each project's observations are logically isolated.
+
 ## Troubleshooting
 
 **claude-mem not available:**

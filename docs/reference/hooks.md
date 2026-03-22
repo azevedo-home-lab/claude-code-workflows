@@ -147,6 +147,23 @@ The `post-tool-navigator.sh` hook provides a three-layer coaching system via Pos
 
 All coaching messages are prefixed with `[Workflow Coach — PHASE]` and visible to the user. They are non-blocking guidance — they inform Claude's behavior but do not prevent tool use.
 
+### Layer 3: claude-mem project scoping check
+
+A dedicated Layer 3 check fires when `save_observation` is called without a `project` parameter:
+
+- **Trigger**: PostToolUse on `mcp__plugin_claude-mem_mcp-search__save_observation` where the tool input lacks a `project` field
+- **Message**: Reminds Claude to derive the project name from `git remote get-url origin` and re-issue the call with `project=<name>`
+- **Effect**: Non-blocking warning only. The observation is already saved; the check prompts correction before the session ends.
+
+### PostToolUse: observation ID capture
+
+The `post-tool-navigator.sh` hook also captures observation IDs from claude-mem responses:
+
+- **Triggers**: `save_observation` and `get_observations` tool responses
+- **Logic**: Parses the MCP response for the returned observation ID (or the last ID in a list)
+- **Effect**: Writes the ID to `.claude/state/workflow.json` under `last_observation_id`
+- **Consumer**: The status line script reads this field and renders `Claude-Mem ✓ #<id>` when present
+
 ## Autonomy Levels
 
 Autonomy level is an orthogonal dimension to phase — phase controls **what** is allowed; autonomy controls **how much** Claude does independently.

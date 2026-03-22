@@ -110,6 +110,23 @@ The script receives JSON via stdin with these fields:
 | `session_id` | Unique session identifier |
 | `version` | Claude Code version |
 
+## Claude-Mem Observation ID
+
+When the claude-mem MCP server is in use, the status line shows the ID of the most recently accessed observation:
+
+```
+Sonnet  │  ▓▓░░░░░░░░ 22%  │   main  │  ~/Projects/MyApp  │  Claude-Mem ✓ #3007
+```
+
+| Condition | Display |
+|-----------|---------|
+| An observation was saved or retrieved this session | `Claude-Mem ✓ #<id>` |
+| No observation accessed yet in this session | Nothing shown |
+
+The ID updates each time an observation is saved (`save_observation`) or fetched (`get_observations`). It reflects the last observation ID returned in the MCP response, captured by the PostToolUse hook and written to workflow state.
+
+This is useful for quickly confirming that memory is being written and for cross-referencing a specific observation when debugging or following up in a later session.
+
 ## Workflow Autonomy Symbols
 
 When the Workflow Manager is active, the status line displays a symbol indicating the current autonomy level:
