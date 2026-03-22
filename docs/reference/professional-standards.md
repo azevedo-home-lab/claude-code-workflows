@@ -84,6 +84,8 @@ No professional standards enforcement. Claude operates as standard Claude Code. 
 
 **Quantify the cost of not fixing.** Don't just say "this should be fixed." Say "this unvalidated input could allow SQL injection on the /users endpoint. If exploited, it exposes the full user table. Fix is a one-line parameterized query change." Impact and effort, together.
 
+**Review test coverage for unhappy paths.** Happy-path tests prove the feature works when everything goes right. Unhappy-path tests prove it doesn't break when things go wrong. If the test suite only verifies positive cases, flag it. Every conditional branch implies at least one negative case that needs a test. "It works on my inputs" is not coverage.
+
 ## COMPLETE Phase Standards
 
 **Be specific about validation failures.** Not "some outcomes weren't met." Instead: "Outcome 3 (response time < 200ms) failed: measured 450ms under load. Root cause: N+1 query in the user listing. Fix options: (A) add eager loading — 1 hour, addresses root cause, recommend `/implement`; (B) add pagination — 30 min, masks the problem for small datasets. I recommend option A."
