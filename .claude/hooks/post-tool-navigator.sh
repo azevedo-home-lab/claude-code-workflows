@@ -33,6 +33,54 @@ fi
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null || echo "")
 
+# ---------------------------------------------------------------------------
+# Claude-mem observation ID tracking
+# ---------------------------------------------------------------------------
+if echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
+    OBS_ID=$(echo "$INPUT" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+resp = d.get('tool_response', {})
+content = resp.get('content', [])
+for block in content:
+    if block.get('type') == 'text':
+        try:
+            data = json.loads(block['text'])
+            if isinstance(data, dict) and 'id' in data:
+                print(data['id'])
+                sys.exit(0)
+        except (json.JSONDecodeError, KeyError):
+            pass
+if isinstance(resp, dict) and 'id' in resp:
+    print(resp['id'])
+else:
+    print('')
+" 2>/dev/null || echo "")
+    if [ -n "$OBS_ID" ]; then
+        set_last_observation_id "$OBS_ID"
+    fi
+elif echo "$TOOL_NAME" | grep -qE 'mcp.*get_observations'; then
+    OBS_ID=$(echo "$INPUT" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+resp = d.get('tool_response', {})
+content = resp.get('content', [])
+for block in content:
+    if block.get('type') == 'text':
+        try:
+            data = json.loads(block['text'])
+            if isinstance(data, list) and len(data) > 0 and 'id' in data[-1]:
+                print(data[-1]['id'])
+                sys.exit(0)
+        except (json.JSONDecodeError, KeyError):
+            pass
+print('')
+" 2>/dev/null || echo "")
+    if [ -n "$OBS_ID" ]; then
+        set_last_observation_id "$OBS_ID"
+    fi
+fi
+
 # Collect messages from all layers — may combine multiple
 MESSAGES=""
 
@@ -98,7 +146,7 @@ fi
 # These tools don't need coaching evaluation or counter tracking
 case "$TOOL_NAME" in
     Agent|Write|Edit|MultiEdit|NotebookEdit|Bash|AskUserQuestion) ;;
-    mcp*save_observation) ;;
+    mcp*save_observation|mcp*get_observations) ;;
     *) # Tool is irrelevant to coaching — output any Layer 1 message and exit
         if [ -n "$MESSAGES" ]; then
             MESSAGES="$MESSAGES" python3 -c "

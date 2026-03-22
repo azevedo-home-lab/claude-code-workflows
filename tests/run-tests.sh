@@ -1040,6 +1040,26 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
 OUTPUT=$(echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"some observation","project":"claude-code-workflows"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_not_contains "$OUTPUT" "without project" "no coaching when save_observation has project field"
 
+# --- Observation ID capture ---
+
+# Test: hook captures observation ID from save_observation response
+setup_test_project
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"test","project":"test"},"tool_response":{"content":[{"type":"text","text":"{\"success\":true,\"id\":4242,\"title\":\"test\",\"project\":\"test\",\"message\":\"Memory saved as observation #4242\"}"}]}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_last_observation_id)
+assert_eq "4242" "$RESULT" "hook captures observation ID from save_observation"
+
+# Test: hook captures observation ID from get_observations response
+setup_test_project
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__get_observations","tool_input":{"ids":[1234]},"tool_response":{"content":[{"type":"text","text":"[{\"id\":1234,\"title\":\"test obs\"}]"}]}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_last_observation_id)
+assert_eq "1234" "$RESULT" "hook captures observation ID from get_observations"
+
 # ============================================================
 # TEST SUITE: statusline.sh
 # ============================================================
