@@ -83,4 +83,6 @@ WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd
 
 Every plan step must trace back to the chosen approach. If a step can't be justified by the decision, it's scope creep.
 
+**Review transparency:** When the spec review loop or plan review loop finds issues, always present a summary to the user: what the reviewer found, what you fixed, and the final verdict. Never silently fix and move on — the user must see what was caught.
+
 When the plan is ready and the user approves, they will run `/implement` to proceed.

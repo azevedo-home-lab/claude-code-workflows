@@ -112,6 +112,7 @@ After presenting validation results, dispatch a **review agent** (subagent_type:
 Prompt: "Review the validation results just presented to the user. Read the decision record at [DECISION_RECORD_PATH]. Quality criteria: (1) Every plan deliverable is listed in a table with columns: Task, Deliverable, Status, Evidence. No deliverables are summarized as just 'N/N PASS' without individual rows. (2) Every outcome is listed in a table with columns: #, Outcome, Status, Evidence. Each row has specific evidence (file:line, test name, command output) — not vague claims. (3) The Outcome Verification section in the decision record matches what was presented. Return: PASS if all criteria met, or REDO with specific issues to fix."
 
 If REDO: fix the issues and re-dispatch the reviewer. Max 3 iterations, then surface to user.
+**After the gate passes (or on each iteration):** present a summary to the user: "Step 3 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
 
 ### Step 4: Smart Documentation Detection
 
@@ -131,6 +132,7 @@ After presenting doc recommendations (whether updates were made or skipped), dis
 Prompt: "Review the documentation detection results. Changed files: [LIST FROM git diff]. Recommendations made: [LIST]. Quality criteria: (1) Every changed code file that introduces new user-facing behavior, commands, or configuration was checked for doc impact. (2) If updates were made, verify the updates match what actually changed (no stale or inaccurate doc claims). (3) If updates were skipped, the user was told what they're skipping. Return: PASS if complete, or REDO with specific gaps."
 
 If REDO: fix and re-dispatch. Max 3 iterations, then surface to user.
+**After the gate passes (or on each iteration):** present a summary to the user: "Step 4 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
 
 ### Step 5: Commit & Push
 
@@ -159,6 +161,7 @@ After committing (or skipping), dispatch a **review agent** (subagent_type: `sup
 Prompt: "Review the most recent git commit. Run `git log -1 --format='%s%n%n%b'` and `git diff HEAD~1 --stat`. Quality criteria: (1) Commit message explains WHY, not just WHAT — it should describe the motivation, not just list changed files. (2) All files relevant to the task are included — check `git status` for leftover unstaged/untracked files that should be committed. (3) No sensitive files (.env, credentials, secrets) are committed. Return: PASS if all criteria met, or REDO with specific issues."
 
 If REDO: fix (amend commit or create new commit) and re-dispatch. Max 3 iterations, then surface to user.
+**After the gate passes (or on each iteration):** present a summary to the user: "Step 5 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
 If step was skipped (nothing to commit): skip this gate.
 
 ### Step 6: Branch Integration & Worktree Cleanup
@@ -220,6 +223,7 @@ After presenting the tech debt table, dispatch a **review agent** (subagent_type
 Prompt: "Review the tech debt audit just presented. Read the decision record at [DECISION_RECORD_PATH] for trade-offs and tech debt entries. Quality criteria: (1) Every trade-off or tech debt entry from the decision record is addressed — none are silently dropped. (2) Each item has a concrete proposed fix (not just 'should be fixed later'). (3) Each item has an effort estimate (S/M/L) and priority (high/medium/low). (4) Impact column describes what could go wrong if not addressed, not just restating the debt. Return: PASS if all criteria met, or REDO with specific issues."
 
 If REDO: fix and re-dispatch. Max 3 iterations, then surface to user.
+**After the gate passes (or on each iteration):** present a summary to the user: "Step 7 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
 
 ### Step 8: Handover (Claude-Mem Observation)
 
@@ -241,6 +245,7 @@ After saving the handover observation, dispatch a **review agent** (subagent_typ
 Prompt: "Review the handover observation just saved. Quality criteria: (1) A stranger who knows nothing about this session can understand: what was built, why these choices, what's left to do. (2) Includes: commit hash, test results, key decisions, gotchas/learnings, files modified, tech debt items. (3) Minimum 500 characters (a useful handover cannot be shorter). (4) Does not contain vague claims like 'fixed the thing' or 'all tests pass' without specifying what tests and how many. Return: PASS if all criteria met, or REDO with specific issues."
 
 If REDO: fix and re-save the observation, then re-dispatch. Max 3 iterations, then surface to user.
+**After the gate passes (or on each iteration):** present a summary to the user: "Step 8 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
 
 ### Step 9: Phase Transition
 

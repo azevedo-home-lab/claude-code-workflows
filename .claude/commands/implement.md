@@ -25,6 +25,8 @@ Follow this workflow:
 2. Use `superpowers:test-driven-development` — write tests before implementation code
 3. When implementation is complete, the user will run `/review` to enter the review phase
 
+**Review transparency:** When spec compliance reviewers or code quality reviewers find issues during implementation, always present a summary to the user: what the reviewer found, what you fixed, and the final verdict. Never silently fix and move on — the user must see what was caught.
+
 **Important:** When you invoke a superpowers skill, update the active skill tracker:
 ```bash
 WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_active_skill "SKILL_NAME"
