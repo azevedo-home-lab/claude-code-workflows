@@ -148,10 +148,19 @@ else
 fi
 
 # Claude-Mem detection
+CM_OBS_ID=""
+if [ -f "$WM_STATE_FILE" ]; then
+  CM_OBS_ID=$(grep -o '"last_observation_id"[[:space:]]*:[[:space:]]*[0-9]*' "$WM_STATE_FILE" | grep -o '[0-9]*$')
+fi
+CM_SUFFIX=""
+if [ -n "$CM_OBS_ID" ]; then
+  CM_SUFFIX=" ${CYAN}#${CM_OBS_ID}${RESET}"
+fi
+
 if echo "$DATA" | jq -e '.mcp_servers[]? | select(. == "claude-mem" or test("claude.mem"; "i"))' >/dev/null 2>&1; then
-  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Claude-Mem ✓${RESET}"
+  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Claude-Mem ✓${RESET}${CM_SUFFIX}"
 elif command -v claude-mem >/dev/null 2>&1 || [ -d "$HOME/.claude/plugins/cache/thedotmack" ]; then
-  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Claude-Mem ✓${RESET}"
+  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Claude-Mem ✓${RESET}${CM_SUFFIX}"
 else
   OUTPUT+="  ${DIM}│${RESET}  ${DIM}Claude-Mem ✗${RESET}"
 fi
