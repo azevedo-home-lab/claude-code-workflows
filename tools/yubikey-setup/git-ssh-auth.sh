@@ -14,9 +14,12 @@
 #   sudo cp git-ssh-auth.sh /usr/local/bin/git-ssh-auth
 #   git config --global core.sshCommand /usr/local/bin/git-ssh-auth
 #
-# CUSTOMIZE: Change the -i path to your no-touch ed25519-sk key file.
+# CUSTOMIZE: Change the -i path to your touch-required ed25519-sk key file.
+# Note: GitHub requires FIDO2 user presence (touch) for SSH auth.
+# The no-touch key is used for commit signing only (via git-ssh-sign).
+# SSH multiplexing (ControlMaster in ~/.ssh/config) reduces touch to once per session.
 
-YUBIKEY_SSH_KEY="${YUBIKEY_SSH_KEY:-$HOME/.ssh/id_ed25519_sk_no_touch}"
+YUBIKEY_SSH_KEY="${YUBIKEY_SSH_KEY:-$HOME/.ssh/id_ed25519_sk}"
 
 unset SSH_AUTH_SOCK
 unset SSH_ASKPASS

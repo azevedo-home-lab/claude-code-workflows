@@ -32,18 +32,41 @@ The installer:
 
 ## Key Setup
 
-The no-touch-required SSH key allows YubiKey presence to authorize safe operations without physical tap.
+Two SSH keys work together: a **no-touch key** for commit signing (no tap needed) and the **original touch key** for push authentication (GitHub requires user presence for SSH auth).
+
+SSH connection multiplexing means you only touch once per session — the first push opens a persistent connection that subsequent pushes reuse for 10 minutes.
 
 ```bash
-# Generate no-touch key (one-time, requires YubiKey PIN)
+# Generate no-touch key for signing (one-time, requires YubiKey PIN)
 ssh-keygen -t ed25519-sk -O no-touch-required -O resident -C "yubikey-no-touch" -f ~/.ssh/id_ed25519_sk_no_touch
 
-# Then register on GitHub:
-# 1. Add the .pub as a signing key
-# 2. Add the .pub as an authentication key
-# 3. Update ~/.ssh/allowed_signers
-# 4. Update git config: git config --global user.signingkey ~/.ssh/<new-key>.pub
+# Register on GitHub (both signing AND authentication):
+gh ssh-key add ~/.ssh/id_ed25519_sk_no_touch.pub --title "yubikey-no-touch (signing)" --type signing
+gh ssh-key add ~/.ssh/id_ed25519_sk_no_touch.pub --title "yubikey-no-touch (auth)" --type authentication
+
+# Configure git to sign with the no-touch key:
+git config --global user.signingkey ~/.ssh/id_ed25519_sk_no_touch.pub
+
+# Create allowed_signers:
+echo "$(git config --global user.email) $(cat ~/.ssh/id_ed25519_sk_no_touch.pub)" > ~/.ssh/allowed_signers
+git config --global gpg.ssh.allowedSignersFile ~/.ssh/allowed_signers
+
+# Enable SSH connection multiplexing for GitHub:
+# Add to ~/.ssh/config under Host github.com:
+#   ControlMaster auto
+#   ControlPath ~/.ssh/sockets/%r@%h-%p
+#   ControlPersist 600
+mkdir -p ~/.ssh/sockets && chmod 700 ~/.ssh/sockets
 ```
+
+### How the two keys work
+
+| Operation | Key used | Touch? | Why |
+|-----------|----------|--------|-----|
+| `git commit` (signing) | no-touch key | No | Git signing uses `ssh-keygen` locally — no server policy |
+| `git push` (first in session) | touch key | Yes | GitHub requires FIDO2 user presence for SSH auth |
+| `git push` (subsequent) | reused connection | No | SSH multiplexing reuses the authenticated connection |
+| YubiKey unplugged | — | — | `git-yubikey` blocks all git operations |
 
 ## Prerequisites
 

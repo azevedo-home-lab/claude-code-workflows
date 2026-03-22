@@ -5,17 +5,21 @@
 ### Rules for Claude Code Sessions
 
 1. **Use `git-yubikey` instead of `git`** for all git commands. It checks YubiKey presence and gates destructive operations.
-2. **Safe commands** (commit, push, pull, fetch, tag): no touch needed — YubiKey presence is enough.
-3. **Destructive commands** (push --force, push --delete, branch -D/-M): require explicit confirmation.
-4. **If YubiKey is unplugged**: all git operations are blocked. Ask user to insert YubiKey.
-5. **NEVER use `commit.gpgsign=false`** or `--no-gpg-sign` — YubiKey signing is a security requirement.
+2. **Commits sign without touch** — the no-touch key handles signing automatically.
+3. **First push per session needs one touch** — GitHub requires FIDO2 user presence for SSH auth. SSH multiplexing means subsequent pushes reuse the connection (no touch for ~10 minutes).
+4. **Destructive commands** (push --force, push --delete, branch -D/-M): require explicit confirmation.
+5. **If YubiKey is unplugged**: all git operations are blocked. Ask user to insert YubiKey.
+6. **If "agent refused operation" error**: SSH multiplexed connection expired. User needs to touch for next push.
+7. **NEVER use `commit.gpgsign=false`** or `--no-gpg-sign` — YubiKey signing is a security requirement.
 
 ### How It Works
 
+Two keys: no-touch key signs commits (no tap), touch key authenticates pushes (one tap per session via SSH multiplexing).
+
 | Wrapper | Purpose | Git Config |
 |---------|---------|------------|
-| `/usr/local/bin/git-ssh-sign` | Commit signing | `gpg.ssh.program` |
-| `/usr/local/bin/git-ssh-auth` | Push/pull auth | `core.sshCommand` |
+| `/usr/local/bin/git-ssh-sign` | Commit signing (no-touch key) | `gpg.ssh.program` |
+| `/usr/local/bin/git-ssh-auth` | Push/pull auth (touch key) | `core.sshCommand` |
 | `/usr/local/bin/ssh-askpass-wrapper` | Popup filter | `SSH_ASKPASS` in `~/.zshenv` |
 | `~/bin/git-yubikey` | Presence check + destructive gate | Used directly |
 
