@@ -5,23 +5,71 @@
 # This file is part of Claude Code Workflows.
 # See LICENSE for details.
 
-# Git wrapper that shows YubiKey touch banner for signing/auth operations.
-# Non-signing commands pass through transparently.
+# Git wrapper with tiered YubiKey enforcement:
+#   1. YubiKey must be plugged in — all git blocked if absent
+#   2. Safe commands pass through (no touch, no confirmation)
+#   3. Dangerous commands require explicit confirmation before proceeding
 #
 # Usage: use 'git-yubikey' anywhere you'd use 'git'.
-# Only commit, tag, push, pull, fetch, clone show the banner.
+#
+# Environment overrides (for testing):
+#   YKMAN_CMD  — path to ykman binary (default: ykman)
+#   GIT_CMD    — path to git binary (default: /usr/bin/git)
 
-SUBCMD="${1:-}"
+YKMAN="${YKMAN_CMD:-ykman}"
+GIT="${GIT_CMD:-/usr/bin/git}"
 
-case "$SUBCMD" in
-    commit|tag|push|pull|fetch|clone)
-        OP="$(echo "$SUBCMD" | tr '[:lower:]' '[:upper:]')"
-        echo ""
-        echo "========================================"
-        printf "  🔑 YUBIKEY: TOUCH NOW FOR GIT %s\n" "$OP"
-        echo "========================================"
-        echo ""
-        ;;
-esac
+# --- Step 1: Check YubiKey presence ---
+if ! "$YKMAN" list --serials 2>/dev/null | grep -q '[0-9]'; then
+    echo ""
+    echo "========================================"
+    echo "  YubiKey not detected."
+    echo "  Git operations require YubiKey."
+    echo "========================================"
+    echo ""
+    exit 1
+fi
 
-exec /usr/bin/git "$@"
+# --- Step 2: Classify command ---
+# Note: tag -d is local-only (recoverable via reflog). Remote tag deletion
+# is done via 'push --delete origin <tag>', which IS caught below.
+is_dangerous() {
+    local args=("$@")
+    local subcmd="${args[0]:-}"
+
+    case "$subcmd" in
+        push)
+            for arg in "${args[@]:1}"; do
+                case "$arg" in
+                    --force|--force-with-lease|-f|--delete) return 0 ;;
+                esac
+            done
+            ;;
+        branch)
+            for arg in "${args[@]:1}"; do
+                case "$arg" in
+                    -D|-M) return 0 ;;
+                esac
+            done
+            ;;
+    esac
+    return 1
+}
+
+# --- Step 3: Gate dangerous commands ---
+if is_dangerous "$@"; then
+    echo ""
+    echo "========================================"
+    echo "  DESTRUCTIVE: git $*"
+    echo "  This cannot be undone on the remote."
+    echo "========================================"
+    read -p "  Confirm? (y/N) " -n 1 -r REPLY
+    echo ""
+    if [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
+        echo "Aborted."
+        exit 1
+    fi
+fi
+
+# --- Step 4: Execute ---
+exec "$GIT" "$@"
