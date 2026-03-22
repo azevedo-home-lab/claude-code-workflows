@@ -366,6 +366,33 @@ $L3_RECOMMEND"
     fi
 fi
 
+# Check 7: No verify after code change (source edits without test run)
+if [ "$PHASE" = "implement" ] || [ "$PHASE" = "review" ]; then
+    if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+        if [ -n "$FILE_PATH" ] && ! echo "$FILE_PATH" | grep -qE '(test|spec|docs/|plans/|specs/|\.md$)'; then
+            VERIFY_COUNT=$(get_pending_verify)
+            VERIFY_COUNT=$((VERIFY_COUNT + 1))
+            set_pending_verify "$VERIFY_COUNT"
+            if [ "$VERIFY_COUNT" -ge 5 ]; then
+                VERIFY_MSG="[Workflow Coach — ${PHASE^^}] You've edited source code $VERIFY_COUNT times but haven't run tests or verification. Verify your changes before continuing."
+                set_pending_verify 0
+                if [ -n "$L3_MSG" ]; then
+                    L3_MSG="$L3_MSG
+
+$VERIFY_MSG"
+                else
+                    L3_MSG="$VERIFY_MSG"
+                fi
+            fi
+        fi
+    elif [ "$TOOL_NAME" = "Bash" ]; then
+        BASH_CMD=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
+        if echo "$BASH_CMD" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'; then
+            set_pending_verify 0
+        fi
+    fi
+fi
+
 # Append Layer 3 message if any
 if [ -n "$L3_MSG" ]; then
     if [ -n "$MESSAGES" ]; then

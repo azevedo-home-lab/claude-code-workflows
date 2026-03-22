@@ -449,3 +449,40 @@ except Exception:
     print('false')
 " "$trigger_type" "$STATE_FILE" 2>/dev/null
 }
+
+# ---------------------------------------------------------------------------
+# Pending verify tracking
+# ---------------------------------------------------------------------------
+
+set_pending_verify() {
+    local count="${1:-0}"
+    if [ ! -f "$STATE_FILE" ]; then return; fi
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    python3 -c "
+import json, sys
+count, ts, filepath = int(sys.argv[1]), sys.argv[2], sys.argv[3]
+with open(filepath, 'r') as f:
+    d = json.load(f)
+coaching = d.get('coaching', {})
+coaching['pending_verify'] = count
+d['coaching'] = coaching
+d['updated'] = ts
+with open(filepath, 'w') as f:
+    json.dump(d, f, indent=2)
+    f.write('\n')
+" "$count" "$ts" "$STATE_FILE"
+}
+
+get_pending_verify() {
+    if [ ! -f "$STATE_FILE" ]; then echo "0"; return; fi
+    python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        d = json.load(f)
+    print(d.get('coaching', {}).get('pending_verify', 0))
+except Exception:
+    print(0)
+" "$STATE_FILE" 2>/dev/null
+}
