@@ -948,6 +948,41 @@ cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"./tests/run-tests.sh"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_contains "$OUTPUT" "specific about validation failures" "Layer 2 fires on test run in COMPLETE"
 
+# --- Autonomy level coaching ---
+
+# Test: Level 3 coaching includes auto-transition guidance
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+python3 -c "
+import json
+with open('$TEST_DIR/.claude/state/workflow.json', 'r') as f:
+    d = json.load(f)
+d['message_shown'] = False
+with open('$TEST_DIR/.claude/state/workflow.json', 'w') as f:
+    json.dump(d, f, indent=2)
+"
+OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/project/src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "Level 3" "Level 3 coaching mentions Level 3 in phase entry"
+assert_contains "$OUTPUT" "proceed" "Level 3 coaching includes auto-transition guidance"
+
+# Test: Level 2 coaching does NOT include auto-transition guidance
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+python3 -c "
+import json
+with open('$TEST_DIR/.claude/state/workflow.json', 'r') as f:
+    d = json.load(f)
+d['message_shown'] = False
+with open('$TEST_DIR/.claude/state/workflow.json', 'w') as f:
+    json.dump(d, f, indent=2)
+"
+OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/project/src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_not_contains "$OUTPUT" "Level 3" "Level 2 coaching does not mention Level 3"
+
 # ============================================================
 # TEST SUITE: statusline.sh
 # ============================================================
