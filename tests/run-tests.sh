@@ -732,6 +732,22 @@ assert_contains "$OUTPUT" "Every approach must have stated downsides" "Layer 2 f
 OUTPUT=$(echo '{"tool_name":"Agent","tool_input":{"prompt":"This is a sufficiently long agent prompt that exceeds one hundred and fifty characters so that it does not trigger the short prompt warning from Layer 3 checks"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_not_contains "$OUTPUT" "Every approach must have stated downsides" "Layer 2 silent on second Agent return in DISCUSS"
 
+# Test: Layer 3 Check 2 — short HEREDOC commit message warning
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"$(cat <<'"'"'EOF'"'"'\\nfix\\n\\nCo-Authored-By: Claude\\nEOF\\n)\""}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "Commit messages must explain why" "Layer 3 fires for short HEREDOC commit message"
+
+# Test: Layer 3 Check 2 — long HEREDOC commit message no warning
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"$(cat <<'"'"'EOF'"'"'\\nfeat: add comprehensive hallucination reduction standards from Anthropic docs\\n\\nCo-Authored-By: Claude\\nEOF\\n)\""}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_not_contains "$OUTPUT" "Commit messages must explain why" "Layer 3 silent for long HEREDOC commit message"
+
 # ============================================================
 # TEST SUITE: statusline.sh
 # ============================================================

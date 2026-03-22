@@ -250,10 +250,16 @@ cmd = sys.stdin.read()
 # Match -m followed by a double-quoted or single-quoted string
 # Use \x22 for double-quote and \x27 for single-quote to avoid shell quoting issues
 m = re.search(r'-m\s+[\x22\x27](.*?)[\x22\x27]', cmd)
-if m:
+if m and '\$(cat' not in m.group(1) and '<<' not in m.group(1):
     print(len(m.group(1)))
 else:
-    print(999)
+    # Try HEREDOC: look for EOF markers with \n as line separators
+    m2 = re.search(r'EOF.*?\\\\n(.*?)\\\\n.*?EOF', cmd)
+    if m2:
+        first_line = m2.group(1).strip()
+        print(len(first_line))
+    else:
+        print(999)
 " 2>/dev/null || echo "999")
         if [ "$COMMIT_MSG_LEN" -lt 30 ]; then
             L3_MSG="[Workflow Coach — ${PHASE^^}] Commit messages must explain why, not what. The diff shows what changed. Include context and reasoning."
