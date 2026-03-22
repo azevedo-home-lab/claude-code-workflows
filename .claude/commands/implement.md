@@ -20,10 +20,14 @@ Then confirm to the user that the phase has changed and they can now proceed wit
 **You are now in IMPLEMENT phase.** Before proceeding:
 1. Read `docs/reference/professional-standards.md` — apply the Universal Standards and IMPLEMENT Phase Standards throughout this phase.
 
+**Autonomy-aware behavior:**
+- **Level 3 (▶▶▶):** Use `superpowers:subagent-driven-development` (recommended execution mode) without asking. Make operational decisions (execution approach, model selection, task ordering) autonomously. Only stop for genuine blockers.
+- **Level 1-2:** Ask the user which execution approach they prefer if multiple options exist.
+
 Follow this workflow:
-1. Use `superpowers:executing-plans` to implement the approved plan with review checkpoints
+1. Use `superpowers:executing-plans` or `superpowers:subagent-driven-development` to implement the approved plan
 2. Use `superpowers:test-driven-development` — write tests before implementation code
-3. When implementation is complete, the user will run `/review` to enter the review phase
+3. When implementation is complete, proceed to `/review` (Level 3) or wait for the user to run `/review` (Level 1-2)
 
 **Review transparency:** When spec compliance reviewers or code quality reviewers find issues during implementation, always present a summary to the user: what the reviewer found, what you fixed, and the final verdict. Never silently fix and move on — the user must see what was caught.
 

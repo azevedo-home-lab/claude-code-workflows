@@ -85,4 +85,6 @@ Every plan step must trace back to the chosen approach. If a step can't be justi
 
 **Review transparency:** When the spec review loop or plan review loop finds issues, always present a summary to the user: what the reviewer found, what you fixed, and the final verdict. Never silently fix and move on — the user must see what was caught.
 
-When the plan is ready and the user approves, they will run `/implement` to proceed.
+**Autonomy-aware behavior:**
+- **Level 3 (▶▶▶):** After the plan passes review, proceed to `/implement` without waiting for user approval. Only stop if the user needs to provide input on approach selection during the converge phase.
+- **Level 1-2:** When the plan is ready and the user approves, they will run `/implement` to proceed.
