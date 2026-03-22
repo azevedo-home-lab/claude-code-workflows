@@ -97,6 +97,7 @@ cp "$SCRIPT_DIR/.claude/commands/discuss.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/review.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/complete.md" "$TARGET/.claude/commands/"
 cp "$SCRIPT_DIR/.claude/commands/define.md" "$TARGET/.claude/commands/"
+cp "$SCRIPT_DIR/.claude/commands/autonomy.md" "$TARGET/.claude/commands/"
 
 # Copy professional standards
 mkdir -p "$TARGET/docs/reference"
