@@ -139,6 +139,11 @@ if [ "$(get_message_shown)" = "true" ]; then
             if [ "$TOOL_NAME" = "Agent" ]; then
                 TRIGGER="agent_return_define"
                 L2_MSG="[Workflow Coach — DEFINE] Challenge the first framing. Separate facts from interpretations. Are these findings changing the problem statement?"
+            elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+                if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
+                    TRIGGER="decision_record_define"
+                    L2_MSG="[Workflow Coach — DEFINE] Challenge vague problem statements. Outcomes must be verifiable, not aspirational. 'Better UX' is aspirational; 'checkout completes in under 3 clicks' is verifiable."
+                fi
             fi
             ;;
         discuss)
@@ -179,6 +184,12 @@ if [ "$(get_message_shown)" = "true" ]; then
                 if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
                     TRIGGER="decision_record_edit"
                     L2_MSG="[Workflow Coach — COMPLETE] Does the handover make sense to a stranger? Is tech debt visible? Does README match reality?"
+                fi
+            elif [ "$TOOL_NAME" = "Bash" ]; then
+                BASH_CMD=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
+                if echo "$BASH_CMD" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest)'; then
+                    TRIGGER="test_run_complete"
+                    L2_MSG="[Workflow Coach — COMPLETE] Be specific about validation failures. If a test fails, diagnose with quantified fix effort. Don't let failures be acknowledged without understanding consequences."
                 fi
             fi
             ;;

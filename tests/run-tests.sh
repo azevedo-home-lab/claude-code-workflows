@@ -773,6 +773,22 @@ done
 OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"src/other.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_not_contains "$OUTPUT" "haven.t run tests" "verify clears the pending_verify flag"
 
+# Test: Layer 2 — decision record write in DEFINE triggers coaching
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "define"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"docs/plans/decisions.md"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "Challenge vague problem statements" "Layer 2 fires on decision record write in DEFINE"
+
+# Test: Layer 2 — test run in COMPLETE triggers coaching
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"./tests/run-tests.sh"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "specific about validation failures" "Layer 2 fires on test run in COMPLETE"
+
 # ============================================================
 # TEST SUITE: statusline.sh
 # ============================================================
