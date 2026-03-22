@@ -110,6 +110,20 @@ The script receives JSON via stdin with these fields:
 | `session_id` | Unique session identifier |
 | `version` | Claude Code version |
 
+## Workflow Autonomy Symbols
+
+When the Workflow Manager is active, the status line displays a symbol indicating the current autonomy level:
+
+| Symbol | Level | Name | Behavior |
+|--------|-------|------|----------|
+| `▶` | 1 | Supervised | Read-only; all writes blocked |
+| `▶▶` | 2 | Semi-Auto | Writes follow phase rules; stops at transitions |
+| `▶▶▶` | 3 | Unattended | Auto-transitions, auto-commits |
+
+No symbol is shown when the workflow is OFF or when the autonomy field is absent from state.
+
+Set the level with `/autonomy 1`, `/autonomy 2`, or `/autonomy 3`. Only the user can change it.
+
 ## Files
 
 | File | Purpose |

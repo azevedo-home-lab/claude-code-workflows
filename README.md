@@ -45,6 +45,16 @@ Commands: `/define` `/discuss` `/implement` `/review` `/complete`
 
 Any command can jump to any phase. Soft gates warn when skipping steps.
 
+### Autonomy Levels
+
+Orthogonal to phase, the autonomy level controls how independently Claude operates. Set with `/autonomy 1|2|3` (default: Level 2):
+
+- `▶` **Level 1 — Supervised**: Read-only. All writes blocked regardless of phase.
+- `▶▶` **Level 2 — Semi-Auto**: Writes follow phase rules. Stops at phase transitions for approval.
+- `▶▶▶` **Level 3 — Unattended**: Auto-transitions, auto-commits. Stops only for user input and push.
+
+See the [Status Line guide](docs/guides/statusline-guide.md) for symbol display details.
+
 Each cycle produces a **decision record** tracking problem, approaches, rationale, findings, and outcomes.
 
 ## Tools

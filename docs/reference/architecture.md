@@ -164,6 +164,23 @@ flowchart LR
     style C7 fill:#fce7f3,stroke:#ec4899,color:#9d174d
 ```
 
+## Autonomy Levels
+
+Phase and autonomy are two orthogonal dimensions of control:
+
+- **Phase** (WHAT) — which operations are allowed at each stage of the workflow
+- **Autonomy** (HOW MUCH) — how independently Claude proceeds within those permissions
+
+| Symbol | Level | Name | Description |
+|--------|-------|------|-------------|
+| `▶` | 1 | Supervised | Read-only. Writes blocked regardless of phase. Local research only. |
+| `▶▶` | 2 | Semi-Auto | Writes follow phase rules. Stops at phase transitions. **Default.** |
+| `▶▶▶` | 3 | Unattended | Auto-transitions, auto-commits. Stops for user input and push. |
+
+**Enforcement**: Hooks (`workflow-gate.sh`, `bash-write-guard.sh`) are the single source of truth and apply the autonomy check before the phase gate. Claude Code permission modes (`plan`/`default`/`acceptEdits`) are best-effort convenience that mirror the active autonomy level but are not relied upon for enforcement.
+
+Set via `/autonomy 1|2|3`. Only the user can change it.
+
 ## Component Responsibilities
 
 ### Workflow Manager — Hard Gates

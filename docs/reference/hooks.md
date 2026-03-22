@@ -147,6 +147,34 @@ The `post-tool-navigator.sh` hook provides a three-layer coaching system via Pos
 
 All coaching messages are prefixed with `[Workflow Coach — PHASE]` and visible to the user. They are non-blocking guidance — they inform Claude's behavior but do not prevent tool use.
 
+## Autonomy Levels
+
+Autonomy level is an orthogonal dimension to phase — phase controls **what** is allowed; autonomy controls **how much** Claude does independently.
+
+### Levels
+
+| Symbol | Level | Name | Behavior |
+|--------|-------|------|----------|
+| `▶` | 1 | Supervised | Read-only. All writes blocked regardless of phase. Local research only. |
+| `▶▶` | 2 | Semi-Auto | Writes follow phase rules. Stops at phase transitions for user approval. **Default.** |
+| `▶▶▶` | 3 | Unattended | Auto-transitions between phases. Auto-commits. Stops only for user input and push. |
+
+Set the level with `/autonomy 1`, `/autonomy 2`, or `/autonomy 3`. Only the user can change it.
+
+### Check Order
+
+Both `workflow-gate.sh` and `bash-write-guard.sh` apply checks in this order:
+
+```
+1. No state file → allow (fails open)
+2. Workflow OFF → allow
+3. Autonomy Level 1 → deny all writes (regardless of phase)
+4. Implement/Review phase check (phase gate)
+5. Phase-specific whitelist check (specs/plans, docs)
+```
+
+Level 1 blocks all writes before the phase gate is even evaluated. Levels 2 and 3 fall through to the existing phase-based logic. The hooks are the single source of truth; Claude Code permission modes (`plan`/`default`/`acceptEdits`) are best-effort convenience only.
+
 ## Known Limitations
 
 1. **Bash bypass is ~95% covered**. A sufficiently creative command can slip through. Anthropic closed this as NOT_PLANNED (GitHub #29709).
