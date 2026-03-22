@@ -65,6 +65,13 @@ Each cycle produces a **decision record** tracking problem, approaches, rational
 - [Command Reference](docs/quick-reference/commands.md) — all commands
 - [Professional Standards](docs/reference/professional-standards.md) — behavioral expectations per phase
 
+## Informed By
+
+- [Reduce Hallucinations](https://docs.anthropic.com/en/docs/test-and-evaluate/strengthen-guardrails/reduce-hallucinations) — grounding, citations, uncertainty
+- [Claude Code Best Practices](https://code.claude.com/docs/en/best-practices) — agentic coding patterns
+- [Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) — tool design, evaluation loops
+- [Effective Harnesses for Long-Running Agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) — session state, progress checkpoints
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
