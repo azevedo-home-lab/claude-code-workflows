@@ -49,16 +49,22 @@ Dispatch a **Plan validator agent** to:
 
 ### Step 2: Outcome Validation
 
-**If the decision record has a Problem section with outcomes:**
+**Find the outcome source** — check in this order:
+1. Decision record (from `get_decision_record`) → Problem section with outcomes
+2. Design spec (check `docs/superpowers/specs/`) → Problem section or Requirements
+3. Implementation plan (check `docs/superpowers/plans/`, `docs/plans/`) → Goal and deliverables
+
+Use the first source found. If the workflow started at `/discuss` (no decision record), the spec and plan still define what success looks like.
 
 Dispatch an **Outcome validator agent** to:
-1. Read the decision record's Problem section
-2. Extract every outcome and success metric
+1. Read the outcome source document
+2. Extract every outcome, success metric, and acceptance criterion
 3. For each outcome, require behavioral evidence — demonstrate, don't just grep
 4. For each success metric: verify if immediately testable, flag as "TO MONITOR" if long-term
-5. Return an outcome checklist with PASS/FAIL and evidence
+5. **Flag manual steps** — if the spec defines steps that require user action (key generation, service registration, hardware setup), list them as outcomes that need E2E verification. Guide the user through verification rather than skipping.
+6. Return an outcome checklist with PASS/FAIL/MANUAL and evidence
 
-**If no decision record or no Problem section**: report "No outcome definition found — skipping outcome validation" and continue.
+**If no outcome source found**: report "No outcome definition found — skipping outcome validation" and continue.
 
 ### Step 3: Present Validation Results
 
