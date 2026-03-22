@@ -68,7 +68,27 @@ Dispatch an **Outcome validator agent** to:
 
 ### Step 3: Present Validation Results
 
-Combine plan and outcome validation results. Enrich the decision record with the **Outcome Verification** section:
+**You MUST present the full evidence to the user — not just a summary.** The user cannot trust "24/24 PASS" without seeing what was checked and how.
+
+Present validation results as two tables:
+
+**Plan Deliverables:**
+
+| Task | Deliverable | Status | Evidence |
+|---|---|---|---|
+| 1 | Function X exists | PASS | `file.sh:42` |
+| 1 | Preserves state on transition | PASS | test "preserves across transitions" passes |
+| ... | ... | ... | ... |
+
+**Outcomes:**
+
+| # | Outcome | Status | Evidence |
+|---|---|---|---|
+| 1 | User can select levels | PASS | `command.md` calls `set_level`, test passes |
+| 2 | Status line shows symbols | PASS | `statusline.sh:107-114`, 5 tests pass |
+| ... | ... | ... | ... |
+
+Then enrich the decision record with the **Outcome Verification** section:
 
 ```markdown
 ## Outcome Verification (COMPLETE phase)
@@ -158,9 +178,15 @@ If **no**: note that worktree is still active
 
 ### Step 7: Tech Debt Audit
 
-Before closing, review the decision record for any "accepted trade-offs" or "tech debt acknowledged" entries. Present them:
+Before closing, review the decision record for any "accepted trade-offs" or "tech debt acknowledged" entries. **For each item, propose a concrete improvement:**
 
-"During this cycle we accepted these trade-offs: [list]. These should be tracked for future work."
+| Trade-off | Impact | Proposed Fix | Effort | Priority |
+|---|---|---|---|---|
+| <description> | <what could go wrong> | <specific fix> | <S/M/L> | <high/medium/low> |
+
+Don't just list debt — recommend what to do about it. The user should leave this step with actionable next steps, not just a list of problems.
+
+Present the table and ask: "Want to create tickets/issues for any of these, or note them for the next session?"
 
 ### Step 8: Handover (Claude-Mem Observation)
 
