@@ -1,6 +1,6 @@
 # YubiKey Git Signing Setup for Claude Code
 
-Git commit signing and push authentication via YubiKey FIDO2, with visible touch banners for Claude Code sessions.
+Git commit signing and push authentication via YubiKey FIDO2. No-touch signing, one-touch-per-session push, presence-gated git operations.
 
 ## What It Does
 
