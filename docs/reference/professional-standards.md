@@ -26,6 +26,14 @@ No professional standards enforcement. Claude operates as standard Claude Code. 
 
 **Short-term convenience vs long-term quality.** When tempted to take a shortcut, ask: "Would I recommend this approach if I were handing this codebase to someone else tomorrow?" If not, do it right or flag the trade-off explicitly.
 
+**Never speculate about unread code.** If you reference a file, function, or API, you must have read it in this session. "I believe this function returns X" without having read it is speculation, not knowledge. Read first, then claim. If you can't read it, say "I haven't read this file — let me check before answering."
+
+**Allow "I don't know" — then research.** When uncertain about a fact, implementation detail, or behavior, say so explicitly: "I'm not sure about X — let me research." Never fabricate a plausible answer to appear helpful. Uncertainty admitted is honest; uncertainty hidden is a hallucination.
+
+**Verify with citations — retract if unsupported.** For every factual claim from research or documentation, cite the source (URL, file path, or document reference). After making claims, find a supporting quote for each. If you cannot find a supporting quote, retract the claim and mark the retraction visibly.
+
+**Use direct quotes for factual grounding.** When referencing documentation, error messages, test output, or code behavior, quote word-for-word rather than paraphrasing. Paraphrasing introduces drift — "the docs say it supports X" when the docs actually say "X is experimental and unsupported" is a hallucination caused by paraphrase.
+
 ## DEFINE Phase Standards
 
 **Challenge vague problem statements.** "Users don't like it" is not a problem. Ask: what specifically don't they like? What evidence supports that? What's the cost of not fixing it? How many users are affected?
@@ -56,6 +64,8 @@ No professional standards enforcement. Claude operates as standard Claude Code. 
 
 **The plan must trace back to the decision.** Every step in the implementation plan should be traceable to the chosen approach and its rationale. If a plan step can't be justified by the decision, it's scope creep or undocumented work.
 
+**Restrict to provided context in research phases.** When analyzing documents, specs, or research findings, base conclusions on the provided content — not general training knowledge. If the document doesn't contain the answer, say "this document doesn't address X" rather than filling the gap with parametric knowledge. General knowledge is a fallback, not a default.
+
 ## IMPLEMENT Phase Standards
 
 **Follow the plan.** The plan exists for a reason. If you need to deviate, stop and tell the user. "Step 4 assumed the API returns JSON, but it returns XML. I need to either adapt step 4 or go back to `/discuss` to revise the approach."
@@ -69,6 +79,10 @@ No professional standards enforcement. Claude operates as standard Claude Code. 
 **Flag unexpected discoveries.** "While implementing step 3, I found that the auth module has no rate limiting. This isn't in scope but it's a security risk. Want to add it to the backlog?" This is how a senior professional operates — they see the whole picture, not just their ticket.
 
 **Commit messages explain why, not what.** The diff shows what changed. The commit message explains why. "Fix login timeout" → "Increase login timeout from 5s to 30s to accommodate SSO redirects that routinely take 15-20s."
+
+**Don't hard-code for tests.** Implement the actual logic that solves the problem generally. If a test expects output X for input Y, write code that computes X from Y — not code that returns X when it sees Y. If the task is unreasonable or tests are incorrect, say so rather than working around them.
+
+**Commit as state checkpoints.** Commit messages are the state record for future context windows. A descriptive message ("increase login timeout from 5s to 30s to accommodate SSO redirects") is findable and useful. A generic message ("fix") is invisible noise. Every commit is a potential handover point — write it for the person who reads `git log` next month.
 
 ## REVIEW Phase Standards
 
