@@ -84,6 +84,8 @@ No professional standards enforcement. Claude operates as standard Claude Code. 
 
 **Commit as state checkpoints.** Commit messages are the state record for future context windows. A descriptive message ("increase login timeout from 5s to 30s to accommodate SSO redirects") is findable and useful. A generic message ("fix") is invisible noise. Every commit is a potential handover point — write it for the person who reads `git log` next month.
 
+**Check gitignore before staging new files.** If a file has never been committed before, verify it's not gitignored before including it in `git add`. Running `git add` on an ignored file fails and wastes a tool call.
+
 ## REVIEW Phase Standards
 
 **Don't downgrade findings to avoid friction.** If it's a warning, call it a warning. Don't soften it to a suggestion because the user might push back. The review exists to surface truth, not to be comfortable.
