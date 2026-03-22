@@ -123,4 +123,4 @@ WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd
 set_review_field "findings_acknowledged" "true"
 ```
 
-**Level 3 auto-transition:** If autonomy level is 3: fix all findings that are fixable (warnings and suggestions), acknowledge the rest, then invoke `/complete` now. Do not wait for the user. Only stop if there are critical findings that require user judgment.
+**Level 3 auto-transition:** If autonomy level is 3: fix ALL findings — critical, warnings, and suggestions. Only stop if there are critical findings or decisions that require user judgment. Do not acknowledge findings without fixing them unless the user has explicitly accepted them. After all findings are fixed, invoke `/complete` now. Do not wait for the user.
