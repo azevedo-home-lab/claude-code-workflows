@@ -35,8 +35,8 @@ The installer:
 The no-touch-required SSH key allows YubiKey presence to authorize safe operations without physical tap.
 
 ```bash
-# Generate no-touch key (one-time)
-ssh-keygen -t ed25519-sk -O no-touch-required -O resident -C "yubikey-no-touch"
+# Generate no-touch key (one-time, requires YubiKey PIN)
+ssh-keygen -t ed25519-sk -O no-touch-required -O resident -C "yubikey-no-touch" -f ~/.ssh/id_ed25519_sk_no_touch
 
 # Then register on GitHub:
 # 1. Add the .pub as a signing key
