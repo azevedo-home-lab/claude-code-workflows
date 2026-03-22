@@ -164,7 +164,7 @@ if [ "$(get_message_shown)" = "true" ]; then
                 L2_MSG="[Workflow Coach — IMPLEMENT] Does this follow the plan? Would you be proud to have this reviewed? Tests written first?"
             elif [ "$TOOL_NAME" = "Bash" ]; then
                 COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
-                if echo "$COMMAND" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest)'; then
+                if echo "$COMMAND" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'; then
                     TRIGGER="test_run"
                     L2_MSG="[Workflow Coach — IMPLEMENT] If tests fail, diagnose the root cause. Don't patch the test to make it pass. Don't skip tests for small changes."
                 fi
@@ -187,7 +187,7 @@ if [ "$(get_message_shown)" = "true" ]; then
                 fi
             elif [ "$TOOL_NAME" = "Bash" ]; then
                 BASH_CMD=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
-                if echo "$BASH_CMD" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest)'; then
+                if echo "$BASH_CMD" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'; then
                     TRIGGER="test_run_complete"
                     L2_MSG="[Workflow Coach — COMPLETE] Be specific about validation failures. If a test fails, diagnose with quantified fix effort. Don't let failures be acknowledged without understanding consequences."
                 fi

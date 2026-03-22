@@ -471,7 +471,7 @@ d['updated'] = ts
 with open(filepath, 'w') as f:
     json.dump(d, f, indent=2)
     f.write('\n')
-" "$count" "$ts" "$STATE_FILE"
+" "$count" "$ts" "$STATE_FILE" 2>/dev/null
 }
 
 get_pending_verify() {
