@@ -386,6 +386,37 @@ assert_contains "$OUTPUT" "tests_passing" "hard gate message lists specific miss
 assert_contains "$OUTPUT" "all_tasks_complete" "hard gate message lists all missing milestones"
 assert_not_contains "$OUTPUT" "plan_read" "hard gate message does not list completed milestones"
 
+# Test: backward compat — set_phase without reset_implement_status succeeds (no gate)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review" 2>&1)
+assert_not_contains "$OUTPUT" "HARD GATE" "no gate when reset_implement_status was never called"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "review" "$RESULT" "phase transitions without implement status object"
+
+# Test: backward compat — set_phase off from complete without reset_completion_status succeeds
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off" 2>&1)
+assert_not_contains "$OUTPUT" "HARD GATE" "no gate when reset_completion_status was never called"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "off" "$RESULT" "phase transitions without completion status object"
+
+# Test: COMPLETE hard gate blocks ALL exits (not just complete->off)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_completion_status
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement" 2>&1 || true)
+assert_contains "$OUTPUT" "HARD GATE" "COMPLETE gate blocks complete->implement with incomplete milestones"
+
+# Test: corrupt state file does not crash set_phase
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+echo "NOT VALID JSON" > "$TEST_DIR/.claude/state/workflow.json"
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review" 2>&1 || true)
+# Should not crash — python3 try/except handles corrupt JSON
+assert_not_contains "$OUTPUT" "Traceback" "corrupt state file does not produce python traceback"
+
 # ============================================================
 # TEST SUITE: workflow-gate.sh
 # ============================================================
