@@ -35,10 +35,18 @@ TOOL_NAME=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin);
 
 # ---------------------------------------------------------------------------
 # Claude-mem observation ID tracking
+# Extracts observation ID from save_observation (dict response) or
+# get_observations (list response) and writes to workflow state.
 # ---------------------------------------------------------------------------
-if echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
-    OBS_ID=$(echo "$INPUT" | python3 -c "
-import sys, json
+if echo "$TOOL_NAME" | grep -qE 'mcp.*(save_observation|get_observations)'; then
+    # Determine extraction mode: save returns a dict, get returns a list
+    EXTRACT_MODE="dict"
+    if echo "$TOOL_NAME" | grep -qE 'get_observations'; then
+        EXTRACT_MODE="list"
+    fi
+    OBS_ID=$(echo "$INPUT" | EXTRACT_MODE="$EXTRACT_MODE" python3 -c "
+import sys, json, os
+mode = os.environ.get('EXTRACT_MODE', 'dict')
 d = json.load(sys.stdin)
 resp = d.get('tool_response', {})
 content = resp.get('content', [])
@@ -46,37 +54,22 @@ for block in content:
     if block.get('type') == 'text':
         try:
             data = json.loads(block['text'])
-            if isinstance(data, dict) and 'id' in data:
+            if mode == 'dict' and isinstance(data, dict) and 'id' in data:
                 print(data['id'])
+                sys.exit(0)
+            elif mode == 'list' and isinstance(data, list) and len(data) > 0 and 'id' in data[-1]:
+                print(data[-1]['id'])
                 sys.exit(0)
         except (json.JSONDecodeError, KeyError):
             pass
+# Fallback: try tool_response directly (non-MCP format)
 if isinstance(resp, dict) and 'id' in resp:
     print(resp['id'])
 else:
     print('')
 " 2>/dev/null || echo "")
-    if [ -n "$OBS_ID" ]; then
-        set_last_observation_id "$OBS_ID"
-    fi
-elif echo "$TOOL_NAME" | grep -qE 'mcp.*get_observations'; then
-    OBS_ID=$(echo "$INPUT" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-resp = d.get('tool_response', {})
-content = resp.get('content', [])
-for block in content:
-    if block.get('type') == 'text':
-        try:
-            data = json.loads(block['text'])
-            if isinstance(data, list) and len(data) > 0 and 'id' in data[-1]:
-                print(data[-1]['id'])
-                sys.exit(0)
-        except (json.JSONDecodeError, KeyError):
-            pass
-print('')
-" 2>/dev/null || echo "")
-    if [ -n "$OBS_ID" ]; then
+    # Validate OBS_ID is numeric before storing
+    if [[ "$OBS_ID" =~ ^[0-9]+$ ]]; then
         set_last_observation_id "$OBS_ID"
     fi
 fi
@@ -367,31 +360,28 @@ except Exception:
     fi
 fi
 
-# Check 4: Minimal handover (COMPLETE phase, claude-mem observation)
-if [ "$PHASE" = "complete" ] && echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
-    OBS_LEN=$(echo "$INPUT" | python3 -c "
+# Check 4: save_observation quality (handover length + project field)
+# Single python3 call extracts both text length and project presence
+if echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
+    OBS_CHECK=$(echo "$INPUT" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
 ti = d.get('tool_input', {})
 text = ti.get('narrative', ti.get('text', ''))
-print(len(text))
-" 2>/dev/null || echo "999")
-    if [ "$OBS_LEN" -lt 200 ]; then
+project = ti.get('project', '')
+print(f'{len(text)} {\"true\" if project else \"false\"}')
+" 2>/dev/null || echo "999 true")
+    OBS_LEN="${OBS_CHECK%% *}"
+    HAS_PROJECT="${OBS_CHECK##* }"
+
+    # 4a: Minimal handover (COMPLETE phase only)
+    if [ "$PHASE" = "complete" ] && [ "$OBS_LEN" -lt 200 ]; then
         L3_MSG="[Workflow Coach — COMPLETE] The handover must be useful to someone who knows nothing about this session. Include: what was built, why these choices, gotchas, what's left."
     fi
-fi
 
-# Check 4b: save_observation without project field (any phase)
-if echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
-    HAS_PROJECT=$(echo "$INPUT" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-ti = d.get('tool_input', {})
-project = ti.get('project', '')
-print('true' if project else 'false')
-" 2>/dev/null || echo "false")
+    # 4b: Missing project field (any phase)
     if [ "$HAS_PROJECT" = "false" ]; then
-        PROJ_MSG="[Workflow Coach — ${PHASE^^}] save_observation called without project parameter. Always pass project to scope observations to this repo."
+        PROJ_MSG="[Workflow Coach — ${PHASE^^}] save_observation called without project parameter. Always pass project to scope observations to this repo. Derive repo name: git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git\$/\1/' | sed 's/.*[:/]\([^/]*\)\$/\1/'"
         if [ -n "$L3_MSG" ]; then
             L3_MSG="$L3_MSG
 
