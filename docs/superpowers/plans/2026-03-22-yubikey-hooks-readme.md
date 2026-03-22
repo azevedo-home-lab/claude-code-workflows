@@ -431,7 +431,7 @@ Also update the comment on line 17 to say "CUSTOMIZE: Change the -i path to your
 
 Note: The actual key filename will depend on what the user names it during generation. The README Key Setup section documents this. Use a sensible default.
 
-- [ ] **Step 2: Update CLAUDE.md.snippet**
+- [ ] **Step 2: Update CLAUDE.md.snippet** (renumbered from duplicate "Step 2")
 
 Replace the contents of `tools/yubikey-setup/CLAUDE.md.snippet` with:
 

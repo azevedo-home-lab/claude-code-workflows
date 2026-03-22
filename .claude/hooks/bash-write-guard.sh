@@ -72,7 +72,7 @@ fi
 # Detect write patterns: redirections, sed -i, tee, heredocs, python file writes,
 # cp, mv, install, curl -o, wget -O (common file-writing commands)
 # Note: python3 -c only blocked when combined with file-write indicators (open/write)
-WRITE_PATTERN='(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c.*\.(write|open)|echo[[:space:]].*>|^[[:space:]]*cp[[:space:]]|^[[:space:]]*mv[[:space:]]|^[[:space:]]*install[[:space:]]|curl[[:space:]].*-o[[:space:]]|wget[[:space:]].*-O[[:space:]]|dd[[:space:]].*of=|^[[:space:]]*patch[[:space:]]|^[[:space:]]*ln[[:space:]])'
+WRITE_PATTERN='(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c.*\.(write|open)|echo[[:space:]].*>|^[[:space:]]*cp[[:space:]]|^[[:space:]]*mv[[:space:]]|^[[:space:]]*rm[[:space:]]|^[[:space:]]*install[[:space:]]|curl[[:space:]].*-o[[:space:]]|wget[[:space:]].*-O[[:space:]]|dd[[:space:]].*of=|^[[:space:]]*patch[[:space:]]|^[[:space:]]*ln[[:space:]])'
 
 # Strip safe redirects before checking write patterns
 # 2>/dev/null, 2>&1, 1>&2 etc. are not file writes

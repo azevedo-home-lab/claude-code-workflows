@@ -327,6 +327,15 @@ assert_not_contains "$OUTPUT" "deny" "allows Write to docs/plans/ in DEFINE (whi
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_contains "$OUTPUT" "define the problem" "deny message in DEFINE mentions problem definition"
 
+# Test: path traversal rejection in DISCUSS phase
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+OUTPUT=$(run_gate "../../etc/passwd")
+assert_contains "$OUTPUT" "deny" "blocks path traversal in Write target (workflow-gate)"
+
+OUTPUT=$(run_gate "/project/.claude/state/../hooks/evil.sh")
+assert_contains "$OUTPUT" "deny" "blocks path traversal via ../ in normalized path (workflow-gate)"
+
 # ============================================================
 # TEST SUITE: bash-write-guard.sh
 # ============================================================
@@ -456,6 +465,29 @@ assert_contains "$OUTPUT" "deny" "blocks 'echo x > file.txt 2>/dev/null' in DISC
 
 OUTPUT=$(run_bash_guard "cat data >> output.txt 2>&1")
 assert_contains "$OUTPUT" "deny" "blocks 'cat data >> output.txt 2>&1' in DISCUSS"
+
+# Test: blocks rm in DISCUSS phase
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+OUTPUT=$(run_bash_guard "rm -rf src/")
+assert_contains "$OUTPUT" "deny" "blocks 'rm -rf src/' in DISCUSS"
+
+OUTPUT=$(run_bash_guard "rm file.txt")
+assert_contains "$OUTPUT" "deny" "blocks 'rm file.txt' in DISCUSS"
+
+# Test: fail-closed on empty/malformed command
+OUTPUT=$(echo '{"tool_input":{}}' | "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "deny" "fail-closed on missing command field"
+
+OUTPUT=$(echo '{}' | "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "deny" "fail-closed on empty JSON"
+
+# Test: path traversal rejection
+OUTPUT=$(run_bash_guard "echo x > ../../etc/passwd")
+assert_contains "$OUTPUT" "deny" "blocks path traversal in write target"
+
+OUTPUT=$(run_bash_guard "cp evil.sh ../../../outside")
+assert_contains "$OUTPUT" "deny" "blocks path traversal in cp target"
 
 # ============================================================
 # TEST SUITE: install.sh
@@ -655,6 +687,50 @@ echo '{"tool_name":"Glob"}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" >
 echo '{"tool_name":"Grep"}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
 CONTENT=$(cat "$TEST_DIR/.claude/state/workflow.json")
 assert_contains "$CONTENT" '"tool_calls_since_agent": 0' "irrelevant tools don't increment coaching counter"
+
+# Test: Layer 3 Check 1 — short agent prompt warning
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Agent","tool_input":{"prompt":"short"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "Agent prompts must be detailed" "Layer 3 fires for short agent prompt"
+
+# Test: Layer 3 Check 1 — long agent prompt no warning
+OUTPUT=$(echo '{"tool_name":"Agent","tool_input":{"prompt":"This is a sufficiently long prompt that exceeds the 150 character threshold and should not trigger the short agent prompt coaching warning from the Layer 3 anti-laziness check system"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_not_contains "$OUTPUT" "Agent prompts must be detailed" "Layer 3 silent for long agent prompt"
+
+# Test: Layer 3 Check 2 — short commit message warning
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"fix\""}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "Commit messages must explain why" "Layer 3 fires for short commit message"
+
+# Test: Layer 3 Check 5 — skipping research (counter > 10)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+# Increment counter past 10
+for i in $(seq 1 11); do
+    source "$TEST_DIR/.claude/hooks/workflow-state.sh" && increment_coaching_counter
+done
+OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"docs/superpowers/specs/test.md"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "haven.t dispatched background agents" "Layer 3 fires when counter > 10 in DISCUSS"
+
+# Test: Layer 2 — agent return in DISCUSS triggers coaching
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Agent","tool_input":{"prompt":"This is a sufficiently long agent prompt that exceeds one hundred and fifty characters so that it does not trigger the short prompt warning from Layer 3 checks"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "Every approach must have stated downsides" "Layer 2 fires on Agent return in DISCUSS"
+
+# Test: Layer 2 — agent return fires only once per phase
+OUTPUT=$(echo '{"tool_name":"Agent","tool_input":{"prompt":"This is a sufficiently long agent prompt that exceeds one hundred and fifty characters so that it does not trigger the short prompt warning from Layer 3 checks"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_not_contains "$OUTPUT" "Every approach must have stated downsides" "Layer 2 silent on second Agent return in DISCUSS"
 
 # ============================================================
 # TEST SUITE: statusline.sh
@@ -965,6 +1041,24 @@ assert_contains "$OUTPUT" "DESTRUCTIVE" "shows DESTRUCTIVE warning for push -f"
 # Test: dangerous command proceeds when user confirms
 OUTPUT=$(echo "y" | YKMAN_CMD="$MOCK_BIN/ykman-present" GIT_CMD="$MOCK_BIN/mock-git" "$GIT_YUBIKEY" push --force origin main 2>&1)
 assert_contains "$OUTPUT" "MOCK_GIT_CALLED" "proceeds when user confirms dangerous command"
+
+# Test: dangerous command --force-with-lease
+OUTPUT=$(echo "n" | YKMAN_CMD="$MOCK_BIN/ykman-present" GIT_CMD="$MOCK_BIN/mock-git" "$GIT_YUBIKEY" push --force-with-lease origin main 2>&1) || true
+assert_contains "$OUTPUT" "DESTRUCTIVE" "shows DESTRUCTIVE warning for push --force-with-lease"
+
+# Test: dangerous command branch -M
+OUTPUT=$(echo "n" | YKMAN_CMD="$MOCK_BIN/ykman-present" GIT_CMD="$MOCK_BIN/mock-git" "$GIT_YUBIKEY" branch -M main new-main 2>&1) || true
+assert_contains "$OUTPUT" "DESTRUCTIVE" "shows DESTRUCTIVE warning for branch -M"
+
+# Test: exit code 1 when YubiKey absent
+EXIT_CODE=0
+YKMAN_CMD="$MOCK_BIN/ykman-absent" GIT_CMD="$MOCK_BIN/mock-git" "$GIT_YUBIKEY" status 2>&1 || EXIT_CODE=$?
+assert_eq "1" "$EXIT_CODE" "exit code 1 when YubiKey absent"
+
+# Test: exit code 1 when user aborts dangerous command
+EXIT_CODE=0
+echo "n" | YKMAN_CMD="$MOCK_BIN/ykman-present" GIT_CMD="$MOCK_BIN/mock-git" "$GIT_YUBIKEY" push --force origin main 2>&1 || EXIT_CODE=$?
+assert_eq "1" "$EXIT_CODE" "exit code 1 when user aborts dangerous command"
 
 rm -rf "$MOCK_BIN"
 

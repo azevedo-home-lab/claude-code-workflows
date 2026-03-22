@@ -113,6 +113,14 @@ esac
 # LAYER 2: Professional standards reinforcement (periodic)
 # ============================================================
 
+# Extract FILE_PATH once for Write/Edit/MultiEdit tools (used by multiple Layer 2/3 checks)
+FILE_PATH=""
+case "$TOOL_NAME" in
+    Write|Edit|MultiEdit)
+        FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
+        ;;
+esac
+
 # Only fire if Layer 1 has already fired (message_shown = true means we're past entry)
 if [ "$(get_message_shown)" = "true" ]; then
     # Track agent dispatch counter
@@ -139,7 +147,6 @@ if [ "$(get_message_shown)" = "true" ]; then
                 L2_MSG="[Workflow Coach — DISCUSS] Every approach must have stated downsides. Unsourced claims are opinions. Does this trace back to the problem statement?"
             elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
                 # Check if writing to a plan file
-                FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
                 if echo "$FILE_PATH" | grep -qE '(docs/superpowers/plans/|docs/plans/)'; then
                     TRIGGER="plan_write"
                     L2_MSG="[Workflow Coach — DISCUSS] Does every plan step trace to the chosen approach? Flag scope creep. Did you document why this approach over alternatives?"
@@ -169,7 +176,6 @@ if [ "$(get_message_shown)" = "true" ]; then
                 TRIGGER="agent_return_complete"
                 L2_MSG="[Workflow Coach — COMPLETE] Be specific about failures. Quantify fix effort. Recommend a next phase, don't just list options."
             elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-                FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
                 if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
                     TRIGGER="decision_record_edit"
                     L2_MSG="[Workflow Coach — COMPLETE] Does the handover make sense to a stranger? Is tech debt visible? Does README match reality?"
@@ -197,7 +203,6 @@ $L2_MSG"
     # This is separate from the agent_return_review trigger above
     if [ "$PHASE" = "review" ]; then
         if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-            FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
             if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
                 FINDINGS_TRIGGER="findings_present"
                 if [ "$(has_coaching_fired "$FINDINGS_TRIGGER")" != "true" ]; then
@@ -242,7 +247,9 @@ if [ "$TOOL_NAME" = "Bash" ]; then
         COMMIT_MSG_LEN=$(echo "$COMMAND" | python3 -c "
 import sys, re
 cmd = sys.stdin.read()
-m = re.search(r'-m\s+[\"'\''](.*?)[\"'\'']', cmd)
+# Match -m followed by a double-quoted or single-quoted string
+# Use \x22 for double-quote and \x27 for single-quote to avoid shell quoting issues
+m = re.search(r'-m\s+[\x22\x27](.*?)[\x22\x27]', cmd)
 if m:
     print(len(m.group(1)))
 else:
@@ -256,7 +263,6 @@ fi
 
 # Check 3: All findings downgraded (REVIEW phase, writing to decision record)
 if [ "$PHASE" = "review" ] && { [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; }; then
-    FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
     if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
         # Check if all findings are under Suggestions with no Critical or Warning entries
         ALL_SUGGESTIONS=$(python3 -c "

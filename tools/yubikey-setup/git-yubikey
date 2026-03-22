@@ -5,6 +5,10 @@
 # This file is part of Claude Code Workflows.
 # See LICENSE for details.
 
+# Note: set -euo pipefail intentionally omitted — read -p for confirmation
+# interacts poorly with set -e (non-zero on empty input), and the script
+# uses explicit exit codes for all error paths.
+
 # Git wrapper with tiered YubiKey enforcement:
 #   1. YubiKey must be plugged in — all git blocked if absent
 #   2. Safe commands pass through (no touch, no confirmation)
