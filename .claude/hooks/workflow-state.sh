@@ -157,6 +157,80 @@ set_phase() {
 
     mkdir -p "$STATE_DIR"
 
+    # ---------------------------------------------------------------------------
+    # Hard gates: block phase transitions if milestones are incomplete
+    # ---------------------------------------------------------------------------
+    if [ -f "$STATE_FILE" ]; then
+        local current
+        current=$(get_phase)
+
+        # Leaving IMPLEMENT → must have completed implementation milestones
+        # Only enforced when reset_implement_status was called (implement status object exists)
+        if [ "$current" = "implement" ] && [ "$new_phase" != "implement" ]; then
+            local has_impl_status
+            has_impl_status=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        d = json.load(f)
+    print('true' if 'implement' in d else 'false')
+except Exception:
+    print('false')
+" "$STATE_FILE" 2>/dev/null)
+            if [ "$has_impl_status" = "true" ]; then
+                local impl_plan impl_tests impl_tasks
+                impl_plan=$(get_implement_field "plan_read")
+                impl_tests=$(get_implement_field "tests_passing")
+                impl_tasks=$(get_implement_field "all_tasks_complete")
+                local missing=""
+                [ "$impl_plan" != "true" ] && missing="$missing plan_read"
+                [ "$impl_tests" != "true" ] && missing="$missing tests_passing"
+                [ "$impl_tasks" != "true" ] && missing="$missing all_tasks_complete"
+                if [ -n "$missing" ]; then
+                    echo "HARD GATE: Cannot leave IMPLEMENT — incomplete milestones:$missing. Complete all implementation steps before transitioning." >&2
+                    return 1
+                fi
+            fi
+        fi
+
+        # Leaving COMPLETE → must have completed completion pipeline
+        # Only enforced when reset_completion_status was called (completion status object exists)
+        if [ "$current" = "complete" ] && [ "$new_phase" = "off" ]; then
+            local has_comp_status
+            has_comp_status=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        d = json.load(f)
+    print('true' if 'completion' in d else 'false')
+except Exception:
+    print('false')
+" "$STATE_FILE" 2>/dev/null)
+            if [ "$has_comp_status" = "true" ]; then
+                local comp_plan comp_outcomes comp_results comp_docs comp_commit comp_debt comp_handover
+                comp_plan=$(get_completion_field "plan_validated")
+                comp_outcomes=$(get_completion_field "outcomes_validated")
+                comp_results=$(get_completion_field "results_presented")
+                comp_docs=$(get_completion_field "docs_checked")
+                comp_commit=$(get_completion_field "committed")
+                comp_debt=$(get_completion_field "tech_debt_audited")
+                comp_handover=$(get_completion_field "handover_saved")
+                local missing=""
+                [ "$comp_plan" != "true" ] && missing="$missing plan_validated"
+                [ "$comp_outcomes" != "true" ] && missing="$missing outcomes_validated"
+                [ "$comp_results" != "true" ] && missing="$missing results_presented"
+                [ "$comp_docs" != "true" ] && missing="$missing docs_checked"
+                [ "$comp_commit" != "true" ] && missing="$missing committed"
+                [ "$comp_debt" != "true" ] && missing="$missing tech_debt_audited"
+                [ "$comp_handover" != "true" ] && missing="$missing handover_saved"
+                if [ -n "$missing" ]; then
+                    echo "HARD GATE: Cannot leave COMPLETE — incomplete pipeline steps:$missing. Complete all completion steps before setting phase to OFF." >&2
+                    return 1
+                fi
+            fi
+        fi
+    fi
+
     local ts
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -480,6 +554,168 @@ if value in ('true', 'false'):
 else:
     review[field] = value
 d['review'] = review
+d['updated'] = ts
+with open(filepath, 'w') as f:
+    json.dump(d, f, indent=2)
+    f.write('\n')
+" "$field" "$value" "$ts" "$STATE_FILE"
+}
+
+# ---------------------------------------------------------------------------
+# Completion status helpers
+# ---------------------------------------------------------------------------
+
+reset_completion_status() {
+    if [ ! -f "$STATE_FILE" ]; then
+        return
+    fi
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    python3 -c "
+import json, sys
+ts, filepath = sys.argv[1], sys.argv[2]
+with open(filepath, 'r') as f:
+    d = json.load(f)
+d['completion'] = {
+    'plan_validated': False,
+    'outcomes_validated': False,
+    'results_presented': False,
+    'docs_checked': False,
+    'committed': False,
+    'tech_debt_audited': False,
+    'handover_saved': False
+}
+d['updated'] = ts
+with open(filepath, 'w') as f:
+    json.dump(d, f, indent=2)
+    f.write('\n')
+" "$ts" "$STATE_FILE"
+}
+
+get_completion_field() {
+    local field="$1"
+    if [ ! -f "$STATE_FILE" ]; then
+        echo ""
+        return
+    fi
+    local value
+    value=$(python3 -c "
+import json, sys
+field = sys.argv[1]
+filepath = sys.argv[2]
+try:
+    with open(filepath) as f:
+        d = json.load(f)
+    completion = d.get('completion', {})
+    v = completion.get(field, '')
+    if isinstance(v, bool):
+        print(str(v).lower())
+    else:
+        print(v)
+except Exception:
+    print('')
+" "$field" "$STATE_FILE" 2>/dev/null)
+    echo "$value"
+}
+
+set_completion_field() {
+    local field="$1"
+    local value="$2"
+    if [ ! -f "$STATE_FILE" ]; then
+        return
+    fi
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    python3 -c "
+import json, sys
+field, value, ts, filepath = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+with open(filepath, 'r') as f:
+    d = json.load(f)
+completion = d.get('completion', {})
+if value in ('true', 'false'):
+    completion[field] = value == 'true'
+else:
+    completion[field] = value
+d['completion'] = completion
+d['updated'] = ts
+with open(filepath, 'w') as f:
+    json.dump(d, f, indent=2)
+    f.write('\n')
+" "$field" "$value" "$ts" "$STATE_FILE"
+}
+
+# ---------------------------------------------------------------------------
+# Implement status helpers
+# ---------------------------------------------------------------------------
+
+reset_implement_status() {
+    if [ ! -f "$STATE_FILE" ]; then
+        return
+    fi
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    python3 -c "
+import json, sys
+ts, filepath = sys.argv[1], sys.argv[2]
+with open(filepath, 'r') as f:
+    d = json.load(f)
+d['implement'] = {
+    'plan_read': False,
+    'tests_passing': False,
+    'all_tasks_complete': False
+}
+d['updated'] = ts
+with open(filepath, 'w') as f:
+    json.dump(d, f, indent=2)
+    f.write('\n')
+" "$ts" "$STATE_FILE"
+}
+
+get_implement_field() {
+    local field="$1"
+    if [ ! -f "$STATE_FILE" ]; then
+        echo ""
+        return
+    fi
+    local value
+    value=$(python3 -c "
+import json, sys
+field = sys.argv[1]
+filepath = sys.argv[2]
+try:
+    with open(filepath) as f:
+        d = json.load(f)
+    implement = d.get('implement', {})
+    v = implement.get(field, '')
+    if isinstance(v, bool):
+        print(str(v).lower())
+    else:
+        print(v)
+except Exception:
+    print('')
+" "$field" "$STATE_FILE" 2>/dev/null)
+    echo "$value"
+}
+
+set_implement_field() {
+    local field="$1"
+    local value="$2"
+    if [ ! -f "$STATE_FILE" ]; then
+        return
+    fi
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    python3 -c "
+import json, sys
+field, value, ts, filepath = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+with open(filepath, 'r') as f:
+    d = json.load(f)
+implement = d.get('implement', {})
+if value in ('true', 'false'):
+    implement[field] = value == 'true'
+else:
+    implement[field] = value
+d['implement'] = implement
 d['updated'] = ts
 with open(filepath, 'w') as f:
     json.dump(d, f, indent=2)

@@ -11,7 +11,7 @@ fi
 If a warning was shown, ask the user: "Review hasn't been run. The workflow should be followed for best results. Proceed anyway?" If they say no, stop. If yes or no warning, continue:
 
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete" && set_active_skill "completion-pipeline"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete" && reset_completion_status && set_active_skill "completion-pipeline"
 echo "Phase set to COMPLETE — running completion pipeline. Code edits blocked, doc updates allowed."
 ```
 
@@ -49,7 +49,12 @@ Dispatch a **Plan validator agent** to:
 4. For behavioral deliverables: exercise and show output, don't just grep
 5. Return a checklist with PASS/FAIL and evidence for each
 
-**If no plan file exists**: report "No plan file found — skipping plan validation" and continue.
+**If no plan file exists**: report "No plan file found — skipping plan validation" and mark as done.
+
+Mark milestone:
+```bash
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "plan_validated" "true"
+```
 
 ### Step 2: Outcome Validation
 
@@ -68,7 +73,12 @@ Dispatch an **Outcome validator agent** to:
 5. **Flag manual steps** — if the spec defines steps that require user action (key generation, service registration, hardware setup), list them as outcomes that need E2E verification. Guide the user through verification rather than skipping.
 6. Return an outcome checklist with PASS/FAIL/MANUAL and evidence
 
-**If no outcome source found**: report "No outcome definition found — skipping outcome validation" and continue.
+**If no outcome source found**: report "No outcome definition found — skipping outcome validation" and mark as done.
+
+Mark milestone:
+```bash
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "outcomes_validated" "true"
+```
 
 ### Step 3: Present Validation Results
 
@@ -118,6 +128,11 @@ Prompt: "Review the validation results just presented to the user. Read the deci
 If REDO: fix the issues and re-dispatch the reviewer. Max 3 iterations, then surface to user.
 **After the gate passes (or on each iteration):** present a summary to the user: "Step 3 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
 
+Mark milestone:
+```bash
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "results_presented" "true"
+```
+
 ### Step 4: Smart Documentation Detection
 
 Dispatch a **Docs detector agent** to:
@@ -137,6 +152,11 @@ Prompt: "Review the documentation detection results. Changed files: [LIST FROM g
 
 If REDO: fix and re-dispatch. Max 3 iterations, then surface to user.
 **After the gate passes (or on each iteration):** present a summary to the user: "Step 4 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
+
+Mark milestone:
+```bash
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "docs_checked" "true"
+```
 
 ### Step 5: Commit & Push
 
@@ -167,6 +187,11 @@ Prompt: "Review the most recent git commit. Run `git log -1 --format='%s%n%n%b'`
 If REDO: fix (amend commit or create new commit) and re-dispatch. Max 3 iterations, then surface to user.
 **After the gate passes (or on each iteration):** present a summary to the user: "Step 5 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
 If step was skipped (nothing to commit): skip this gate.
+
+Mark milestone (also mark if skipped — clean tree means committed is N/A):
+```bash
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "committed" "true"
+```
 
 ### Step 6: Branch Integration & Worktree Cleanup
 
@@ -229,6 +254,11 @@ Prompt: "Review the tech debt audit just presented. Read the decision record at 
 If REDO: fix and re-dispatch. Max 3 iterations, then surface to user.
 **After the gate passes (or on each iteration):** present a summary to the user: "Step 7 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
 
+Mark milestone:
+```bash
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "tech_debt_audited" "true"
+```
+
 ### Step 8: Handover (Claude-Mem Observation)
 
 Dispatch a **Handover writer agent** to prepare a claude-mem observation. The handover must be useful to a stranger — include:
@@ -251,7 +281,14 @@ Prompt: "Review the handover observation just saved. Quality criteria: (1) A str
 If REDO: fix and re-save the observation, then re-dispatch. Max 3 iterations, then surface to user.
 **After the gate passes (or on each iteration):** present a summary to the user: "Step 8 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
 
+Mark milestone:
+```bash
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "handover_saved" "true"
+```
+
 ### Step 9: Phase Transition
+
+**HARD GATE: `set_phase("off")` will refuse if any completion milestone is incomplete. All 7 milestones must be marked true before the workflow can close.**
 
 ```bash
 WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"

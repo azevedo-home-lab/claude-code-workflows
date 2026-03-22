@@ -332,6 +332,60 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_last_observation_id)
 assert_eq "" "$RESULT" "set_phase off clears last_observation_id"
 
+# --- Hard gates: phase transition enforcement ---
+
+# Test: hard gate blocks leaving IMPLEMENT without milestones
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_implement_status
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review" 2>&1 || true)
+assert_contains "$OUTPUT" "HARD GATE" "hard gate blocks leaving IMPLEMENT without milestones"
+
+# Test: hard gate allows leaving IMPLEMENT when all milestones complete
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_implement_status
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "plan_read" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "tests_passing" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "all_tasks_complete" "true"
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review" 2>&1)
+assert_not_contains "$OUTPUT" "HARD GATE" "hard gate allows leaving IMPLEMENT when milestones complete"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "review" "$RESULT" "phase transitions to review after milestones complete"
+
+# Test: hard gate blocks set_phase off from COMPLETE without milestones
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_completion_status
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off" 2>&1 || true)
+assert_contains "$OUTPUT" "HARD GATE" "hard gate blocks leaving COMPLETE without milestones"
+
+# Test: hard gate allows set_phase off when all completion milestones done
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_completion_status
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "plan_validated" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "outcomes_validated" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "results_presented" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "docs_checked" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "committed" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "tech_debt_audited" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "handover_saved" "true"
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off" 2>&1)
+assert_not_contains "$OUTPUT" "HARD GATE" "hard gate allows leaving COMPLETE when milestones complete"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "off" "$RESULT" "phase transitions to off after completion milestones"
+
+# Test: hard gate message lists missing milestones
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_implement_status
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "plan_read" "true"
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review" 2>&1 || true)
+assert_contains "$OUTPUT" "tests_passing" "hard gate message lists specific missing milestone"
+assert_contains "$OUTPUT" "all_tasks_complete" "hard gate message lists all missing milestones"
+assert_not_contains "$OUTPUT" "plan_read" "hard gate message does not list completed milestones"
+
 # ============================================================
 # TEST SUITE: workflow-gate.sh
 # ============================================================
