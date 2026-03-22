@@ -435,6 +435,28 @@ assert_not_contains "$OUTPUT" "deny" "allows Bash write to .claude/state/ in DEF
 OUTPUT=$(run_bash_guard "echo 'plan' > docs/plans/decisions.md")
 assert_not_contains "$OUTPUT" "deny" "allows Bash write to docs/plans/ in DEFINE (whitelist)"
 
+# Test: allows commands with 2>/dev/null in DISCUSS phase
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+OUTPUT=$(run_bash_guard "ssh-keygen -l -f key.pub 2>/dev/null")
+assert_not_contains "$OUTPUT" "deny" "allows 'ssh-keygen -l 2>/dev/null' in DISCUSS"
+
+OUTPUT=$(run_bash_guard "git config --list 2>&1")
+assert_not_contains "$OUTPUT" "deny" "allows 'git config --list 2>&1' in DISCUSS"
+
+OUTPUT=$(run_bash_guard "ykman list --serials 2>/dev/null")
+assert_not_contains "$OUTPUT" "deny" "allows 'ykman list 2>/dev/null' in DISCUSS"
+
+OUTPUT=$(run_bash_guard "some_cmd 2>/dev/null | grep pattern")
+assert_not_contains "$OUTPUT" "deny" "allows 'cmd 2>/dev/null | grep' in DISCUSS"
+
+# Test: still blocks real writes that also have 2>/dev/null
+OUTPUT=$(run_bash_guard "echo x > file.txt 2>/dev/null")
+assert_contains "$OUTPUT" "deny" "blocks 'echo x > file.txt 2>/dev/null' in DISCUSS"
+
+OUTPUT=$(run_bash_guard "cat data >> output.txt 2>&1")
+assert_contains "$OUTPUT" "deny" "blocks 'cat data >> output.txt 2>&1' in DISCUSS"
+
 # ============================================================
 # TEST SUITE: install.sh
 # ============================================================

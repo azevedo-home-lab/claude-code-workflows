@@ -73,7 +73,12 @@ fi
 # cp, mv, install, curl -o, wget -O (common file-writing commands)
 # Note: python3 -c only blocked when combined with file-write indicators (open/write)
 WRITE_PATTERN='(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c.*\.(write|open)|echo[[:space:]].*>|^[[:space:]]*cp[[:space:]]|^[[:space:]]*mv[[:space:]]|^[[:space:]]*install[[:space:]]|curl[[:space:]].*-o[[:space:]]|wget[[:space:]].*-O[[:space:]]|dd[[:space:]].*of=|^[[:space:]]*patch[[:space:]]|^[[:space:]]*ln[[:space:]])'
-if echo "$COMMAND" | grep -qE "$WRITE_PATTERN"; then
+
+# Strip safe redirects before checking write patterns
+# 2>/dev/null, 2>&1, 1>&2 etc. are not file writes
+CLEAN_CMD=$(echo "$COMMAND" | sed -E 's/[0-9]+>\/dev\/null//g; s/[0-9]*>&[0-9]+//g')
+
+if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN"; then
     # Extract the write target path from the command for whitelist checking
     # For redirections: extract path after > or >>
     # For cp/mv: extract the last argument
