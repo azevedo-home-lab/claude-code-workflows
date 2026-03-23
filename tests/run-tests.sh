@@ -105,7 +105,7 @@ TEST_DIR=$(mktemp -d)
 trap 'rm -rf "$TEST_DIR"' EXIT
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-HOOKS_DIR="$REPO_DIR/.claude/hooks"
+HOOKS_DIR="$REPO_DIR/plugin/scripts"
 
 # Create a fake project structure in TEST_DIR
 setup_test_project() {
@@ -941,170 +941,68 @@ setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 
 # ============================================================
-# TEST SUITE: install.sh
+# TEST SUITE: install.sh (migration tool)
 # ============================================================
 echo ""
-echo "=== install.sh ==="
+echo "=== install.sh (migration tool) ==="
 
-# Test: installs into a git project
-INSTALL_TARGET=$(mktemp -d)
-git -C "$INSTALL_TARGET" init --quiet
-"$REPO_DIR/install.sh" "$INSTALL_TARGET" > /dev/null 2>&1
-assert_file_exists "$INSTALL_TARGET/.claude/hooks/workflow-gate.sh" "install creates workflow-gate.sh"
-assert_file_exists "$INSTALL_TARGET/.claude/hooks/bash-write-guard.sh" "install creates bash-write-guard.sh"
-assert_file_exists "$INSTALL_TARGET/.claude/hooks/workflow-state.sh" "install creates workflow-state.sh"
-assert_file_exists "$INSTALL_TARGET/.claude/hooks/post-tool-navigator.sh" "install creates post-tool-navigator.sh"
-assert_file_exists "$INSTALL_TARGET/.claude/commands/implement.md" "install creates implement.md"
-assert_file_exists "$INSTALL_TARGET/.claude/commands/discuss.md" "install creates discuss.md"
-assert_file_exists "$INSTALL_TARGET/.claude/commands/review.md" "install creates review.md"
-assert_file_exists "$INSTALL_TARGET/.claude/commands/complete.md" "install creates complete.md"
-assert_file_exists "$INSTALL_TARGET/.claude/commands/define.md" "install creates define.md"
-assert_file_exists "$INSTALL_TARGET/.claude/settings.json" "install creates settings.json"
-
-# Test: hooks are executable
-if [ -x "$INSTALL_TARGET/.claude/hooks/workflow-gate.sh" ]; then
-    echo -e "  ${GREEN}PASS${NC} installed hooks are executable"
-    PASS=$((PASS + 1))
-else
-    echo -e "  ${RED}FAIL${NC} installed hooks are executable"
-    FAIL=$((FAIL + 1))
-fi
-
-# Test: .gitignore updated with .claude/state/
-assert_contains "$(cat "$INSTALL_TARGET/.gitignore")" ".claude/state/" "install adds .claude/state/ to .gitignore"
-
-# Test: settings.json contains hook config
-SETTINGS=$(cat "$INSTALL_TARGET/.claude/settings.json")
-assert_contains "$SETTINGS" "workflow-gate.sh" "settings.json references workflow-gate.sh"
-assert_contains "$SETTINGS" "bash-write-guard.sh" "settings.json references bash-write-guard.sh"
-
-# Test: auto-initializes workflow.json to "discuss"
-assert_file_exists "$INSTALL_TARGET/.claude/state/workflow.json" "install auto-creates workflow.json"
-INIT_PHASE=$(grep -o '"phase"[[:space:]]*:[[:space:]]*"[^"]*"' "$INSTALL_TARGET/.claude/state/workflow.json" | grep -o '"[^"]*"$' | tr -d '"')
-assert_eq "off" "$INIT_PHASE" "install sets initial phase to off"
-
-# Test: installs statusline globally
-assert_file_exists "$HOME/.claude/statusline.sh" "install creates global statusline.sh"
-if [ -x "$HOME/.claude/statusline.sh" ]; then
-    echo -e "  ${GREEN}PASS${NC} global statusline is executable"
-    PASS=$((PASS + 1))
-else
-    echo -e "  ${RED}FAIL${NC} global statusline is executable"
-    FAIL=$((FAIL + 1))
-fi
-
-# Test: global settings.json contains statusLine config
-if [ -f "$HOME/.claude/settings.json" ]; then
-    GLOBAL_SETTINGS=$(cat "$HOME/.claude/settings.json")
-    assert_contains "$GLOBAL_SETTINGS" "statusline.sh" "global settings references statusline.sh"
-else
-    echo -e "  ${RED}FAIL${NC} global settings references statusline.sh"
-    echo "    ~/.claude/settings.json not found"
-    FAIL=$((FAIL + 1))
-fi
-
-# Test: refuses non-git directory
-NON_GIT=$(mktemp -d)
-INSTALL_OUTPUT=$("$REPO_DIR/install.sh" "$NON_GIT" 2>&1 || true)
-assert_contains "$INSTALL_OUTPUT" "not a git repository" "refuses install in non-git directory"
-
-# Test: skips settings.json if hooks already configured
-SECOND_OUTPUT=$("$REPO_DIR/install.sh" "$INSTALL_TARGET" 2>&1 || true)
-assert_contains "$SECOND_OUTPUT" "already configured" "skips settings.json on re-install"
-
-rm -rf "$INSTALL_TARGET" "$NON_GIT"
-
-# Test: fresh install includes Bash in permissions allow list
-FRESH_DIR=$(mktemp -d)
-mkdir -p "$FRESH_DIR/.git"
-bash "$REPO_DIR/install.sh" "$FRESH_DIR" > /dev/null 2>&1
-BASH_ALLOWED=$(python3 -c "
-import json
-with open('$FRESH_DIR/.claude/settings.json') as f:
-    d = json.load(f)
-perms = d.get('permissions', {}).get('allow', [])
-print('true' if 'Bash' in perms else 'false')
-")
-assert_eq "true" "$BASH_ALLOWED" "install: fresh install includes Bash permission"
-
-# Test: fresh install includes WebFetch and WebSearch
-WF_WS_ALLOWED=$(python3 -c "
-import json
-with open('$FRESH_DIR/.claude/settings.json') as f:
-    d = json.load(f)
-perms = d.get('permissions', {}).get('allow', [])
-print('true' if 'WebFetch' in perms and 'WebSearch' in perms else 'false')
-")
-assert_eq "true" "$WF_WS_ALLOWED" "install: fresh install includes WebFetch/WebSearch permissions"
-rm -rf "$FRESH_DIR"
-
-# Test: merge install adds permissions to existing settings.json
-MERGE_DIR=$(mktemp -d)
-mkdir -p "$MERGE_DIR/.git" "$MERGE_DIR/.claude"
-echo '{"permissions":{"allow":["SomeExisting"]}}' > "$MERGE_DIR/.claude/settings.json"
-bash "$REPO_DIR/install.sh" "$MERGE_DIR" > /dev/null 2>&1
-BASH_MERGED=$(python3 -c "
-import json
-with open('$MERGE_DIR/.claude/settings.json') as f:
-    d = json.load(f)
-perms = d.get('permissions', {}).get('allow', [])
-print('true' if all(t in perms for t in ['Bash','WebFetch','WebSearch','SomeExisting']) else 'false')
-")
-assert_eq "true" "$BASH_MERGED" "install: merge preserves existing and adds all permissions"
-rm -rf "$MERGE_DIR"
-
-# Test: re-install with hooks present but no permissions adds permissions
-RERUN_DIR=$(mktemp -d)
-mkdir -p "$RERUN_DIR/.git" "$RERUN_DIR/.claude"
-cat > "$RERUN_DIR/.claude/settings.json" <<'NOPERMS'
+# Test: detects and cleans old-style installation
+MIGRATE_DIR=$(mktemp -d)
+mkdir -p "$MIGRATE_DIR/.claude/hooks" "$MIGRATE_DIR/.claude"
+# Create fake old-style hook files (regular files, not symlinks)
+touch "$MIGRATE_DIR/.claude/hooks/workflow-gate.sh"
+touch "$MIGRATE_DIR/.claude/hooks/bash-write-guard.sh"
+touch "$MIGRATE_DIR/.claude/hooks/post-tool-navigator.sh"
+touch "$MIGRATE_DIR/.claude/hooks/workflow-cmd.sh"
+touch "$MIGRATE_DIR/.claude/hooks/workflow-state.sh"
+cat > "$MIGRATE_DIR/.claude/settings.json" <<'OLDSETTINGS'
 {
+  "permissions": {"allow": ["Bash"]},
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [{"type":"command","command":"$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-gate.sh"}]
-      }
-    ]
+    "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "test"}]}]
   }
 }
-NOPERMS
-bash "$REPO_DIR/install.sh" "$RERUN_DIR" > /dev/null 2>&1
-RERUN_PERMS=$(python3 -c "
+OLDSETTINGS
+MIGRATE_OUTPUT=$(bash "$REPO_DIR/install.sh" "$MIGRATE_DIR" 2>&1 || true)
+assert_contains "$MIGRATE_OUTPUT" "Old hook-based installation detected" "migration detects old installation"
+assert_file_not_exists "$MIGRATE_DIR/.claude/hooks/workflow-gate.sh" "migration removes old workflow-gate.sh"
+assert_file_not_exists "$MIGRATE_DIR/.claude/hooks/bash-write-guard.sh" "migration removes old bash-write-guard.sh"
+# Verify hooks key removed from settings.json but permissions preserved
+MIGRATED_HOOKS=$(python3 -c "
 import json
-with open('$RERUN_DIR/.claude/settings.json') as f:
+with open('$MIGRATE_DIR/.claude/settings.json') as f:
     d = json.load(f)
-perms = d.get('permissions', {}).get('allow', [])
-print('true' if 'Bash' in perms else 'false')
+print('true' if 'hooks' not in d else 'false')
 ")
-assert_eq "true" "$RERUN_PERMS" "install: re-install adds permissions when hooks already present"
-rm -rf "$RERUN_DIR"
+assert_eq "true" "$MIGRATED_HOOKS" "migration removes hooks from settings.json"
+MIGRATED_PERMS=$(python3 -c "
+import json
+with open('$MIGRATE_DIR/.claude/settings.json') as f:
+    d = json.load(f)
+print('true' if 'Bash' in d.get('permissions', {}).get('allow', []) else 'false')
+")
+assert_eq "true" "$MIGRATED_PERMS" "migration preserves permissions in settings.json"
+rm -rf "$MIGRATE_DIR"
 
-# ============================================================
-# TEST SUITE: uninstall.sh
-# ============================================================
-echo ""
-echo "=== uninstall.sh ==="
+# Test: no old installation prints plugin instructions
+CLEAN_DIR=$(mktemp -d)
+CLEAN_OUTPUT=$(bash "$REPO_DIR/install.sh" "$CLEAN_DIR" 2>&1 || true)
+assert_contains "$CLEAN_OUTPUT" "plugin" "migration shows plugin install instructions"
+rm -rf "$CLEAN_DIR"
 
-# Test: removes hooks and commands
-UNINSTALL_TARGET=$(mktemp -d)
-git -C "$UNINSTALL_TARGET" init --quiet
-"$REPO_DIR/install.sh" "$UNINSTALL_TARGET" > /dev/null 2>&1
-"$REPO_DIR/uninstall.sh" "$UNINSTALL_TARGET" > /dev/null 2>&1
-assert_file_not_exists "$UNINSTALL_TARGET/.claude/hooks/workflow-gate.sh" "uninstall removes workflow-gate.sh"
-assert_file_not_exists "$UNINSTALL_TARGET/.claude/hooks/bash-write-guard.sh" "uninstall removes bash-write-guard.sh"
-assert_file_not_exists "$UNINSTALL_TARGET/.claude/hooks/workflow-state.sh" "uninstall removes workflow-state.sh"
-assert_file_not_exists "$UNINSTALL_TARGET/.claude/hooks/post-tool-navigator.sh" "uninstall removes post-tool-navigator.sh"
-assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/implement.md" "uninstall removes implement.md"
-assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/discuss.md" "uninstall removes discuss.md"
-assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/review.md" "uninstall removes review.md"
-assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/complete.md" "uninstall removes complete.md"
-assert_file_not_exists "$UNINSTALL_TARGET/.claude/commands/define.md" "uninstall removes define.md"
-assert_file_not_exists "$UNINSTALL_TARGET/.claude/state" "uninstall removes state directory"
-
-# Test: settings.json preserved (not deleted by uninstall)
-assert_file_exists "$UNINSTALL_TARGET/.claude/settings.json" "uninstall preserves settings.json"
-
-rm -rf "$UNINSTALL_TARGET"
+# Test: does not remove symlinks (only regular files)
+SYMLINK_DIR=$(mktemp -d)
+mkdir -p "$SYMLINK_DIR/.claude/hooks"
+ln -s /dev/null "$SYMLINK_DIR/.claude/hooks/workflow-gate.sh"
+bash "$REPO_DIR/install.sh" "$SYMLINK_DIR" 2>&1 || true
+if [ -L "$SYMLINK_DIR/.claude/hooks/workflow-gate.sh" ]; then
+    echo -e "  ${GREEN}PASS${NC} migration preserves symlinks"
+    PASS=$((PASS + 1))
+else
+    echo -e "  ${RED}FAIL${NC} migration preserves symlinks"
+    FAIL=$((FAIL + 1))
+fi
+rm -rf "$SYMLINK_DIR"
 
 # ============================================================
 # TEST SUITE: post-tool-navigator.sh
@@ -1121,7 +1019,7 @@ run_navigator() {
 # Test: Layer 1 shows coaching message in IMPLEMENT phase on first Write
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Write")
 assert_contains "$OUTPUT" "Workflow Coach.*IMPLEMENT" "Layer 1 shows IMPLEMENT coaching message on Write"
 
@@ -1137,7 +1035,7 @@ assert_contains "$OUTPUT" "Workflow Coach.*REVIEW" "Layer 1 shows REVIEW message
 # Test: Layer 1 silent on Read/Grep in IMPLEMENT phase
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Read")
 assert_not_contains "$OUTPUT" "Workflow Coach" "Layer 1 silent on Read in IMPLEMENT"
 
@@ -1147,35 +1045,35 @@ assert_not_contains "$OUTPUT" "Workflow Coach" "Layer 1 silent on Grep in IMPLEM
 # Test: Layer 1 shows DISCUSS coaching message
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Read")
 assert_contains "$OUTPUT" "Workflow Coach.*DISCUSS" "Layer 1 shows DISCUSS coaching message"
 
 # Test: no message when no state file
 setup_test_project
 rm -f "$TEST_DIR/.claude/state/workflow.json"
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Write")
 assert_not_contains "$OUTPUT" "Workflow Coach" "coach silent when no state file"
 
 # Test: Layer 1 shows DEFINE coaching message
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "define"
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Read")
 assert_contains "$OUTPUT" "Workflow Coach.*DEFINE" "Layer 1 shows DEFINE coaching message"
 
 # Test: Layer 1 shows COMPLETE coaching message
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Read")
 assert_contains "$OUTPUT" "Workflow Coach.*COMPLETE" "Layer 1 shows COMPLETE coaching message"
 
 # Test: Layer 1 silent in OFF phase
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Read")
 assert_not_contains "$OUTPUT" "Workflow Coach" "Layer 1 silent in OFF phase"
 
@@ -1183,7 +1081,7 @@ assert_not_contains "$OUTPUT" "Workflow Coach" "Layer 1 silent in OFF phase"
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 
 # These tools should exit cleanly with no output and exit code 0
 for TOOL in Read Glob Grep TaskCreate TaskUpdate Skill ToolSearch; do
@@ -1197,7 +1095,7 @@ done
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 echo '{"tool_name":"Read"}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
 echo '{"tool_name":"Glob"}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
 echo '{"tool_name":"Grep"}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
@@ -1208,7 +1106,7 @@ assert_contains "$CONTENT" '"tool_calls_since_agent": 0' "irrelevant tools don't
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(echo '{"tool_name":"Agent","tool_input":{"prompt":"short"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_contains "$OUTPUT" "Agent prompts must be detailed" "Layer 3 fires for short agent prompt"
 
@@ -1220,7 +1118,7 @@ assert_not_contains "$OUTPUT" "Agent prompts must be detailed" "Layer 3 silent f
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"fix\""}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_contains "$OUTPUT" "Commit messages must explain why" "Layer 3 fires for short commit message"
 
@@ -1228,7 +1126,7 @@ assert_contains "$OUTPUT" "Commit messages must explain why" "Layer 3 fires for 
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 # Increment counter past 10
 for i in $(seq 1 11); do
     source "$TEST_DIR/.claude/hooks/workflow-state.sh" && increment_coaching_counter
@@ -1240,7 +1138,7 @@ assert_contains "$OUTPUT" "haven.t dispatched background agents" "Layer 3 fires 
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(echo '{"tool_name":"Agent","tool_input":{"prompt":"This is a sufficiently long agent prompt that exceeds one hundred and fifty characters so that it does not trigger the short prompt warning from Layer 3 checks"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_contains "$OUTPUT" "Every approach must have stated downsides" "Layer 2 fires on Agent return in DISCUSS"
 
@@ -1252,7 +1150,7 @@ assert_not_contains "$OUTPUT" "Every approach must have stated downsides" "Layer
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"$(cat <<'"'"'EOF'"'"'\\nfix\\n\\nCo-Authored-By: Claude\\nEOF\\n)\""}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_contains "$OUTPUT" "Commit messages must explain why" "Layer 3 fires for short HEREDOC commit message"
 
@@ -1260,7 +1158,7 @@ assert_contains "$OUTPUT" "Commit messages must explain why" "Layer 3 fires for 
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"$(cat <<'"'"'EOF'"'"'\\nfeat: add comprehensive hallucination reduction standards from Anthropic docs\\n\\nCo-Authored-By: Claude\\nEOF\\n)\""}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_not_contains "$OUTPUT" "Commit messages must explain why" "Layer 3 silent for long HEREDOC commit message"
 
@@ -1268,7 +1166,7 @@ assert_not_contains "$OUTPUT" "Commit messages must explain why" "Layer 3 silent
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 for i in $(seq 1 6); do
     echo '{"tool_name":"Write","tool_input":{"file_path":"src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
 done
@@ -1279,7 +1177,7 @@ assert_contains "$OUTPUT" "haven.t run tests" "Layer 3 fires after source edits 
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 echo '{"tool_name":"Write","tool_input":{"file_path":"src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
 echo '{"tool_name":"Write","tool_input":{"file_path":"src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
 echo '{"tool_name":"Bash","tool_input":{"command":"npm test"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
@@ -1293,7 +1191,7 @@ assert_not_contains "$OUTPUT" "haven.t run tests" "verify clears the pending_ver
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "define"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"docs/plans/decisions.md"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_contains "$OUTPUT" "Challenge vague problem statements" "Layer 2 fires on decision record write in DEFINE"
 
@@ -1301,7 +1199,7 @@ assert_contains "$OUTPUT" "Challenge vague problem statements" "Layer 2 fires on
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"./tests/run-tests.sh"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_contains "$OUTPUT" "specific about validation failures" "Layer 2 fires on test run in COMPLETE"
 
@@ -1311,7 +1209,7 @@ assert_contains "$OUTPUT" "specific about validation failures" "Layer 2 fires on
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 python3 -c "
 import json
 with open('$TEST_DIR/.claude/state/workflow.json', 'r') as f:
@@ -1328,7 +1226,7 @@ assert_contains "$OUTPUT" "proceed" "Level 3 coaching includes auto-transition g
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 python3 -c "
 import json
 with open('$TEST_DIR/.claude/state/workflow.json', 'r') as f:
@@ -1344,7 +1242,7 @@ assert_not_contains "$OUTPUT" "Level 3" "Level 2 coaching does not mention Level
 
 # Test: coaching fires when save_observation has no project field
 setup_test_project
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
 OUTPUT=$(echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"some observation"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
@@ -1352,7 +1250,7 @@ assert_contains "$OUTPUT" "without project" "coaching fires when save_observatio
 
 # Test: coaching does NOT fire when save_observation has project field
 setup_test_project
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
 OUTPUT=$(echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"some observation","project":"claude-code-workflows"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
@@ -1362,7 +1260,7 @@ assert_not_contains "$OUTPUT" "without project" "no coaching when save_observati
 
 # Test: hook captures observation ID from save_observation response
 setup_test_project
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
 echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"test","project":"test"},"tool_response":{"content":[{"type":"text","text":"{\"success\":true,\"id\":4242,\"title\":\"test\",\"project\":\"test\",\"message\":\"Memory saved as observation #4242\"}"}]}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true
@@ -1371,7 +1269,7 @@ assert_eq "4242" "$RESULT" "hook captures observation ID from save_observation"
 
 # Test: hook captures observation ID from get_observations response
 setup_test_project
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
 echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__get_observations","tool_input":{"ids":[1234]},"tool_response":{"content":[{"type":"text","text":"[{\"id\":1234,\"title\":\"test obs\"}]"}]}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true
@@ -1460,7 +1358,7 @@ assert_eq "0" "$RESULT" "coaching: no crash without last_layer2_at field"
 
 # Setup for edge case tests
 setup_test_project
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 STATE_FILE="$TEST_DIR/.claude/state/workflow.json"
 
 # Set up state with a known observation ID
@@ -1490,7 +1388,7 @@ assert_eq "1234" "$OBS_ID" "obs-extraction: missing id preserves existing ID"
 
 # --- Layer 3 Check 3: all findings downgraded ---
 setup_test_project
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 STATE_FILE="$TEST_DIR/.claude/state/workflow.json"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
 python3 -c "import json; d=json.load(open('$STATE_FILE')); d['message_shown']=True; json.dump(d,open('$STATE_FILE','w'),indent=2)"
@@ -1511,7 +1409,7 @@ rm -f "$DECISIONS_FILE"
 
 # --- Layer 3 Check 4a: minimal handover ---
 setup_test_project
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 STATE_FILE="$TEST_DIR/.claude/state/workflow.json"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
 python3 -c "import json; d=json.load(open('$STATE_FILE')); d['message_shown']=True; json.dump(d,open('$STATE_FILE','w'),indent=2)"
@@ -1522,7 +1420,7 @@ assert_contains "$RESULT" "handover" "coaching L3: warns on minimal handover in 
 
 # --- Layer 3 Check 6: options without recommendation ---
 setup_test_project
-cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 STATE_FILE="$TEST_DIR/.claude/state/workflow.json"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 python3 -c "
@@ -1543,7 +1441,15 @@ assert_contains "$RESULT" "recommend" "coaching L3: warns about options without 
 echo ""
 echo "=== statusline.sh ==="
 
-STATUSLINE="$REPO_DIR/statusline/statusline.sh"
+STATUSLINE="$REPO_DIR/plugin/statusline/statusline.sh"
+
+# Setup: ensure Workflow Manager plugin cache exists for statusline detection
+WM_CACHE_DIR="$HOME/.claude/plugins/cache/azevedo-home-lab/workflow-manager"
+WM_CACHE_EXISTED=false
+if [ -d "$WM_CACHE_DIR" ]; then
+    WM_CACHE_EXISTED=true
+fi
+mkdir -p "$WM_CACHE_DIR/1.0.0"
 
 # Helper: run statusline with mock JSON
 run_statusline() {
@@ -1587,18 +1493,16 @@ fi
 
 # Test: shows active skill in statusline (from workflow.json)
 SL_TEST_DIR=$(mktemp -d)
-mkdir -p "$SL_TEST_DIR/.claude/state" "$SL_TEST_DIR/.claude/hooks"
+mkdir -p "$SL_TEST_DIR/.claude/state"
 echo '{"phase": "discuss", "message_shown": false, "active_skill": "brainstorming"}' > "$SL_TEST_DIR/.claude/state/workflow.json"
-touch "$SL_TEST_DIR/.claude/hooks/workflow-gate.sh"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_TEST_DIR\"}")
 assert_contains "$OUTPUT" "brainstorming" "statusline shows active skill name from workflow.json"
 rm -rf "$SL_TEST_DIR"
 
 # Test: no skill shown when active_skill field is empty
 SL_TEST_DIR2=$(mktemp -d)
-mkdir -p "$SL_TEST_DIR2/.claude/state" "$SL_TEST_DIR2/.claude/hooks"
+mkdir -p "$SL_TEST_DIR2/.claude/state"
 echo '{"phase": "off", "message_shown": false, "active_skill": ""}' > "$SL_TEST_DIR2/.claude/state/workflow.json"
-touch "$SL_TEST_DIR2/.claude/hooks/workflow-gate.sh"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_TEST_DIR2\"}")
 CLEAN_OUTPUT=$(echo "$OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
 assert_not_contains "$CLEAN_OUTPUT" "\[\]" "statusline hides empty skill brackets"
@@ -1606,9 +1510,8 @@ rm -rf "$SL_TEST_DIR2"
 
 # Test: shows DEFINE phase in statusline
 SL_DEFINE_DIR=$(mktemp -d)
-mkdir -p "$SL_DEFINE_DIR/.claude/state" "$SL_DEFINE_DIR/.claude/hooks"
+mkdir -p "$SL_DEFINE_DIR/.claude/state"
 echo '{"phase": "define", "message_shown": false, "active_skill": ""}' > "$SL_DEFINE_DIR/.claude/state/workflow.json"
-touch "$SL_DEFINE_DIR/.claude/hooks/workflow-gate.sh"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_DEFINE_DIR\"}")
 assert_contains "$OUTPUT" "DEFINE" "statusline shows DEFINE phase label"
 assert_contains "$OUTPUT" '\[34m' "statusline uses blue (\\033[34m) for DEFINE phase"
@@ -1616,9 +1519,8 @@ rm -rf "$SL_DEFINE_DIR"
 
 # Test: shows COMPLETE phase in statusline with magenta
 SL_COMPLETE_DIR=$(mktemp -d)
-mkdir -p "$SL_COMPLETE_DIR/.claude/state" "$SL_COMPLETE_DIR/.claude/hooks"
+mkdir -p "$SL_COMPLETE_DIR/.claude/state"
 echo '{"phase": "complete", "message_shown": false, "active_skill": ""}' > "$SL_COMPLETE_DIR/.claude/state/workflow.json"
-touch "$SL_COMPLETE_DIR/.claude/hooks/workflow-gate.sh"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_COMPLETE_DIR\"}")
 assert_contains "$OUTPUT" "COMPLETE" "statusline shows COMPLETE phase label"
 assert_contains "$OUTPUT" '\[35m' "statusline uses magenta (\\033[35m) for COMPLETE phase"
@@ -1628,9 +1530,8 @@ rm -rf "$SL_COMPLETE_DIR"
 
 # Test: Level 1 renders ▶ before phase
 SL_AUTO1_DIR=$(mktemp -d)
-mkdir -p "$SL_AUTO1_DIR/.claude/state" "$SL_AUTO1_DIR/.claude/hooks"
+mkdir -p "$SL_AUTO1_DIR/.claude/state"
 echo '{"phase": "implement", "autonomy_level": 1, "message_shown": false, "active_skill": ""}' > "$SL_AUTO1_DIR/.claude/state/workflow.json"
-touch "$SL_AUTO1_DIR/.claude/hooks/workflow-gate.sh"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_AUTO1_DIR\"}")
 assert_contains "$OUTPUT" "▶ " "statusline shows ▶ for Level 1"
 assert_contains "$OUTPUT" "IMPLEMENT" "statusline still shows phase at Level 1"
@@ -1638,27 +1539,24 @@ rm -rf "$SL_AUTO1_DIR"
 
 # Test: Level 2 renders ▶▶ before phase
 SL_AUTO2_DIR=$(mktemp -d)
-mkdir -p "$SL_AUTO2_DIR/.claude/state" "$SL_AUTO2_DIR/.claude/hooks"
+mkdir -p "$SL_AUTO2_DIR/.claude/state"
 echo '{"phase": "discuss", "autonomy_level": 2, "message_shown": false, "active_skill": ""}' > "$SL_AUTO2_DIR/.claude/state/workflow.json"
-touch "$SL_AUTO2_DIR/.claude/hooks/workflow-gate.sh"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_AUTO2_DIR\"}")
 assert_contains "$OUTPUT" "▶▶ " "statusline shows ▶▶ for Level 2"
 rm -rf "$SL_AUTO2_DIR"
 
 # Test: Level 3 renders ▶▶▶ before phase
 SL_AUTO3_DIR=$(mktemp -d)
-mkdir -p "$SL_AUTO3_DIR/.claude/state" "$SL_AUTO3_DIR/.claude/hooks"
+mkdir -p "$SL_AUTO3_DIR/.claude/state"
 echo '{"phase": "review", "autonomy_level": 3, "message_shown": false, "active_skill": ""}' > "$SL_AUTO3_DIR/.claude/state/workflow.json"
-touch "$SL_AUTO3_DIR/.claude/hooks/workflow-gate.sh"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_AUTO3_DIR\"}")
 assert_contains "$OUTPUT" "▶▶▶ " "statusline shows ▶▶▶ for Level 3"
 rm -rf "$SL_AUTO3_DIR"
 
 # Test: No symbol when workflow is OFF
 SL_AUTOOFF_DIR=$(mktemp -d)
-mkdir -p "$SL_AUTOOFF_DIR/.claude/state" "$SL_AUTOOFF_DIR/.claude/hooks"
+mkdir -p "$SL_AUTOOFF_DIR/.claude/state"
 echo '{"phase": "off", "message_shown": false, "active_skill": ""}' > "$SL_AUTOOFF_DIR/.claude/state/workflow.json"
-touch "$SL_AUTOOFF_DIR/.claude/hooks/workflow-gate.sh"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_AUTOOFF_DIR\"}")
 CLEAN_OUTPUT=$(echo "$OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
 assert_not_contains "$CLEAN_OUTPUT" "▶" "statusline shows no autonomy symbol when OFF"
@@ -1666,9 +1564,8 @@ rm -rf "$SL_AUTOOFF_DIR"
 
 # Test: No symbol when autonomy_level field absent
 SL_AUTOABS_DIR=$(mktemp -d)
-mkdir -p "$SL_AUTOABS_DIR/.claude/state" "$SL_AUTOABS_DIR/.claude/hooks"
+mkdir -p "$SL_AUTOABS_DIR/.claude/state"
 echo '{"phase": "implement", "message_shown": false, "active_skill": ""}' > "$SL_AUTOABS_DIR/.claude/state/workflow.json"
-touch "$SL_AUTOABS_DIR/.claude/hooks/workflow-gate.sh"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_AUTOABS_DIR\"}")
 CLEAN_OUTPUT=$(echo "$OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
 assert_not_contains "$CLEAN_OUTPUT" "▶" "statusline shows no autonomy symbol when field absent"
@@ -1678,9 +1575,8 @@ rm -rf "$SL_AUTOABS_DIR"
 
 # Test: statusline shows observation ID when present
 SL_OBS_DIR=$(mktemp -d)
-mkdir -p "$SL_OBS_DIR/.claude/state" "$SL_OBS_DIR/.claude/hooks"
+mkdir -p "$SL_OBS_DIR/.claude/state"
 echo '{"phase": "implement", "autonomy_level": 2, "last_observation_id": 3007, "message_shown": true, "active_skill": ""}' > "$SL_OBS_DIR/.claude/state/workflow.json"
-touch "$SL_OBS_DIR/.claude/hooks/workflow-gate.sh"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_OBS_DIR\",\"mcp_servers\":[\"claude-mem\"]}")
 assert_contains "$OUTPUT" "#3007" "statusline shows observation ID when present"
 assert_contains "$OUTPUT" "Claude-Mem" "statusline still shows Claude-Mem label"
@@ -1688,13 +1584,17 @@ rm -rf "$SL_OBS_DIR"
 
 # Test: statusline shows no ID when field absent
 SL_NOOBS_DIR=$(mktemp -d)
-mkdir -p "$SL_NOOBS_DIR/.claude/state" "$SL_NOOBS_DIR/.claude/hooks"
+mkdir -p "$SL_NOOBS_DIR/.claude/state"
 echo '{"phase": "implement", "message_shown": true, "active_skill": ""}' > "$SL_NOOBS_DIR/.claude/state/workflow.json"
-touch "$SL_NOOBS_DIR/.claude/hooks/workflow-gate.sh"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_NOOBS_DIR\",\"mcp_servers\":[\"claude-mem\"]}")
 CLEAN_OUTPUT=$(echo "$OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
 assert_not_contains "$CLEAN_OUTPUT" "#[0-9]" "statusline shows no observation ID when field absent"
 rm -rf "$SL_NOOBS_DIR"
+
+# Teardown: clean up Workflow Manager plugin cache if we created it
+if [ "$WM_CACHE_EXISTED" = "false" ]; then
+    rm -rf "$HOME/.claude/plugins/cache/azevedo-home-lab"
+fi
 
 # ============================================================
 # TEST SUITE: COMPLETE phase edit-blocking

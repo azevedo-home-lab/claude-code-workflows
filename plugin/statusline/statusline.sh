@@ -96,11 +96,16 @@ fi
 # Directory
 OUTPUT+="  ${DIM}│${RESET}  ${DIM}${SHORT_CWD}${RESET}"
 
-# Workflow Manager detection
+# --- Component detection (version-aware via plugin cache) ---
+
+# Shared state file used by all three components
 WM_STATE_FILE="${CWD}/.claude/state/workflow.json"
-WM_GATE_FILE="${CWD}/.claude/hooks/workflow-gate.sh"
-if [ -f "$WM_GATE_FILE" ]; then
-  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Workflow Manager ✓${RESET}"
+
+# Workflow Manager: version from plugin cache, phase/autonomy from project state
+WM_PLUGIN_DIR="$HOME/.claude/plugins/cache/azevedo-home-lab/workflow-manager"
+if [ -d "$WM_PLUGIN_DIR" ]; then
+  WM_VERSION=$(ls -1 "$WM_PLUGIN_DIR" | sort -V | tail -1)
+  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Workflow Manager ${WM_VERSION} ✓${RESET}"
   # Show phase if state file exists
   if [ -f "$WM_STATE_FILE" ]; then
     WM_PHASE=$(grep -o '"phase"[[:space:]]*:[[:space:]]*"[^"]*"' "$WM_STATE_FILE" | grep -o '"[^"]*"$' | tr -d '"')
@@ -132,10 +137,11 @@ else
   OUTPUT+="  ${DIM}│${RESET}  ${DIM}Workflow Manager ✗${RESET}"
 fi
 
-# Superpowers detection
-SP_PLUGIN_DIR="$HOME/.claude/plugins/cache/superpowers-marketplace"
+# Superpowers: version from plugin cache, active skill from project state
+SP_PLUGIN_DIR="$HOME/.claude/plugins/cache/superpowers-marketplace/superpowers"
 if [ -d "$SP_PLUGIN_DIR" ]; then
-  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Superpowers ✓${RESET}"
+  SP_VERSION=$(ls -1 "$SP_PLUGIN_DIR" | sort -V | tail -1)
+  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Superpowers ${SP_VERSION} ✓${RESET}"
   # Read active skill from workflow.json (same file as phase)
   if [ -f "$WM_STATE_FILE" ]; then
     ACTIVE_SKILL=$(grep -o '"active_skill"[[:space:]]*:[[:space:]]*"[^"]*"' "$WM_STATE_FILE" | grep -o '"[^"]*"$' | tr -d '"')
@@ -147,20 +153,16 @@ else
   OUTPUT+="  ${DIM}│${RESET}  ${DIM}Superpowers ✗${RESET}"
 fi
 
-# Claude-Mem detection
-CM_OBS_ID=""
-if [ -f "$WM_STATE_FILE" ]; then
-  CM_OBS_ID=$(grep -o '"last_observation_id"[[:space:]]*:[[:space:]]*[0-9]*' "$WM_STATE_FILE" | grep -o '[0-9]*$')
-fi
-CM_SUFFIX=""
-if [ -n "$CM_OBS_ID" ]; then
-  CM_SUFFIX=" ${CYAN}#${CM_OBS_ID}${RESET}"
-fi
-
-if echo "$DATA" | jq -e '.mcp_servers[]? | select(. == "claude-mem" or test("claude.mem"; "i"))' >/dev/null 2>&1; then
-  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Claude-Mem ✓${RESET}${CM_SUFFIX}"
-elif command -v claude-mem >/dev/null 2>&1 || [ -d "$HOME/.claude/plugins/cache/thedotmack" ]; then
-  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Claude-Mem ✓${RESET}${CM_SUFFIX}"
+# Claude-Mem: version from plugin cache, observation ID from project state
+CM_PLUGIN_DIR="$HOME/.claude/plugins/cache/thedotmack/claude-mem"
+if [ -d "$CM_PLUGIN_DIR" ]; then
+  CM_VERSION=$(ls -1 "$CM_PLUGIN_DIR" | sort -V | tail -1)
+  CM_SUFFIX=""
+  if [ -f "$WM_STATE_FILE" ]; then
+    CM_OBS_ID=$(grep -o '"last_observation_id"[[:space:]]*:[[:space:]]*[0-9]*' "$WM_STATE_FILE" | grep -o '[0-9]*$')
+    [ -n "$CM_OBS_ID" ] && CM_SUFFIX=" ${CYAN}#${CM_OBS_ID}${RESET}"
+  fi
+  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Claude-Mem ${CM_VERSION} ✓${RESET}${CM_SUFFIX}"
 else
   OUTPUT+="  ${DIM}│${RESET}  ${DIM}Claude-Mem ✗${RESET}"
 fi
