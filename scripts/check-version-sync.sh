@@ -3,9 +3,9 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-V1=$(python3 -c "import json; print(json.load(open('$REPO_ROOT/.claude-plugin/marketplace.json'))['plugins'][0]['version'])")
-V2=$(python3 -c "import json; print(json.load(open('$REPO_ROOT/.claude-plugin/plugin.json'))['version'])")
-V3=$(python3 -c "import json; print(json.load(open('$REPO_ROOT/plugin/.claude-plugin/plugin.json'))['version'])")
+V1=$(jq -r '.plugins[0].version' "$REPO_ROOT/.claude-plugin/marketplace.json")
+V2=$(jq -r '.version' "$REPO_ROOT/.claude-plugin/plugin.json")
+V3=$(jq -r '.version' "$REPO_ROOT/plugin/.claude-plugin/plugin.json")
 
 if [[ "$V1" == "$V2" && "$V2" == "$V3" ]]; then
   echo "✓ All versions in sync: $V1"
