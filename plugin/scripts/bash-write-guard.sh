@@ -51,7 +51,7 @@ esac
 
 INPUT=$(cat)
 
-COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null) || COMMAND=""
 
 # If we can't extract the command, deny (fail-closed — security over availability)
 if [ -z "$COMMAND" ]; then
@@ -79,14 +79,7 @@ if echo "$COMMAND" | grep -qE '^[[:space:]]*(git|/usr/bin/git|/usr/local/bin/git
     FIRST_LINE=$(echo "$COMMAND" | head -1)
     # Check for shell operators that appear after the closing quote of -m "..."
     # Strategy: strip the -m "..." or -m '...' inline value, then check for &&/||/;
-    STRIPPED=$(echo "$FIRST_LINE" | python3 -c "
-import sys, re
-line = sys.stdin.read().strip()
-# Strip inline quoted -m argument: -m \"...\" or -m '...'
-line = re.sub(r'\s-m\s+\"[^\"]*\"', ' -m MSG', line)
-line = re.sub(r'\s-m\s+[^\s]+', ' -m MSG', line)
-print(line)
-" 2>/dev/null)
+    STRIPPED=$(echo "$FIRST_LINE" | sed -E 's/-m "[^"]*"/-m MSG/g; s/-m '"'"'[^'"'"']*'"'"'/-m MSG/g; s/-m [^ ;|&]+/-m MSG/g')
     if ! echo "$STRIPPED" | grep -qE '(&&|\|\||;)'; then
         exit 0
     fi
@@ -141,21 +134,10 @@ if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ]
     # Extract the write target path from the command for whitelist checking
     # For redirections: extract path after > or >>
     # For cp/mv: extract the last argument
-    WRITE_TARGET=$(echo "$COMMAND" | python3 -c "
-import sys, re
-cmd = sys.stdin.read().strip()
-# Try redirect target first (most common)
-m = re.search(r'>{1,2}\s*(\S+)', cmd)
-if m:
-    print(m.group(1))
-else:
-    # For cp/mv/install: last argument is typically the target
-    parts = cmd.split()
-    if len(parts) >= 3 and parts[0] in ('cp', 'mv', 'install'):
-        print(parts[-1])
-    else:
-        print('')
-" 2>/dev/null || echo "")
+    WRITE_TARGET=$(echo "$COMMAND" | sed -n 's/.*>[[:space:]]*\([^[:space:];|&]*\).*/\1/p' | head -1)
+    if [ -z "$WRITE_TARGET" ]; then
+        WRITE_TARGET=$(echo "$COMMAND" | sed -n 's/.*\(cp\|mv\|install\)[[:space:]].*[[:space:]]\([^[:space:];|&]*\)[[:space:]]*$/\2/p' | head -1)
+    fi
 
     # Reject path traversal attempts (../ in the target)
     if [ -n "$WRITE_TARGET" ] && echo "$WRITE_TARGET" | grep -qE '\.\.'; then
