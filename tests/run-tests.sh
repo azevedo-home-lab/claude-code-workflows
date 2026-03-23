@@ -1970,6 +1970,11 @@ assert_eq "500,600,700" "$(get_tracked_observations)" "set_tracked_observations 
 python3 -c "import json; d=json.load(open('$STATE_FILE')); d.pop('tracked_observations',None); json.dump(d,open('$STATE_FILE','w'),indent=2)"
 assert_eq "" "$(get_tracked_observations)" "get_tracked_observations returns empty for missing field"
 
+# Test: set_tracked_observations with empty string clears list
+set_tracked_observations "100,200"
+set_tracked_observations ""
+assert_eq "" "$(get_tracked_observations)" "set_tracked_observations with empty string clears list"
+
 # Test: tracked observations preserved across phase transitions
 set_tracked_observations "3416"
 set_phase "define"
