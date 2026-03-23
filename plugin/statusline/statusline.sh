@@ -120,10 +120,15 @@ _plugin_version() {
   fi
 }
 
-# Workflow Manager: version from cache, phase/autonomy from project state
+# Workflow Manager: prefer source plugin.json (avoids stale cache), fall back to cache
 WM_PLUGIN_DIR="$HOME/.claude/plugins/cache/azevedo-home-lab/workflow-manager"
-if [ -d "$WM_PLUGIN_DIR" ]; then
-  WM_VERSION=$(_plugin_version "$WM_PLUGIN_DIR")
+WM_SOURCE_JSON="${CWD}/plugin/.claude-plugin/plugin.json"
+if [ -f "$WM_SOURCE_JSON" ] || [ -d "$WM_PLUGIN_DIR" ]; then
+  if [ -f "$WM_SOURCE_JSON" ]; then
+    WM_VERSION=$(jq -r '.version // "?"' "$WM_SOURCE_JSON" 2>/dev/null)
+  else
+    WM_VERSION=$(_plugin_version "$WM_PLUGIN_DIR")
+  fi
   WM_VERSION="${WM_VERSION:-?}"
   OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Workflow Manager ${WM_VERSION} ✓${RESET}"
   # Show phase if state file exists
