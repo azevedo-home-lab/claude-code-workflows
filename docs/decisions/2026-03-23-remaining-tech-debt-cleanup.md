@@ -82,7 +82,45 @@
   - One more level of indirection (pipe into helper)
   - Item 5 (env leak via filter param) accepted as documented risk — all callers are internal
   - Item 2 (concurrent last-writer-wins) accepted as documented behavior — no file locking
-- **Risks identified:** Pipe changes error propagation — mitigated by zero-byte rejection in `_safe_write`
-- **Constraints applied:** `workflow-state.sh` does not set `pipefail`, so zero-byte check is load-bearing
-- **Tech debt acknowledged:** None — this round clears all remaining items
+- **Risks identified:** Pipe changes error propagation — mitigated by zero-byte rejection in `_safe_write` plus `pipefail` subshell in `_update_state`
+- **Constraints applied:** `_update_state` wraps pipe in `( set -o pipefail; ... )` for defense-in-depth; initial-creation paths use zero-byte check as sole guard (jq -n failure is near-impossible)
+- **Tech debt acknowledged:** See Remaining Tech Debt section below
 - **Spec:** `docs/superpowers/specs/2026-03-23-remaining-tech-debt-design.md`
+
+### Implementation Summary (Round 2)
+
+1. **`_safe_write` helper** — new function at `workflow-state.sh:18-37`. Reads stdin → PID-scoped temp → zero-byte check → 10KB size guard → atomic `mv`. All 5 write paths now pipe through it.
+2. **`_update_state` refactored** — pipes jq output through `_safe_write` in a `( set -o pipefail; ... )` subshell. Security comment added above function.
+3. **3 initial-creation paths refactored** — `set_last_observation_id`, `set_tracked_observations`, `add_tracked_observation` pipe through `_safe_write` with `return $?` for error propagation.
+4. **`set_phase` refactored** — final jq write pipes through `_safe_write` instead of inline temp+mv.
+5. **Phase enum guard** — `get_phase` validates against known phase values; unknown defaults to `"off"`.
+6. **Review fixes** — zero-byte diagnostic message added, `pipefail` subshell added, failure propagation test added.
+
+### Beneficial Deviations from Plan
+
+- `_safe_write` placed before `_update_state` (necessary — bash requires definition before use)
+- Zero-byte rejection emits diagnostic stderr message (plan said silent; aids debugging)
+- `_update_state` wrapped in `pipefail` subshell (plan didn't include; defense-in-depth)
+- Commit granularity: 3 commits instead of 7 (batched for cleaner history)
+
+## Outcome Verification (COMPLETE phase)
+
+- [x] `_safe_write` helper exists with zero-byte, size, and atomic-mv guards — PASS — `workflow-state.sh:18-37`
+- [x] `_update_state` pipes through `_safe_write` — PASS — `workflow-state.sh:48-54`
+- [x] All 5 direct-write paths use `_safe_write` — PASS — zero `> "$STATE_FILE"` matches remain
+- [x] Phase enum guard in `get_phase` — PASS — `workflow-state.sh:90-93`, unknown → "off"
+- [x] Security comment on `_update_state` — PASS — `workflow-state.sh:38-40`
+- [x] 5 spec tests implemented — PASS — `tests/run-tests.sh:1981-2027`
+- [x] 2 extra tests from review (zero-byte message, failure propagation) — PASS — `tests/run-tests.sh:1998, 2029-2036`
+- [x] All 384 tests pass — PASS
+- **Unresolved items:** 2 hardening improvements identified by devil's advocate (see Remaining Tech Debt)
+
+## Remaining Tech Debt (from Round 2 devil's advocate)
+
+| # | Priority | Issue | Proposed Fix | Effort |
+|---|----------|-------|--------------|--------|
+| 1 | MEDIUM | `_safe_write` mv failure leaves temp file behind | Add `|| { rm -f "$tmpfile"; return 1; }` after `mv` | S |
+| 2 | MEDIUM | Disk-full partial write bypasses guards (cat writes partial, non-zero, passes size check) | Add `jq -e . "$tmpfile" >/dev/null 2>&1` JSON validity check before `mv` | S |
+| 3 | LOW | `set_phase` and initial-creation paths lack `pipefail` (unlike `_update_state`) | Wrap in `( set -o pipefail; ... )` for consistency, or document why not needed | S |
+| 4 | LOW | Stale temp files after abnormal termination not cleaned up | Add `find "$STATE_DIR" -name '*.tmp.*' -mmin +5 -delete` in setup or session start | S |
+| 5 | LOW | `set_tracked_observations` fails entirely if any CSV element is non-numeric | Use `try tonumber catch empty` in jq filter to skip invalid entries | S |

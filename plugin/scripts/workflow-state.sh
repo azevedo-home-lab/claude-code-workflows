@@ -12,9 +12,9 @@
 STATE_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/.claude/state"
 STATE_FILE="$STATE_DIR/workflow.json"
 
-# Atomic write helper. Reads stdin → PID-scoped temp file → size guards → mv.
+# Atomic write helper. Reads stdin → PID-scoped temp file → guards → mv.
 # All state file writes MUST go through this function.
-# Rejects zero-byte input (catches pipe-from-failed-jq) and >10KB output.
+# Rejects: zero-byte input, >10KB output, invalid JSON, mv failure.
 _safe_write() {
     local tmpfile="${STATE_FILE}.tmp.$$"
     cat > "$tmpfile" || { rm -f "$tmpfile"; return 1; }
@@ -30,7 +30,12 @@ _safe_write() {
         echo "ERROR: State file would exceed 10KB ($size bytes). Write rejected." >&2
         return 1
     fi
-    mv "$tmpfile" "$STATE_FILE"
+    if ! jq -e . "$tmpfile" >/dev/null 2>&1; then
+        rm -f "$tmpfile"
+        echo "ERROR: State file write rejected (invalid JSON — possible partial write)." >&2
+        return 1
+    fi
+    mv "$tmpfile" "$STATE_FILE" || { rm -f "$tmpfile"; return 1; }
 }
 
 # Generic state write helper. Pipes jq output through _safe_write for atomic,
