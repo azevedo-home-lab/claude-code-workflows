@@ -13,10 +13,14 @@
 
 set -euo pipefail
 
-# Verify python3 is available (required for JSON state management)
-command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 is required for Workflow Manager" >&2; exit 1; }
-# Warn if jq is missing (required for statusline, not for core hooks)
-command -v jq >/dev/null 2>&1 || echo "WARNING: jq not found — statusline will not work. Install: brew install jq" >&2
+# Verify jq is available (required for all JSON state management)
+if ! command -v jq &>/dev/null; then
+    echo "ERROR: jq is required but not installed. Install it:" >&2
+    echo "  macOS:  brew install jq" >&2
+    echo "  Ubuntu: sudo apt-get install jq" >&2
+    echo "  Other:  https://jqlang.github.io/jq/download/" >&2
+    return 1 2>/dev/null || exit 1
+fi
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
