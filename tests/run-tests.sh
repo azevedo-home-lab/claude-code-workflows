@@ -341,6 +341,8 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_implement_status
 OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review" 2>&1 || true)
 assert_contains "$OUTPUT" "HARD GATE" "hard gate blocks leaving IMPLEMENT without milestones"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "implement" "$RESULT" "phase remains implement after gate blocks"
 
 # Test: hard gate allows leaving IMPLEMENT when all milestones complete
 setup_test_project
@@ -360,6 +362,8 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_completion_status
 OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off" 2>&1 || true)
 assert_contains "$OUTPUT" "HARD GATE" "hard gate blocks leaving COMPLETE without milestones"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "complete" "$RESULT" "phase remains complete after gate blocks"
 
 # Test: hard gate allows set_phase off when all completion milestones done
 setup_test_project
@@ -409,6 +413,8 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_completion_status
 OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement" 2>&1 || true)
 assert_contains "$OUTPUT" "HARD GATE" "COMPLETE gate blocks complete->implement with incomplete milestones"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "complete" "$RESULT" "phase remains complete after complete→implement gate block"
 
 # Test: corrupt state file does not crash set_phase
 setup_test_project
