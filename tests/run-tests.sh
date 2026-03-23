@@ -2121,26 +2121,49 @@ rm -rf "$SETUP_TEST_DIR"
 echo ""
 echo "=== Statusline Version Detection ==="
 
+# _plugin_version helper (mirrors statusline.sh)
+_plugin_version() {
+  local plugin_dir="$1"
+  local latest_dir
+  latest_dir=$(ls -1 "$plugin_dir" 2>/dev/null | sort -V | tail -1)
+  [ -z "$latest_dir" ] && return 1
+  local pjson="$plugin_dir/$latest_dir/.claude-plugin/plugin.json"
+  if [ -f "$pjson" ]; then
+    jq -r '.version // "?"' "$pjson" 2>/dev/null
+  else
+    echo "$latest_dir"
+  fi
+}
+
 # Create mock plugin cache for testing
 MOCK_CACHE=$(mktemp -d)
 
 # Test: empty directory returns "?"
 MOCK_EMPTY="$MOCK_CACHE/empty-plugin"
 mkdir -p "$MOCK_EMPTY"
-VERSION=$(ls -1 "$MOCK_EMPTY" 2>/dev/null | sort -V | tail -1)
+VERSION=$(_plugin_version "$MOCK_EMPTY" || true)
 VERSION="${VERSION:-?}"
 assert_eq "?" "$VERSION" "version detection: empty dir returns ?"
 
-# Test: single version detected
+# Test: version read from plugin.json
 MOCK_SINGLE="$MOCK_CACHE/single-plugin"
-mkdir -p "$MOCK_SINGLE/1.0.0"
-VERSION=$(ls -1 "$MOCK_SINGLE" 2>/dev/null | sort -V | tail -1)
-assert_eq "1.0.0" "$VERSION" "version detection: single version detected"
+mkdir -p "$MOCK_SINGLE/1.0.0/.claude-plugin"
+echo '{"version":"1.2.3"}' > "$MOCK_SINGLE/1.0.0/.claude-plugin/plugin.json"
+VERSION=$(_plugin_version "$MOCK_SINGLE")
+assert_eq "1.2.3" "$VERSION" "version detection: reads from plugin.json"
 
-# Test: highest of multiple versions picked
+# Test: falls back to directory name when no plugin.json
+MOCK_FALLBACK="$MOCK_CACHE/fallback-plugin"
+mkdir -p "$MOCK_FALLBACK/3.0.0"
+VERSION=$(_plugin_version "$MOCK_FALLBACK")
+assert_eq "3.0.0" "$VERSION" "version detection: falls back to dir name"
+
+# Test: highest of multiple versions picked, reads plugin.json
 MOCK_MULTI="$MOCK_CACHE/multi-plugin"
-mkdir -p "$MOCK_MULTI/1.0.0" "$MOCK_MULTI/1.1.0" "$MOCK_MULTI/2.0.0" "$MOCK_MULTI/1.9.9"
-VERSION=$(ls -1 "$MOCK_MULTI" 2>/dev/null | sort -V | tail -1)
+mkdir -p "$MOCK_MULTI/1.0.0" "$MOCK_MULTI/1.1.0/.claude-plugin" "$MOCK_MULTI/2.0.0/.claude-plugin" "$MOCK_MULTI/1.9.9"
+echo '{"version":"2.0.0"}' > "$MOCK_MULTI/2.0.0/.claude-plugin/plugin.json"
+echo '{"version":"1.1.0"}' > "$MOCK_MULTI/1.1.0/.claude-plugin/plugin.json"
+VERSION=$(_plugin_version "$MOCK_MULTI")
 assert_eq "2.0.0" "$VERSION" "version detection: highest version picked from multiple"
 
 rm -rf "$MOCK_CACHE"

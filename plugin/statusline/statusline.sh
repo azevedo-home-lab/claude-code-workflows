@@ -100,15 +100,30 @@ fi
 # Directory
 OUTPUT+="  ${DIM}│${RESET}  ${DIM}${SHORT_CWD}${RESET}"
 
-# --- Component detection (version-aware via plugin cache) ---
+# --- Component detection (version from plugin cache) ---
 
 # Shared state file used by all three components
 WM_STATE_FILE="${CWD}/.claude/state/workflow.json"
 
-# Workflow Manager: version from plugin cache, phase/autonomy from project state
+# _plugin_version: read version from the latest cached plugin.json
+# Falls back to directory name if plugin.json is missing, then "?" as last resort
+_plugin_version() {
+  local plugin_dir="$1"
+  local latest_dir
+  latest_dir=$(ls -1 "$plugin_dir" 2>/dev/null | sort -V | tail -1)
+  [ -z "$latest_dir" ] && return 1
+  local pjson="$plugin_dir/$latest_dir/.claude-plugin/plugin.json"
+  if [ -f "$pjson" ]; then
+    jq -r '.version // "?"' "$pjson" 2>/dev/null
+  else
+    echo "$latest_dir"
+  fi
+}
+
+# Workflow Manager: version from cache, phase/autonomy from project state
 WM_PLUGIN_DIR="$HOME/.claude/plugins/cache/azevedo-home-lab/workflow-manager"
 if [ -d "$WM_PLUGIN_DIR" ]; then
-  WM_VERSION=$(ls -1 "$WM_PLUGIN_DIR" 2>/dev/null | sort -V | tail -1)
+  WM_VERSION=$(_plugin_version "$WM_PLUGIN_DIR")
   WM_VERSION="${WM_VERSION:-?}"
   OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Workflow Manager ${WM_VERSION} ✓${RESET}"
   # Show phase if state file exists
@@ -142,10 +157,10 @@ else
   OUTPUT+="  ${DIM}│${RESET}  ${DIM}Workflow Manager ✗${RESET}"
 fi
 
-# Superpowers: version from plugin cache, active skill from project state
+# Superpowers: version from cache, active skill from project state
 SP_PLUGIN_DIR="$HOME/.claude/plugins/cache/superpowers-marketplace/superpowers"
 if [ -d "$SP_PLUGIN_DIR" ]; then
-  SP_VERSION=$(ls -1 "$SP_PLUGIN_DIR" 2>/dev/null | sort -V | tail -1)
+  SP_VERSION=$(_plugin_version "$SP_PLUGIN_DIR")
   SP_VERSION="${SP_VERSION:-?}"
   OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Superpowers ${SP_VERSION} ✓${RESET}"
   # Read active skill from workflow.json (same file as phase)
@@ -159,10 +174,10 @@ else
   OUTPUT+="  ${DIM}│${RESET}  ${DIM}Superpowers ✗${RESET}"
 fi
 
-# Claude-Mem: version from plugin cache, observation ID from project state
+# Claude-Mem: version from cache, observation ID from project state
 CM_PLUGIN_DIR="$HOME/.claude/plugins/cache/thedotmack/claude-mem"
 if [ -d "$CM_PLUGIN_DIR" ]; then
-  CM_VERSION=$(ls -1 "$CM_PLUGIN_DIR" 2>/dev/null | sort -V | tail -1)
+  CM_VERSION=$(_plugin_version "$CM_PLUGIN_DIR")
   CM_VERSION="${CM_VERSION:-?}"
   CM_SUFFIX=""
   if [ -f "$WM_STATE_FILE" ]; then

@@ -63,7 +63,36 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# B. Global statusline installation
+# B. Plugin cache version sync
+# ─────────────────────────────────────────────────────────────────────────────
+# Claude Code caches plugins by version directory but doesn't auto-update
+# the cache when the source repo bumps its version. Sync the cache so the
+# statusline displays the correct version.
+
+SOURCE_PLUGIN_JSON="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+CACHE_DIR="$HOME/.claude/plugins/cache/azevedo-home-lab/workflow-manager"
+
+if [ -f "$SOURCE_PLUGIN_JSON" ] && [ -d "$CACHE_DIR" ]; then
+  SOURCE_VERSION=$(jq -r '.version // ""' "$SOURCE_PLUGIN_JSON" 2>/dev/null)
+  CACHED_VERSION=$(ls -1 "$CACHE_DIR" 2>/dev/null | sort -V | tail -1)
+
+  if [ -n "$SOURCE_VERSION" ] && [ "$SOURCE_VERSION" != "$CACHED_VERSION" ]; then
+    # Create new version directory in cache with current plugin content
+    mkdir -p "$CACHE_DIR/$SOURCE_VERSION/.claude-plugin"
+    cp "$SOURCE_PLUGIN_JSON" "$CACHE_DIR/$SOURCE_VERSION/.claude-plugin/plugin.json"
+    # Copy other cached content from old version if available
+    if [ -d "$CACHE_DIR/$CACHED_VERSION" ]; then
+      for item in "$CACHE_DIR/$CACHED_VERSION"/*; do
+        entry=$(basename "$item")
+        [ "$entry" = ".claude-plugin" ] && continue
+        [ ! -e "$CACHE_DIR/$SOURCE_VERSION/$entry" ] && cp -r "$item" "$CACHE_DIR/$SOURCE_VERSION/$entry"
+      done
+    fi
+  fi
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# C. Global statusline installation
 # ─────────────────────────────────────────────────────────────────────────────
 
 STATUSLINE_SRC="$PLUGIN_ROOT/statusline/statusline.sh"
