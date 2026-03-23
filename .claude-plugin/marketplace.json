@@ -1,0 +1,18 @@
+{
+  "name": "azevedo-home-lab",
+  "owner": {
+    "name": "azevedo-home-lab"
+  },
+  "metadata": {
+    "description": "Claude Code Workflow Manager",
+    "homepage": "https://github.com/azevedo-home-lab/claude-code-workflows"
+  },
+  "plugins": [
+    {
+      "name": "workflow-manager",
+      "version": "1.0.0",
+      "source": "./plugin",
+      "description": "Structured workflow enforcement for Claude Code with phase gates, coaching, and autonomy levels"
+    }
+  ]
+}
