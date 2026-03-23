@@ -163,7 +163,7 @@ if [ -d "$CM_PLUGIN_DIR" ]; then
   CM_SUFFIX=""
   if [ -f "$WM_STATE_FILE" ]; then
     CM_OBS_ID=$(grep -o '"last_observation_id"[[:space:]]*:[[:space:]]*[0-9]*' "$WM_STATE_FILE" | grep -o '[0-9]*$')
-    [ -n "$CM_OBS_ID" ] && CM_SUFFIX=" ${CYAN}#${CM_OBS_ID}${RESET}"
+    [ -n "$CM_OBS_ID" ] && CM_SUFFIX=" ${CYAN}[#${CM_OBS_ID}]${RESET}"
   fi
   OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Claude-Mem ${CM_VERSION} ✓${RESET}${CM_SUFFIX}"
 else

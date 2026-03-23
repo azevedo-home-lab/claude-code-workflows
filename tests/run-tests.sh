@@ -1578,7 +1578,7 @@ SL_OBS_DIR=$(mktemp -d)
 mkdir -p "$SL_OBS_DIR/.claude/state"
 echo '{"phase": "implement", "autonomy_level": 2, "last_observation_id": 3007, "message_shown": true, "active_skill": ""}' > "$SL_OBS_DIR/.claude/state/workflow.json"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_OBS_DIR\",\"mcp_servers\":[\"claude-mem\"]}")
-assert_contains "$OUTPUT" "#3007" "statusline shows observation ID when present"
+assert_contains "$OUTPUT" "[#3007]" "statusline shows observation ID in brackets when present"
 assert_contains "$OUTPUT" "Claude-Mem" "statusline still shows Claude-Mem label"
 rm -rf "$SL_OBS_DIR"
 
