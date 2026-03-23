@@ -72,3 +72,16 @@ None.
 - **Triple fallback in get_phase**: Belt-and-suspenders — negligible cost, prevents empty phase.
 - **Individual getter calls in _read_preserved_state**: More readable than single @tsv call. Negligible performance difference.
 - **Three file-creation paths bypass _update_state**: Inherent to `jq -n` pattern for creating new files.
+
+## Outcome Verification (COMPLETE phase)
+- [x] Outcome 1: Hard gate phase-unchanged assertions — PASS — 3 assertions at run-tests.sh:345,366,417
+- [x] Outcome 2: set_phase decomposed — PASS — _check_phase_gates + _read_preserved_state extracted
+- [x] Outcome 3: Setter boilerplate eliminated — PASS — _update_state helper, 14+ call sites
+- [x] Outcome 4: python3 eliminated — PASS — 0 runtime calls across 6 production files
+- [x] Outcome 5: Atomic writes — PASS — temp+mv in _update_state and set_phase
+- [x] Outcome 6: Duplicate plugin.json — PASS — accepted as-is, sync check migrated to jq
+- Tests: 360 passing, 0 failed
+- Boundary tests: 60/60 edge cases pass
+- Devil's advocate: 2 known-accepted concurrency findings (documented in Item 5 decision)
+- **Unresolved:** Concurrent write corruption with shared .tmp path (accepted per Item 5 decision)
+- **Tech debt incurred:** ~21 python3 calls remain in test fixtures (intentional for test independence)
