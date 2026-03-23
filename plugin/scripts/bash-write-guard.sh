@@ -18,19 +18,20 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/workflow-state.sh"
 
-# Write pattern — detects file-writing operations
-# Groups:
-#   1. Redirections: >, >>, echo >
-#   2. In-place editors: sed -i, perl -i, ruby -i
-#   3. Stream writers: tee
-#   4. Heredocs: cat <<, bash <<, sh <<, python3 <<
-#   5. File operations (no ^ anchor — catches mid-command): cp, mv, rm, install, patch, ln, touch, truncate
-#   6. Network downloads: curl -o, wget -O
-#   7. Archive extraction: tar -x, tar x, unzip
-#   8. Block devices: dd of=
-#   9. Sync: rsync
-#  10. Wrappers: eval, bash -c, sh -c
-WRITE_PATTERN='(>[^&]|>>|sed[[:space:]]+-i|perl[[:space:]]+-i|ruby[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|bash[[:space:]].*<<|sh[[:space:]].*<<|python[3]?[[:space:]].*<<|echo[[:space:]].*>|cp[[:space:]]|mv[[:space:]]|rm[[:space:]]|install[[:space:]]|curl[[:space:]].*-o[[:space:]]|wget[[:space:]].*-O[[:space:]]|dd[[:space:]].*of=|patch[[:space:]]|ln[[:space:]]|touch[[:space:]]|truncate[[:space:]]|tar[[:space:]].*-?x|unzip[[:space:]]|rsync[[:space:]]|eval[[:space:]]|bash[[:space:]]+-c|sh[[:space:]]+-c)'
+# Write pattern — detects file-writing operations (named fragments for readability)
+REDIRECT_OPS='(>[^&]|>>)'
+INPLACE_EDITORS='(sed[[:space:]]+-i|perl[[:space:]]+-i|ruby[[:space:]]+-i)'
+STREAM_WRITERS='(tee[[:space:]])'
+HEREDOCS='(cat[[:space:]].*<<|bash[[:space:]].*<<|sh[[:space:]].*<<|python[3]?[[:space:]].*<<)'
+FILE_OPS='(cp[[:space:]]|mv[[:space:]]|rm[[:space:]]|install[[:space:]]|patch[[:space:]]|ln[[:space:]]|touch[[:space:]]|truncate[[:space:]])'
+DOWNLOADS='(curl[[:space:]].*-o[[:space:]]|wget[[:space:]].*-O[[:space:]])'
+ARCHIVE_OPS='(tar[[:space:]].*-?x|unzip[[:space:]])'
+BLOCK_OPS='(dd[[:space:]].*of=)'
+SYNC_OPS='(rsync[[:space:]])'
+EXEC_WRAPPERS='(eval[[:space:]]|bash[[:space:]]+-c|sh[[:space:]]+-c)'
+ECHO_REDIRECT='(echo[[:space:]].*>)'
+
+WRITE_PATTERN="$REDIRECT_OPS|$INPLACE_EDITORS|$STREAM_WRITERS|$HEREDOCS|$FILE_OPS|$DOWNLOADS|$ARCHIVE_OPS|$BLOCK_OPS|$SYNC_OPS|$EXEC_WRAPPERS|$ECHO_REDIRECT"
 
 # No state file = no enforcement (first run, hooks not yet activated)
 if [ ! -f "$STATE_FILE" ]; then

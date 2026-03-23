@@ -125,5 +125,4 @@ Set the level with `/autonomy 1`, `/autonomy 2`, or `/autonomy 3`. Only the user
 
 | File | Purpose |
 |------|---------|
-| [`statusline/statusline.sh`](../../statusline/statusline.sh) | The status line script |
-| [`statusline/settings.json.example`](../../statusline/settings.json.example) | Example settings.json snippet |
+| [`plugin/statusline/statusline.sh`](../../plugin/statusline/statusline.sh) | The status line script (installed to `~/.claude/statusline.sh` by setup hook) |

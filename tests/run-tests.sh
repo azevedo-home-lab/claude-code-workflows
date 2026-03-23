@@ -1167,7 +1167,9 @@ setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
 cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
-for i in $(seq 1 6); do
+# Pre-fire Layer 2 source_edit trigger so it doesn't consume the first write
+python3 -c "import json; d=json.load(open('$STATE_FILE')); d.setdefault('coaching',{})['layer2_fired']=['source_edit']; json.dump(d,open('$STATE_FILE','w'),indent=2)"
+for i in $(seq 1 4); do
     echo '{"tool_name":"Write","tool_input":{"file_path":"src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
 done
 OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)

@@ -6,9 +6,10 @@
 # See LICENSE for details.
 
 # Setup hook — runs on first plugin activation (Setup hook in hooks.json).
-# Two responsibilities:
+# Three responsibilities:
 #   A. Project state initialization (workflow.json + .gitignore)
 #   B. Global statusline installation (~/.claude/statusline.sh + settings.json)
+#   C. Project permissions (ensure tools needed for unattended operation are allowed)
 
 set -euo pipefail
 
@@ -105,4 +106,39 @@ with open(settings_path, 'w') as f:
     json.dump(settings, f, indent=2)
     f.write('\n')
 " "$GLOBAL_SETTINGS" || true
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# C. Project permissions — ensure tools needed for workflow pipeline are allowed
+# ─────────────────────────────────────────────────────────────────────────────
+
+# The workflow pipeline (hooks, coaching, COMPLETE agents) needs these tools
+# to operate without permission prompts. Without them, autonomy level 3
+# (unattended) is broken by constant approval dialogs.
+PROJECT_SETTINGS="$PROJECT_DIR/.claude/settings.json"
+if [ -f "$PROJECT_SETTINGS" ]; then
+  python3 -c "
+import json, sys
+
+settings_path = sys.argv[1]
+with open(settings_path, 'r') as f:
+    settings = json.load(f)
+
+permissions = settings.setdefault('permissions', {})
+allow = permissions.setdefault('allow', [])
+
+# Tools required for unattended workflow operation
+required_tools = ['Read', 'Agent', 'Glob', 'Grep']
+
+changed = False
+for tool in required_tools:
+    if tool not in allow:
+        allow.append(tool)
+        changed = True
+
+if changed:
+    with open(settings_path, 'w') as f:
+        json.dump(settings, f, indent=2)
+        f.write('\n')
+" "$PROJECT_SETTINGS" || true
 fi

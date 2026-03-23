@@ -21,6 +21,11 @@ source "$SCRIPT_DIR/workflow-state.sh"
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null || echo "")
 
+# Helper: extract bash command from tool input (used by Layer 2/3 checks)
+extract_bash_command() {
+    echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo ""
+}
+
 # ---------------------------------------------------------------------------
 # Claude-mem observation ID tracking
 # Extracts observation ID from save_observation (dict response) or
@@ -215,7 +220,7 @@ if [ "$(get_message_shown)" = "true" ]; then
                 TRIGGER="source_edit"
                 L2_MSG="[Workflow Coach — IMPLEMENT] Does this follow the plan? Would you be proud to have this reviewed? Tests written first?"
             elif [ "$TOOL_NAME" = "Bash" ]; then
-                COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
+                COMMAND=$(extract_bash_command)
                 if echo "$COMMAND" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'; then
                     TRIGGER="test_run"
                     L2_MSG="[Workflow Coach — IMPLEMENT] If tests fail, diagnose the root cause. Don't patch the test to make it pass. Don't skip tests for small changes."
@@ -238,7 +243,7 @@ if [ "$(get_message_shown)" = "true" ]; then
                     L2_MSG="[Workflow Coach — COMPLETE] Does the handover make sense to a stranger? Is tech debt visible? Does README match reality?"
                 fi
             elif [ "$TOOL_NAME" = "Bash" ]; then
-                BASH_CMD=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
+                BASH_CMD=$(extract_bash_command)
                 if echo "$BASH_CMD" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'; then
                     TRIGGER="test_run_complete"
                     L2_MSG="[Workflow Coach — COMPLETE] Be specific about validation failures. If a test fails, diagnose with quantified fix effort. Don't let failures be acknowledged without understanding consequences."
@@ -299,13 +304,13 @@ prompt = d.get('tool_input', {}).get('prompt', '')
 print(len(prompt))
 " 2>/dev/null || echo "999")
     if [ "$PROMPT_LEN" -lt 150 ]; then
-        L3_MSG="[Workflow Coach — ${PHASE^^}] Agent prompts must be detailed enough for autonomous work. Include: context, specific task, expected output format, constraints. Short prompts produce shallow results."
+        L3_MSG="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] Agent prompts must be detailed enough for autonomous work. Include: context, specific task, expected output format, constraints. Short prompts produce shallow results."
     fi
 fi
 
 # Check 2: Generic commit messages (< 30 chars)
 if [ "$TOOL_NAME" = "Bash" ]; then
-    COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
+    COMMAND=$(extract_bash_command)
     if echo "$COMMAND" | grep -qE 'git commit'; then
         COMMIT_MSG_LEN=$(echo "$COMMAND" | python3 -c "
 import sys, re
@@ -325,7 +330,7 @@ else:
         print(999)
 " 2>/dev/null || echo "999")
         if [ "$COMMIT_MSG_LEN" -lt 30 ]; then
-            L3_MSG="[Workflow Coach — ${PHASE^^}] Commit messages must explain why, not what. The diff shows what changed. Include context and reasoning."
+            L3_MSG="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] Commit messages must explain why, not what. The diff shows what changed. Include context and reasoning."
         fi
     fi
 fi
@@ -385,7 +390,7 @@ print(f'{len(text)} {\"true\" if project else \"false\"}')
 
     # 4b: Missing project field (any phase)
     if [ "$HAS_PROJECT" = "false" ]; then
-        PROJ_MSG="[Workflow Coach — ${PHASE^^}] save_observation called without project parameter. Always pass project to scope observations to this repo. Derive repo name: git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git\$/\1/' | sed 's/.*[:/]\([^/]*\)\$/\1/'"
+        PROJ_MSG="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] save_observation called without project parameter. Always pass project to scope observations to this repo. Derive repo name: git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git\$/\1/' | sed 's/.*[:/]\([^/]*\)\$/\1/'"
         if [ -n "$L3_MSG" ]; then
             L3_MSG="$L3_MSG
 
@@ -408,7 +413,7 @@ try:
 except Exception: print(0)
 " "$STATE_FILE" 2>/dev/null || echo "0")
     if [ "$COUNTER" -gt 10 ]; then
-        SKIP_MSG="[Workflow Coach — ${PHASE^^}] You're in a research phase but haven't dispatched background agents. Is this trivial enough to skip? State explicitly."
+        SKIP_MSG="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] You're in a research phase but haven't dispatched background agents. Is this trivial enough to skip? State explicitly."
         if [ -n "$L3_MSG" ]; then
             L3_MSG="$L3_MSG
 
@@ -436,7 +441,7 @@ try:
 except Exception: print('false')
 " "$STATE_FILE" 2>/dev/null || echo "false")
     if [ "$AGENTS_RETURNED" = "true" ]; then
-        L3_RECOMMEND="[Workflow Coach — ${PHASE^^}] Don't just list options. State which you recommend and why. The user needs your professional judgment, not a menu."
+        L3_RECOMMEND="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] Don't just list options. State which you recommend and why. The user needs your professional judgment, not a menu."
         if [ -n "$L3_MSG" ]; then
             L3_MSG="$L3_MSG
 
@@ -455,7 +460,7 @@ if [ "$PHASE" = "implement" ] || [ "$PHASE" = "review" ]; then
             VERIFY_COUNT=$((VERIFY_COUNT + 1))
             set_pending_verify "$VERIFY_COUNT"
             if [ "$VERIFY_COUNT" -ge 5 ]; then
-                VERIFY_MSG="[Workflow Coach — ${PHASE^^}] You've edited source code $VERIFY_COUNT times but haven't run tests or verification. Verify your changes before continuing."
+                VERIFY_MSG="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] You've edited source code $VERIFY_COUNT times but haven't run tests or verification. Verify your changes before continuing."
                 set_pending_verify 0
                 if [ -n "$L3_MSG" ]; then
                     L3_MSG="$L3_MSG
@@ -467,7 +472,7 @@ $VERIFY_MSG"
             fi
         fi
     elif [ "$TOOL_NAME" = "Bash" ]; then
-        BASH_CMD=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
+        BASH_CMD=$(extract_bash_command)
         if echo "$BASH_CMD" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'; then
             set_pending_verify 0
         fi

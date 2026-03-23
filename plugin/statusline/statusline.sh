@@ -10,14 +10,18 @@
 
 DATA=$(cat)
 
-# Parse fields
-MODEL=$(echo "$DATA" | jq -r '.model.display_name // "?"')
-USED_PCT=$(echo "$DATA" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1)
-USED_TOKENS=$(echo "$DATA" | jq -r '(.context_window.current_usage.input_tokens // 0) + (.context_window.current_usage.cache_creation_input_tokens // 0) + (.context_window.current_usage.cache_read_input_tokens // 0)')
-TOTAL_TOKENS=$(echo "$DATA" | jq -r '.context_window.context_window_size // 0')
-CWD=$(echo "$DATA" | jq -r '.cwd // ""')
-WORKTREE_NAME=$(echo "$DATA" | jq -r '.worktree.name // empty' 2>/dev/null)
-WORKTREE_BRANCH=$(echo "$DATA" | jq -r '.worktree.branch // empty' 2>/dev/null)
+# Parse fields (single jq call, tab-separated)
+IFS=$'\t' read -r MODEL USED_PCT USED_TOKENS TOTAL_TOKENS CWD WORKTREE_NAME WORKTREE_BRANCH < <(
+  echo "$DATA" | jq -r '[
+    (.model.display_name // "?"),
+    ((.context_window.used_percentage // 0) | floor | tostring),
+    (((.context_window.current_usage.input_tokens // 0) + (.context_window.current_usage.cache_creation_input_tokens // 0) + (.context_window.current_usage.cache_read_input_tokens // 0)) | tostring),
+    ((.context_window.context_window_size // 0) | tostring),
+    (.cwd // ""),
+    (.worktree.name // ""),
+    (.worktree.branch // "")
+  ] | @tsv'
+)
 
 # Colors
 RESET='\033[0m'
@@ -164,6 +168,19 @@ if [ -d "$CM_PLUGIN_DIR" ]; then
   if [ -f "$WM_STATE_FILE" ]; then
     CM_OBS_ID=$(grep -o '"last_observation_id"[[:space:]]*:[[:space:]]*[0-9]*' "$WM_STATE_FILE" | grep -o '[0-9]*$')
     [ -n "$CM_OBS_ID" ] && CM_SUFFIX=" ${CYAN}[#${CM_OBS_ID}]${RESET}"
+    # Tracked observations (tech debt, open issues, next steps)
+    CM_TRACKED=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        d = json.load(f)
+    obs = d.get('tracked_observations', [])
+    if obs:
+        print(','.join('#' + str(x) for x in obs))
+except Exception:
+    pass
+" "$WM_STATE_FILE" 2>/dev/null)
+    [ -n "$CM_TRACKED" ] && CM_SUFFIX+=" ${DIM}track:[${CM_TRACKED}]${RESET}"
   fi
   OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Claude-Mem ${CM_VERSION} ✓${RESET}${CM_SUFFIX}"
 else
