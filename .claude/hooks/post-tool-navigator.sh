@@ -17,19 +17,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/workflow-state.sh"
 
-# No state file = no enforcement
-if [ ! -f "$STATE_FILE" ]; then
-    exit 0
-fi
-
-PHASE=$(get_phase)
-
-# OFF phase = no coaching
-if [ "$PHASE" = "off" ]; then
-    exit 0
-fi
-
-# Read tool name and input from stdin
+# Read tool name and input from stdin (must happen before any early exits)
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null || echo "")
 
@@ -37,6 +25,7 @@ TOOL_NAME=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin);
 # Claude-mem observation ID tracking
 # Extracts observation ID from save_observation (dict response) or
 # get_observations (list response) and writes to workflow state.
+# Runs before phase checks so IDs are captured regardless of phase.
 # ---------------------------------------------------------------------------
 if echo "$TOOL_NAME" | grep -qE 'mcp.*(save_observation|get_observations)'; then
     # Determine extraction mode: save returns a dict, get returns a list
@@ -72,6 +61,18 @@ else:
     if [[ "$OBS_ID" =~ ^[0-9]+$ ]]; then
         set_last_observation_id "$OBS_ID"
     fi
+fi
+
+# No state file = no coaching enforcement
+if [ ! -f "$STATE_FILE" ]; then
+    exit 0
+fi
+
+PHASE=$(get_phase)
+
+# OFF phase = no coaching
+if [ "$PHASE" = "off" ]; then
+    exit 0
 fi
 
 # Collect messages from all layers — may combine multiple

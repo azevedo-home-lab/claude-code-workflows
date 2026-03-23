@@ -1297,6 +1297,41 @@ echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__get_observations","tool_i
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_last_observation_id)
 assert_eq "1234" "$RESULT" "hook captures observation ID from get_observations"
 
+# --- Observation ID tracking in OFF phase ---
+
+# Test: observation ID captured when phase is OFF + state file exists
+python3 -c "
+import json
+d = {'phase':'off','message_shown':False,'active_skill':'','decision_record':'','coaching':{'tool_calls_since_agent':0,'layer2_fired':[]},'autonomy_level':2}
+with open('$STATE_FILE','w') as f: json.dump(d,f,indent=2); f.write('\n')
+"
+echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"test"},"tool_response":{"content":[{"type":"text","text":"{\"id\":9999,\"success\":true}"}]}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1
+OBS_ID=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('last_observation_id',''))")
+assert_eq "9999" "$OBS_ID" "obs-tracking: ID captured when phase is OFF"
+
+# Test: observation ID captured when no state file exists
+rm -f "$STATE_FILE"
+echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"test"},"tool_response":{"content":[{"type":"text","text":"{\"id\":8888,\"success\":true}"}]}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1
+if [ -f "$STATE_FILE" ]; then
+    OBS_ID=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('last_observation_id',''))")
+    assert_eq "8888" "$OBS_ID" "obs-tracking: ID captured and state file created"
+else
+    assert_eq "exists" "missing" "obs-tracking: state file should have been created"
+fi
+
+# Test: observation ID still works in active phase (regression)
+python3 -c "
+import json
+d = {'phase':'discuss','message_shown':True,'active_skill':'','decision_record':'','coaching':{'tool_calls_since_agent':0,'layer2_fired':[]},'autonomy_level':2}
+with open('$STATE_FILE','w') as f: json.dump(d,f,indent=2); f.write('\n')
+"
+echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__get_observations","tool_input":{"ids":[1]},"tool_response":{"content":[{"type":"text","text":"[{\"id\":7777}]"}]}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1
+OBS_ID=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('last_observation_id',''))")
+assert_eq "7777" "$OBS_ID" "obs-tracking: ID captured in active phase (regression)"
+
 # --- Coaching refresh tests ---
 
 # Test: Layer 2 trigger fires normally (baseline)

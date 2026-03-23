@@ -128,11 +128,21 @@ except Exception:
 
 set_last_observation_id() {
     local obs_id="$1"
-    if [ ! -f "$STATE_FILE" ]; then
-        return
-    fi
+    mkdir -p "$STATE_DIR"
     local ts
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    if [ ! -f "$STATE_FILE" ]; then
+        # Create minimal state file for observation tracking
+        python3 -c "
+import json, sys
+obs_id, ts, filepath = sys.argv[1], sys.argv[2], sys.argv[3]
+state = {'phase': 'off', 'last_observation_id': int(obs_id) if obs_id else '', 'updated': ts}
+with open(filepath, 'w') as f:
+    json.dump(state, f, indent=2)
+    f.write('\n')
+" "$obs_id" "$ts" "$STATE_FILE"
+        return
+    fi
     python3 -c "
 import json, sys
 obs_id, ts, filepath = sys.argv[1], sys.argv[2], sys.argv[3]
