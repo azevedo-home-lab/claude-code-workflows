@@ -19,7 +19,7 @@ if ! command -v jq &>/dev/null; then
     echo "  macOS:  brew install jq" >&2
     echo "  Ubuntu: sudo apt-get install jq" >&2
     echo "  Other:  https://jqlang.github.io/jq/download/" >&2
-    return 1 2>/dev/null || exit 1
+    return 1 2>/dev/null || exit 1  # return when sourced, exit when run directly
 fi
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

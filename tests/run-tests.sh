@@ -421,8 +421,8 @@ setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 echo "NOT VALID JSON" > "$TEST_DIR/.claude/state/workflow.json"
 OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review" 2>&1 || true)
-# Should not crash — python3 try/except handles corrupt JSON
-assert_not_contains "$OUTPUT" "Traceback" "corrupt state file does not produce python traceback"
+# Should not crash — jq handles corrupt JSON gracefully via fallback defaults
+assert_not_contains "$OUTPUT" "HARD GATE" "corrupt state file does not trigger false gate block"
 
 # ============================================================
 # TEST SUITE: workflow-gate.sh
@@ -1940,6 +1940,14 @@ SYNC_OUTPUT=$(bash "$REPO_DIR/scripts/check-version-sync.sh" 2>&1)
 SYNC_EXIT=$?
 assert_eq "0" "$SYNC_EXIT" "Version sync check passes"
 assert_contains "$SYNC_OUTPUT" "All versions in sync" "Version sync reports success"
+
+# Test version mismatch detection
+ORIG_VERSION=$(jq -r '.version' "$REPO_DIR/plugin/.claude-plugin/plugin.json")
+jq '.version = "99.99.99"' "$REPO_DIR/plugin/.claude-plugin/plugin.json" > "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" && mv "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" "$REPO_DIR/plugin/.claude-plugin/plugin.json"
+MISMATCH_OUTPUT=$(bash "$REPO_DIR/scripts/check-version-sync.sh" 2>&1) && MISMATCH_EXIT=0 || MISMATCH_EXIT=$?
+jq --arg v "$ORIG_VERSION" '.version = $v' "$REPO_DIR/plugin/.claude-plugin/plugin.json" > "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" && mv "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" "$REPO_DIR/plugin/.claude-plugin/plugin.json"
+assert_eq "1" "$MISMATCH_EXIT" "Version sync detects mismatch"
+assert_contains "$MISMATCH_OUTPUT" "mismatch" "Version sync reports mismatch"
 
 # ============================================================
 # TEST SUITE: Tracked Observations Lifecycle

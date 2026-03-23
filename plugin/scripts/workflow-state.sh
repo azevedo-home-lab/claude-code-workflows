@@ -15,6 +15,7 @@ STATE_FILE="$STATE_DIR/workflow.json"
 # Generic state write helper. Atomic: writes to temp file, then mv.
 # Usage: _update_state <jq_filter> [--arg name val]... [--argjson name val]...
 _update_state() {
+    if [ ! -f "$STATE_FILE" ]; then return 1; fi
     local filter="$1"; shift
     local ts
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
