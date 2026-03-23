@@ -625,6 +625,7 @@ coaching = d.get('coaching', {'tool_calls_since_agent': 0, 'layer2_fired': []})
 fired = coaching.get('layer2_fired', [])
 fired.append(trigger_type)
 coaching['layer2_fired'] = fired
+coaching['last_layer2_at'] = coaching.get('tool_calls_since_agent', 0)
 d['coaching'] = coaching
 d['updated'] = ts
 with open(filepath, 'w') as f:
@@ -652,6 +653,31 @@ try:
 except Exception:
     print('false')
 " "$trigger_type" "$STATE_FILE" 2>/dev/null
+}
+
+# Check if Layer 2 coaching should be refreshed (30+ calls of silence)
+# Silently clears layer2_fired array if threshold exceeded — no stdout output
+# to avoid corrupting hook JSON stream.
+check_coaching_refresh() {
+    if [ ! -f "$STATE_FILE" ]; then return; fi
+    python3 -c "
+import json, sys
+filepath = sys.argv[1]
+with open(filepath, 'r') as f:
+    d = json.load(f)
+coaching = d.get('coaching', {})
+current = coaching.get('tool_calls_since_agent', 0)
+last_l2 = coaching.get('last_layer2_at', 0)
+if current - last_l2 >= 30:
+    coaching['layer2_fired'] = []
+    coaching['last_layer2_at'] = current
+    d['coaching'] = coaching
+    from datetime import datetime, timezone
+    d['updated'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    with open(filepath, 'w') as f:
+        json.dump(d, f, indent=2)
+        f.write('\n')
+" "$STATE_FILE" 2>/dev/null
 }
 
 # ---------------------------------------------------------------------------

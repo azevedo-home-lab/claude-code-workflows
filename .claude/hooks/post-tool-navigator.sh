@@ -171,6 +171,9 @@ esac
 
 # Only fire if Layer 1 has already fired (message_shown = true means we're past entry)
 if [ "$(get_message_shown)" = "true" ]; then
+    # Refresh Layer 2 triggers after 30 calls of silence (before counter reset)
+    check_coaching_refresh
+
     # Track agent dispatch counter
     if [ "$TOOL_NAME" = "Agent" ]; then
         reset_coaching_counter

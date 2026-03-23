@@ -1297,6 +1297,49 @@ echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__get_observations","tool_i
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_last_observation_id)
 assert_eq "1234" "$RESULT" "hook captures observation ID from get_observations"
 
+# --- Coaching refresh tests ---
+
+# Test: Layer 2 trigger fires normally (baseline)
+python3 -c "
+import json
+d = {'phase':'discuss','message_shown':True,'active_skill':'','decision_record':'','coaching':{'tool_calls_since_agent':0,'layer2_fired':[]},'autonomy_level':2}
+with open('$STATE_FILE','w') as f: json.dump(d,f,indent=2); f.write('\n')
+"
+echo '{"tool_name":"Agent","tool_input":{"prompt":"This is a test prompt with enough characters to avoid the short prompt check which requires at least 150 characters of content in the prompt field here"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
+FIRED=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('coaching',{}).get('layer2_fired',[]))")
+assert_contains "$FIRED" "agent_return_discuss" "coaching: Layer 2 trigger fires on Agent return"
+
+# Test: last_layer2_at is updated when trigger fires
+L2_AT=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('coaching',{}).get('last_layer2_at', 'NOT_SET'))")
+assert_eq "0" "$L2_AT" "coaching: last_layer2_at set when trigger fires"
+
+# Test: after 30 calls of silence, trigger can re-fire
+python3 -c "
+import json
+d = json.load(open('$STATE_FILE'))
+d['coaching']['tool_calls_since_agent'] = 31
+d['coaching']['last_layer2_at'] = 0
+with open('$STATE_FILE','w') as f: json.dump(d,f,indent=2); f.write('\n')
+"
+echo '{"tool_name":"Agent","tool_input":{"prompt":"This is another test prompt with enough characters to avoid the short prompt check which requires at least 150 characters of content in the prompt field here"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
+FIRED_COUNT=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('coaching',{}).get('layer2_fired',[]).count('agent_return_discuss'))")
+assert_eq "1" "$FIRED_COUNT" "coaching: trigger re-fires after 30 calls of silence"
+REFRESHED_AT=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('coaching',{}).get('last_layer2_at', 'NOT_SET'))")
+assert_eq "0" "$REFRESHED_AT" "coaching: last_layer2_at reset after refresh and re-fire"
+
+# Test: backward compat — state file without last_layer2_at field
+python3 -c "
+import json
+d = {'phase':'discuss','message_shown':True,'active_skill':'','decision_record':'','coaching':{'tool_calls_since_agent':5,'layer2_fired':[]},'autonomy_level':2}
+with open('$STATE_FILE','w') as f: json.dump(d,f,indent=2); f.write('\n')
+"
+echo '{"tool_name":"Agent","tool_input":{"prompt":"This is a backward compat test prompt with enough characters to avoid the short prompt check which requires at least 150 characters of content here"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
+RESULT=$?
+assert_eq "0" "$RESULT" "coaching: no crash without last_layer2_at field"
+
 # ============================================================
 # TEST SUITE: statusline.sh
 # ============================================================
