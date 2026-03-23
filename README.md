@@ -65,20 +65,24 @@ Installed separately with `--iterm` or `--yubikey` flags:
 - [Command Reference](docs/quick-reference/commands.md) — all commands
 - [Professional Standards](docs/reference/professional-standards.md) — behavioral expectations per phase
 
-## Install
+## Installation
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/install.sh | bash
+### As a Claude Code Plugin (recommended)
+
+Add the marketplace and install:
+```
+/plugin marketplace add azevedo-home-lab/claude-code-workflows
+/plugin install workflow-manager
 ```
 
-Or clone and install manually:
+The plugin auto-wires hooks, installs the statusline, and initializes project state. No manual configuration needed.
 
+### Migrating from install.sh
+
+If you previously installed via `install.sh`, run the migration tool first:
 ```bash
-git clone https://github.com/azevedo-home-lab/claude-code-workflows.git
-./claude-code-workflows/install.sh /path/to/your/project
+./install.sh
 ```
-
-Uninstall: `./uninstall.sh`
 
 If your project has a `CLAUDE.md`, review [`claude.md.template`](claude.md.template) and merge any relevant sections.
 

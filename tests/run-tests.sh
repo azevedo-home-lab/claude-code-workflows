@@ -1858,6 +1858,81 @@ assert_eq "1" "$EXIT_CODE" "exit code 1 when user aborts dangerous command"
 rm -rf "$MOCK_BIN"
 
 # ============================================================
+# TEST SUITE: Plugin Structure
+# ============================================================
+echo ""
+echo "=== Plugin Structure ==="
+
+# Verify all required plugin files exist
+assert_file_exists "$REPO_DIR/plugin/.claude-plugin/plugin.json" "plugin/.claude-plugin/plugin.json exists"
+assert_file_exists "$REPO_DIR/.claude-plugin/marketplace.json" ".claude-plugin/marketplace.json exists"
+assert_file_exists "$REPO_DIR/.claude-plugin/plugin.json" ".claude-plugin/plugin.json exists"
+assert_file_exists "$REPO_DIR/plugin/hooks/hooks.json" "plugin/hooks/hooks.json exists"
+assert_file_exists "$REPO_DIR/plugin/scripts/setup.sh" "plugin/scripts/setup.sh exists"
+assert_file_exists "$REPO_DIR/plugin/statusline/statusline.sh" "plugin/statusline/statusline.sh exists"
+assert_file_exists "$REPO_DIR/plugin/docs/reference/professional-standards.md" "plugin/docs/reference/professional-standards.md exists"
+
+# Verify all 6 commands exist in plugin
+for cmd in define discuss implement review complete autonomy; do
+    assert_file_exists "$REPO_DIR/plugin/commands/$cmd.md" "plugin/commands/$cmd.md exists"
+done
+
+# Verify all 5 scripts exist in plugin (plus setup.sh)
+for script in workflow-state.sh workflow-cmd.sh workflow-gate.sh bash-write-guard.sh post-tool-navigator.sh; do
+    assert_file_exists "$REPO_DIR/plugin/scripts/$script" "plugin/scripts/$script exists"
+done
+
+# Verify symlinks in .claude/hooks/ point to plugin/scripts/
+for script in workflow-state.sh workflow-cmd.sh workflow-gate.sh bash-write-guard.sh post-tool-navigator.sh; do
+    if [ -L "$REPO_DIR/.claude/hooks/$script" ]; then
+        echo -e "  ${GREEN}PASS${NC} .claude/hooks/$script is a symlink"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${RED}FAIL${NC} .claude/hooks/$script is a symlink"
+        FAIL=$((FAIL + 1))
+        ERRORS="$ERRORS\n  FAIL: .claude/hooks/$script is a symlink"
+    fi
+done
+
+# Verify symlinks in .claude/commands/ point to plugin/commands/
+for cmd in define discuss implement review complete autonomy; do
+    if [ -L "$REPO_DIR/.claude/commands/$cmd.md" ]; then
+        echo -e "  ${GREEN}PASS${NC} .claude/commands/$cmd.md is a symlink"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${RED}FAIL${NC} .claude/commands/$cmd.md is a symlink"
+        FAIL=$((FAIL + 1))
+        ERRORS="$ERRORS\n  FAIL: .claude/commands/$cmd.md is a symlink"
+    fi
+done
+
+# Verify commands no longer contain WF_DIR boilerplate
+for cmd in define discuss implement review complete autonomy; do
+    if grep -q 'CLAUDE_PROJECT_DIR.*git rev-parse' "$REPO_DIR/plugin/commands/$cmd.md" 2>/dev/null; then
+        echo -e "  ${RED}FAIL${NC} plugin/commands/$cmd.md has no WF_DIR boilerplate"
+        FAIL=$((FAIL + 1))
+        ERRORS="$ERRORS\n  FAIL: plugin/commands/$cmd.md has no WF_DIR boilerplate"
+    else
+        echo -e "  ${GREEN}PASS${NC} plugin/commands/$cmd.md has no WF_DIR boilerplate"
+        PASS=$((PASS + 1))
+    fi
+done
+
+# Verify hooks.json references CLAUDE_PLUGIN_ROOT
+assert_contains "$(cat "$REPO_DIR/plugin/hooks/hooks.json")" "CLAUDE_PLUGIN_ROOT" "hooks.json uses CLAUDE_PLUGIN_ROOT"
+
+# ============================================================
+# TEST SUITE: Version Sync
+# ============================================================
+echo ""
+echo "=== Version Sync ==="
+
+SYNC_OUTPUT=$(bash "$REPO_DIR/scripts/check-version-sync.sh" 2>&1)
+SYNC_EXIT=$?
+assert_eq "0" "$SYNC_EXIT" "Version sync check passes"
+assert_contains "$SYNC_OUTPUT" "All versions in sync" "Version sync reports success"
+
+# ============================================================
 # RESULTS
 # ============================================================
 echo ""

@@ -111,7 +111,7 @@ Sets phase to `discuss`. Code edits are blocked. Instructs Claude to use `brains
 
 ## Configuration
 
-Add to `.claude/settings.json`:
+Hooks are auto-wired when the plugin is installed. The configuration lives in `plugin/hooks/hooks.json`:
 
 ```json
 {
@@ -121,20 +121,22 @@ Add to `.claude/settings.json`:
         "matcher": "Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [{
           "type": "command",
-          "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-gate.sh"
+          "command": "${CLAUDE_PLUGIN_ROOT}/scripts/workflow-gate.sh"
         }]
       },
       {
         "matcher": "Bash",
         "hooks": [{
           "type": "command",
-          "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/bash-write-guard.sh"
+          "command": "${CLAUDE_PLUGIN_ROOT}/scripts/bash-write-guard.sh"
         }]
       }
     ]
   }
 }
 ```
+
+No manual `settings.json` configuration is required for end users.
 
 ## Coaching System (PostToolUse)
 

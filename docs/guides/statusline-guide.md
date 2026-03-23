@@ -40,32 +40,12 @@ Sonnet  │  ▓▓▓▓▓▓░░░░ 65%  │   feature/auth  ⊟ auth-wo
 
 ## Installation
 
-### 1. Copy the script
-
-```bash
-cp statusline/statusline.sh ~/.claude/statusline.sh
-chmod +x ~/.claude/statusline.sh
+The status line is bundled with the plugin and installed automatically when you run:
+```
+/plugin install workflow-manager
 ```
 
-### 2. Add to Claude Code settings
-
-Add the `statusLine` block to `~/.claude/settings.json`:
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/statusline.sh",
-    "padding": 2
-  }
-}
-```
-
-See [`statusline/settings.json.example`](../../statusline/settings.json.example) for reference.
-
-### 3. Restart Claude Code
-
-The status line appears on the next session (or may pick up immediately).
+No manual copying or settings.json configuration needed. The status line appears on the next session.
 
 ## Testing
 
