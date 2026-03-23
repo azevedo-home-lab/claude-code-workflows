@@ -22,6 +22,7 @@ _safe_write() {
     size=$(wc -c < "$tmpfile")
     if [ "$size" -eq 0 ]; then
         rm -f "$tmpfile"
+        echo "ERROR: State file write rejected (zero bytes — possible jq failure)." >&2
         return 1
     fi
     if [ "$size" -gt 10240 ]; then
@@ -43,9 +44,11 @@ _update_state() {
     local filter="$1"; shift
     local ts
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    jq --arg ts "$ts" "$@" \
-        "$filter | .updated = \$ts" \
-        "$STATE_FILE" | _safe_write
+    ( set -o pipefail
+      jq --arg ts "$ts" "$@" \
+          "$filter | .updated = \$ts" \
+          "$STATE_FILE" | _safe_write
+    )
 }
 
 # Restrictive tier: DEFINE and DISCUSS phases

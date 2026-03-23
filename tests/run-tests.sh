@@ -1993,8 +1993,9 @@ setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh"
 set_phase "off"
 ORIGINAL=$(cat "$STATE_FILE")
-printf '' | _safe_write 2>/dev/null && ZERO_SW_EXIT=0 || ZERO_SW_EXIT=$?
+ZERO_SW_ERR=$(printf '' | _safe_write 2>&1) && ZERO_SW_EXIT=0 || ZERO_SW_EXIT=$?
 assert_eq "1" "$ZERO_SW_EXIT" "_safe_write: rejects zero-byte input"
+assert_contains "$ZERO_SW_ERR" "zero bytes" "_safe_write: zero-byte error message"
 TMP_FILES=$(find "$STATE_DIR" -name '*.tmp.*' 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "0" "$TMP_FILES" "_safe_write: no temp files left after zero-byte rejection"
 AFTER=$(cat "$STATE_FILE")
@@ -2024,6 +2025,15 @@ set_phase "off"
 jq '.phase = null' "$STATE_FILE" > "$STATE_FILE.tmp.test" && mv "$STATE_FILE.tmp.test" "$STATE_FILE"
 RESULT=$(get_phase)
 assert_eq "off" "$RESULT" "phase enum guard: null phase returns off"
+
+# Test: _update_state failure propagates through callers
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+set_phase "off"
+chmod 000 "$STATE_DIR"
+SET_ERR=$(set_autonomy_level 3 2>&1) && SET_EXIT=0 || SET_EXIT=$?
+chmod 755 "$STATE_DIR"
+assert_eq "1" "$SET_EXIT" "failure propagation: set_autonomy_level returns non-zero on write failure"
 
 # ============================================================
 # TEST SUITE: Completion Snapshot (Loop-back Exception)
