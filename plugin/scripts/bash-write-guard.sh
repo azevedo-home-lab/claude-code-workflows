@@ -105,12 +105,12 @@ fi
 # ---------------------------------------------------------------------------
 
 AUTONOMY_LEVEL=$(get_autonomy_level)
-if [ "$AUTONOMY_LEVEL" = "1" ]; then
+if [ "$AUTONOMY_LEVEL" = "off" ]; then
     if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ]; then
-        emit_deny "BLOCKED: ▶ Level 1 (supervised) — read-only mode. No Bash write operations allowed. Run /autonomy 2 to enable writes."
+        emit_deny "BLOCKED: ▶ Supervised (off) — read-only mode. No Bash write operations allowed. Run /autonomy ask to enable writes."
         exit 0
     fi
-    # Read-only Bash commands allowed at Level 1
+    # Read-only Bash commands allowed at autonomy off
     exit 0
 fi
 

@@ -134,14 +134,14 @@ if [ -f "$WM_SOURCE_JSON" ] || [ -d "$WM_PLUGIN_DIR" ]; then
   # Show phase if state file exists
   if [ -f "$WM_STATE_FILE" ]; then
     WM_PHASE=$(grep -o '"phase"[[:space:]]*:[[:space:]]*"[^"]*"' "$WM_STATE_FILE" | grep -o '"[^"]*"$' | tr -d '"')
-    WM_AUTONOMY=$(grep -o '"autonomy_level"[[:space:]]*:[[:space:]]*[0-9]*' "$WM_STATE_FILE" | grep -o '[0-9]*$')
+    WM_AUTONOMY=$(grep -o '"autonomy_level"[[:space:]]*:[[:space:]]*"[^"]*"' "$WM_STATE_FILE" | grep -o '"[^"]*"$' | tr -d '"')
     # Autonomy symbol (only when phase is not OFF and level is set)
     AUTONOMY_SYM=""
     if [ "$WM_PHASE" != "off" ] && [ -n "$WM_AUTONOMY" ]; then
       case "$WM_AUTONOMY" in
-        1) AUTONOMY_SYM="▶ " ;;
-        2) AUTONOMY_SYM="▶▶ " ;;
-        3) AUTONOMY_SYM="▶▶▶ " ;;
+        off) AUTONOMY_SYM="▶ " ;;
+        ask) AUTONOMY_SYM="▶▶ " ;;
+        auto) AUTONOMY_SYM="▶▶▶ " ;;
       esac
     fi
     if [ "$WM_PHASE" = "off" ]; then

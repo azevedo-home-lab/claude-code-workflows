@@ -101,26 +101,26 @@ get_phase() {
 
 get_autonomy_level() {
     if [ ! -f "$STATE_FILE" ]; then
-        echo "2"
+        echo "ask"
         return
     fi
     local level
-    level=$(jq -r '.autonomy_level // 2' "$STATE_FILE" 2>/dev/null) || level="2"
-    [ -z "$level" ] && level="2"
+    level=$(jq -r '.autonomy_level // "ask"' "$STATE_FILE" 2>/dev/null) || level="ask"
+    [ -z "$level" ] && level="ask"
     echo "$level"
 }
 
 set_autonomy_level() {
     local level="$1"
     case "$level" in
-        1|2|3) ;;
-        *) echo "ERROR: Invalid autonomy level: $level (valid: 1, 2, 3)" >&2; return 1 ;;
+        off|ask|auto) ;;
+        *) echo "ERROR: Invalid autonomy level: $level (valid: off, ask, auto)" >&2; return 1 ;;
     esac
     if [ ! -f "$STATE_FILE" ]; then
         echo "WARNING: No workflow state file. Start a workflow phase first (e.g., /define)." >&2
         return 1
     fi
-    _update_state '.autonomy_level = $v' --argjson v "$level"
+    _update_state '.autonomy_level = $v' --arg v "$level"
 }
 
 # ---------------------------------------------------------------------------
@@ -146,8 +146,8 @@ set_last_observation_id() {
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     if [ ! -f "$STATE_FILE" ]; then
         # Create minimal state file for observation tracking
-        jq -n --argjson id "$obs_id" --arg ts "$ts" \
-            '{"phase": "off", "last_observation_id": $id, "updated": $ts}' | _safe_write
+        ( set -o pipefail; jq -n --argjson id "$obs_id" --arg ts "$ts" \
+            '{"phase": "off", "last_observation_id": $id, "updated": $ts}' | _safe_write )
         return $?
     fi
     _update_state '.last_observation_id = $id' --argjson id "$obs_id"
@@ -173,11 +173,11 @@ set_tracked_observations() {
     local ts
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     if [ ! -f "$STATE_FILE" ]; then
-        jq -n --arg ids "$ids_csv" --arg ts "$ts" \
-            '{"phase": "off", "tracked_observations": (if $ids == "" then [] else ($ids | split(",") | map(select(. != "") | tonumber)) end), "updated": $ts}' | _safe_write
+        ( set -o pipefail; jq -n --arg ids "$ids_csv" --arg ts "$ts" \
+            '{"phase": "off", "tracked_observations": (if $ids == "" then [] else ($ids | split(",") | map(select(. != "") | (tonumber? // empty))) end), "updated": $ts}' | _safe_write )
         return $?
     fi
-    _update_state '.tracked_observations = (if $ids == "" then [] else ($ids | split(",") | map(select(. != "") | tonumber)) end)' --arg ids "$ids_csv"
+    _update_state '.tracked_observations = (if $ids == "" then [] else ($ids | split(",") | map(select(. != "") | (tonumber? // empty))) end)' --arg ids "$ids_csv"
 }
 
 add_tracked_observation() {
@@ -187,8 +187,8 @@ add_tracked_observation() {
     local ts
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     if [ ! -f "$STATE_FILE" ]; then
-        jq -n --argjson id "$obs_id" --arg ts "$ts" \
-            '{"phase": "off", "tracked_observations": [$id], "updated": $ts}' | _safe_write
+        ( set -o pipefail; jq -n --argjson id "$obs_id" --arg ts "$ts" \
+            '{"phase": "off", "tracked_observations": [$id], "updated": $ts}' | _safe_write )
         return $?
     fi
     _update_state '.tracked_observations = ((.tracked_observations // []) + [$id] | unique)' --argjson id "$obs_id"
@@ -296,19 +296,19 @@ set_phase() {
         preserved_autonomy=""
     fi
 
-    # Initialize autonomy_level to 2 when transitioning from OFF to active phase.
+    # Initialize autonomy_level to "ask" when transitioning from OFF to active phase.
     # Note: this guard only fires on the very first set_phase call (no state file yet),
-    # because get_autonomy_level returns "2" as default when a file exists.
+    # because get_autonomy_level returns "ask" as default when a file exists.
     # After set_phase("off") clears autonomy_level, the next get_autonomy_level still
-    # returns "2" (default), so preserved_autonomy is never empty in normal cycling.
+    # returns "ask" (default), so preserved_autonomy is never empty in normal cycling.
     if [ "$current_phase" = "off" ] && [ "$new_phase" != "off" ] && [ -z "$preserved_autonomy" ]; then
-        preserved_autonomy="2"
+        preserved_autonomy="ask"
     fi
 
     # Build tracked observations as JSON array
     local tracked_json="[]"
     if [ -n "$preserved_tracked" ]; then
-        tracked_json=$(jq -n --arg csv "$preserved_tracked" '$csv | split(",") | map(select(. != "") | tonumber)')
+        tracked_json=$(jq -n --arg csv "$preserved_tracked" '$csv | split(",") | map(select(. != "") | (tonumber? // empty))')
     fi
 
     # Build the new state: preserve active_skill, decision_record, and autonomy_level,
@@ -320,25 +320,27 @@ set_phase() {
     local ts
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-    jq -n --arg phase "$new_phase" --arg ts "$ts" \
-        --arg skill "$preserved_skill" --arg decision "$preserved_decision" \
-        --argjson autonomy "${preserved_autonomy:-null}" \
-        --arg obs_id "$preserved_obs_id" \
-        --argjson tracked "$tracked_json" \
-        --argjson snapshot "$snapshot_json" \
-        '{
-            phase: $phase,
-            message_shown: false,
-            active_skill: $skill,
-            decision_record: $decision,
-            coaching: {tool_calls_since_agent: 0, layer2_fired: []},
-            updated: $ts
-        }
-        + (if $autonomy != null then {autonomy_level: $autonomy} else {} end)
-        + (if $obs_id != "" and $obs_id != "null" then {last_observation_id: ($obs_id | tonumber)} else {} end)
-        + (if ($tracked | length) > 0 then {tracked_observations: $tracked} else {} end)
-        + (if $snapshot != null then {completion_snapshot: $snapshot} else {} end)' \
-        | _safe_write
+    ( set -o pipefail
+      jq -n --arg phase "$new_phase" --arg ts "$ts" \
+          --arg skill "$preserved_skill" --arg decision "$preserved_decision" \
+          --arg autonomy "${preserved_autonomy}" \
+          --arg obs_id "$preserved_obs_id" \
+          --argjson tracked "$tracked_json" \
+          --argjson snapshot "$snapshot_json" \
+          '{
+              phase: $phase,
+              message_shown: false,
+              active_skill: $skill,
+              decision_record: $decision,
+              coaching: {tool_calls_since_agent: 0, layer2_fired: []},
+              updated: $ts
+          }
+          + (if $autonomy != "" then {autonomy_level: $autonomy} else {} end)
+          + (if $obs_id != "" and $obs_id != "null" then {last_observation_id: ($obs_id | tonumber)} else {} end)
+          + (if ($tracked | length) > 0 then {tracked_observations: $tracked} else {} end)
+          + (if $snapshot != null then {completion_snapshot: $snapshot} else {} end)' \
+          | _safe_write
+    )
 }
 
 get_message_shown() {

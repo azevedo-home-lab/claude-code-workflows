@@ -29,11 +29,11 @@ case "$PHASE" in
     off) exit 0 ;;
 esac
 
-# Autonomy Level 1: block ALL writes regardless of phase
+# Autonomy off: block ALL writes regardless of phase
 AUTONOMY_LEVEL=$(get_autonomy_level)
-if [ "$AUTONOMY_LEVEL" = "1" ]; then
+if [ "$AUTONOMY_LEVEL" = "off" ]; then
     cat > /dev/null  # consume stdin
-    emit_deny "BLOCKED: ▶ Level 1 (supervised) — read-only mode. No file writes allowed. Run /autonomy 2 to enable writes."
+    emit_deny "BLOCKED: ▶ Supervised (off) — read-only mode. No file writes allowed. Run /autonomy ask to enable writes."
     exit 0
 fi
 

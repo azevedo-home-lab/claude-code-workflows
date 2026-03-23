@@ -242,31 +242,31 @@ assert_eq "" "$RESULT" "get_review_field returns empty when no file"
 
 # --- Autonomy level management ---
 
-# Test: get_autonomy_level returns default 2 when no state file
+# Test: get_autonomy_level returns default "ask" when no state file
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
-assert_eq "2" "$RESULT" "get_autonomy_level defaults to 2 when no state file"
+assert_eq "ask" "$RESULT" "get_autonomy_level defaults to ask when no state file"
 
-# Test: get_autonomy_level returns default 2 for old-format workflow.json (backward compat)
+# Test: get_autonomy_level returns default "ask" for old-format workflow.json (backward compat)
 setup_test_project
 # Create a workflow.json WITHOUT autonomy_level (simulates pre-feature state file)
 echo '{"phase": "implement", "message_shown": true, "active_skill": "", "decision_record": "", "coaching": {"tool_calls_since_agent": 0, "layer2_fired": []}, "updated": "2026-03-22T00:00:00Z"}' > "$TEST_DIR/.claude/state/workflow.json"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
-assert_eq "2" "$RESULT" "get_autonomy_level defaults to 2 for old-format state file (backward compat)"
+assert_eq "ask" "$RESULT" "get_autonomy_level defaults to ask for old-format state file (backward compat)"
 
 # Test: set_autonomy_level accepts valid values
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level off
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
-assert_eq "1" "$RESULT" "set_autonomy_level sets level to 1"
+assert_eq "off" "$RESULT" "set_autonomy_level sets level to off"
 
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level ask
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
-assert_eq "2" "$RESULT" "set_autonomy_level sets level to 2"
+assert_eq "ask" "$RESULT" "set_autonomy_level sets level to ask"
 
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level auto
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
-assert_eq "3" "$RESULT" "set_autonomy_level sets level to 3"
+assert_eq "auto" "$RESULT" "set_autonomy_level sets level to auto"
 
 # Test: set_autonomy_level rejects invalid values
 OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 0 2>&1 || true)
@@ -276,35 +276,35 @@ OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_leve
 assert_contains "$OUTPUT" "ERROR" "set_autonomy_level rejects 4"
 
 OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level abc 2>&1 || true)
-assert_contains "$OUTPUT" "ERROR" "set_autonomy_level rejects non-numeric input"
+assert_contains "$OUTPUT" "ERROR" "set_autonomy_level rejects invalid input"
 
 # Test: autonomy_level preserved across set_phase transitions
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level auto
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
-assert_eq "3" "$RESULT" "autonomy_level preserved across phase transitions"
+assert_eq "auto" "$RESULT" "autonomy_level preserved across phase transitions"
 
-# Test: set_phase from OFF initializes autonomy_level to 2
+# Test: set_phase from OFF initializes autonomy_level to ask
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "define"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
-assert_eq "2" "$RESULT" "set_phase from OFF initializes autonomy_level to 2"
+assert_eq "ask" "$RESULT" "set_phase from OFF initializes autonomy_level to ask"
 
 # Test: set_phase("off") clears autonomy_level
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level auto
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
-assert_eq "2" "$RESULT" "set_phase off clears autonomy_level (returns default 2)"
+assert_eq "ask" "$RESULT" "set_phase off clears autonomy_level (returns default ask)"
 
 # Test: set_autonomy_level warns and returns 1 when no state file
 setup_test_project
 rm -f "$TEST_DIR/.claude/state/workflow.json"
-OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2 2>&1 || true)
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level ask 2>&1 || true)
 assert_contains "$OUTPUT" "WARNING" "set_autonomy_level warns when no state file"
 assert_file_not_exists "$TEST_DIR/.claude/state/workflow.json" "set_autonomy_level does not create state file"
 
@@ -526,49 +526,49 @@ assert_contains "$OUTPUT" "deny" "blocks path traversal via ../ in normalized pa
 # Test: Level 1 blocks Write in IMPLEMENT phase (normally allowed)
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level off
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_contains "$OUTPUT" "deny" "Level 1 blocks Write in IMPLEMENT phase"
 
 # Test: Level 1 denial message mentions /autonomy
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level off
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_contains "$OUTPUT" "/autonomy" "Level 1 deny message mentions /autonomy command"
 
 # Test: Level 1 does NOT block writes when phase is OFF
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
-jq '.autonomy_level = 1' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
+jq '.autonomy_level = "off"' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_not_contains "$OUTPUT" "deny" "Level 1 does NOT block writes when phase is OFF"
 
 # Test: Level 2 allows writes in IMPLEMENT (current behavior)
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level ask
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_not_contains "$OUTPUT" "deny" "Level 2 allows writes in IMPLEMENT"
 
 # Test: Level 3 allows writes in IMPLEMENT (current behavior)
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level auto
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_not_contains "$OUTPUT" "deny" "Level 3 allows writes in IMPLEMENT"
 
 # Test: Level 2 still blocks writes in DISCUSS (phase gate preserved)
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level ask
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_contains "$OUTPUT" "deny" "Level 2 blocks writes in DISCUSS (phase gate)"
 
 # Test: Level 3 still blocks writes in DISCUSS (phase gate preserved)
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level auto
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_contains "$OUTPUT" "deny" "Level 3 blocks writes in DISCUSS (phase gate)"
 
@@ -730,7 +730,7 @@ assert_contains "$OUTPUT" "deny" "blocks path traversal in cp target"
 # Test: Level 1 blocks Bash write in IMPLEMENT phase
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level off
 OUTPUT=$(run_bash_guard 'echo data > output.txt')
 assert_contains "$OUTPUT" "deny" "Level 1 blocks Bash write in IMPLEMENT phase"
 
@@ -740,35 +740,35 @@ assert_contains "$OUTPUT" "/autonomy" "Level 1 bash deny message mentions /auton
 # Test: Level 2 allows Bash write in IMPLEMENT
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level ask
 OUTPUT=$(run_bash_guard 'echo data > output.txt')
 assert_not_contains "$OUTPUT" "deny" "Level 2 allows Bash write in IMPLEMENT"
 
 # Test: Level 3 allows Bash write in IMPLEMENT
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level auto
 OUTPUT=$(run_bash_guard 'echo data > output.txt')
 assert_not_contains "$OUTPUT" "deny" "Level 3 allows Bash write in IMPLEMENT"
 
 # Test: Level 2 still blocks Bash write in DISCUSS (phase gate preserved)
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level ask
 OUTPUT=$(run_bash_guard 'echo data > output.txt')
 assert_contains "$OUTPUT" "deny" "Level 2 blocks Bash write in DISCUSS (phase gate)"
 
 # Test: Level 1 allows read-only Bash commands in IMPLEMENT
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level off
 OUTPUT=$(run_bash_guard 'ls -la')
 assert_not_contains "$OUTPUT" "deny" "Level 1 allows read-only Bash in IMPLEMENT"
 
 # Test: Level 1 rejects chained workflow-state command (bypass attempt)
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level off
 OUTPUT=$(run_bash_guard 'source .claude/hooks/workflow-state.sh && echo pwned > evil.txt')
 assert_contains "$OUTPUT" "deny" "Level 1 blocks chained workflow-state bypass"
 
@@ -777,7 +777,7 @@ assert_contains "$OUTPUT" "deny" "Level 1 blocks chained workflow-state bypass"
 # Test: git commit with HEREDOC allowed in DISCUSS
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level ask
 RESULT=$(echo '{"tool_input":{"command":"git commit -m \"$(cat <<'"'"'EOF'"'"'\nfeat: something\nEOF\n)\""}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
 assert_eq "" "$RESULT" "bash-guard: git commit with HEREDOC allowed in DISCUSS"
@@ -795,13 +795,13 @@ assert_contains "$RESULT" "deny" "bash-guard: git commit && rm blocked"
 # Test: git commit allowed at Level 1
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level off
 RESULT=$(echo '{"tool_input":{"command":"git commit -m \"feat: something\""}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
 assert_eq "" "$RESULT" "bash-guard: git commit allowed at Level 1"
 
 # Test: /usr/bin/git commit allowed (full path)
-jq '.autonomy_level = 2' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+jq '.autonomy_level = "ask"' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
 RESULT=$(echo '{"tool_input":{"command":"/usr/bin/git commit -m \"docs: test\""}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
 assert_eq "" "$RESULT" "bash-guard: /usr/bin/git commit allowed (full path)"
@@ -811,7 +811,7 @@ assert_eq "" "$RESULT" "bash-guard: /usr/bin/git commit allowed (full path)"
 # Ensure we're in discuss phase for these tests
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-jq '.autonomy_level = 2' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
+jq '.autonomy_level = "ask"' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 
 # Test: multi-line python3 with open() blocked in DISCUSS
 RESULT=$(printf '{"tool_input":{"command":"python3 -c \\\"\\nimport json\\nwith open('"'"'f'"'"','"'"'w'"'"') as fh:\\n  fh.write('"'"'x'"'"')\\n\\\""}}' | \
@@ -921,7 +921,7 @@ assert_contains "$RESULT" "deny" "bash-guard: rsync blocked in DISCUSS"
 # Regression: all new patterns allowed in IMPLEMENT
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-jq '.autonomy_level = 2' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
+jq '.autonomy_level = "ask"' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 RESULT=$(echo '{"tool_input":{"command":"eval \"echo hello\""}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
 assert_eq "" "$RESULT" "bash-guard: eval allowed in IMPLEMENT"
@@ -931,7 +931,7 @@ RESULT=$(echo '{"tool_input":{"command":"touch newfile.txt"}}' | \
 assert_eq "" "$RESULT" "bash-guard: touch allowed in IMPLEMENT"
 
 # Regression: multi-line python3 blocked at Level 1 even in IMPLEMENT
-jq '.autonomy_level = 1' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
+jq '.autonomy_level = "off"' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 RESULT=$(printf '{"tool_input":{"command":"python3 -c \\\"\\nwith open('"'"'f'"'"','"'"'w'"'"') as fh:\\n  fh.write('"'"'x'"'"')\\n\\\""}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
 assert_contains "$RESULT" "deny" "bash-guard: python3 write blocked at Level 1 in IMPLEMENT"
@@ -1200,7 +1200,7 @@ assert_contains "$OUTPUT" "specific about validation failures" "Layer 2 fires on
 # Test: Level 3 coaching includes auto-transition guidance
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level auto
 cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 jq '.message_shown = false' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/project/src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
@@ -1210,7 +1210,7 @@ assert_contains "$OUTPUT" "proceed" "Level 3 coaching includes auto-transition g
 # Test: Level 2 coaching does NOT include auto-transition guidance
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level ask
 cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 jq '.message_shown = false' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/project/src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
@@ -1477,7 +1477,7 @@ rm -rf "$SL_COMPLETE_DIR"
 # Test: Level 1 renders ▶ before phase
 SL_AUTO1_DIR=$(mktemp -d)
 mkdir -p "$SL_AUTO1_DIR/.claude/state"
-echo '{"phase": "implement", "autonomy_level": 1, "message_shown": false, "active_skill": ""}' > "$SL_AUTO1_DIR/.claude/state/workflow.json"
+echo '{"phase": "implement", "autonomy_level": "off", "message_shown": false, "active_skill": ""}' > "$SL_AUTO1_DIR/.claude/state/workflow.json"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_AUTO1_DIR\"}")
 assert_contains "$OUTPUT" "▶ " "statusline shows ▶ for Level 1"
 assert_contains "$OUTPUT" "IMPLEMENT" "statusline still shows phase at Level 1"
@@ -1486,7 +1486,7 @@ rm -rf "$SL_AUTO1_DIR"
 # Test: Level 2 renders ▶▶ before phase
 SL_AUTO2_DIR=$(mktemp -d)
 mkdir -p "$SL_AUTO2_DIR/.claude/state"
-echo '{"phase": "discuss", "autonomy_level": 2, "message_shown": false, "active_skill": ""}' > "$SL_AUTO2_DIR/.claude/state/workflow.json"
+echo '{"phase": "discuss", "autonomy_level": "ask", "message_shown": false, "active_skill": ""}' > "$SL_AUTO2_DIR/.claude/state/workflow.json"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_AUTO2_DIR\"}")
 assert_contains "$OUTPUT" "▶▶ " "statusline shows ▶▶ for Level 2"
 rm -rf "$SL_AUTO2_DIR"
@@ -1494,7 +1494,7 @@ rm -rf "$SL_AUTO2_DIR"
 # Test: Level 3 renders ▶▶▶ before phase
 SL_AUTO3_DIR=$(mktemp -d)
 mkdir -p "$SL_AUTO3_DIR/.claude/state"
-echo '{"phase": "review", "autonomy_level": 3, "message_shown": false, "active_skill": ""}' > "$SL_AUTO3_DIR/.claude/state/workflow.json"
+echo '{"phase": "review", "autonomy_level": "auto", "message_shown": false, "active_skill": ""}' > "$SL_AUTO3_DIR/.claude/state/workflow.json"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_AUTO3_DIR\"}")
 assert_contains "$OUTPUT" "▶▶▶ " "statusline shows ▶▶▶ for Level 3"
 rm -rf "$SL_AUTO3_DIR"
@@ -1522,7 +1522,7 @@ rm -rf "$SL_AUTOABS_DIR"
 # Test: statusline shows observation ID when present
 SL_OBS_DIR=$(mktemp -d)
 mkdir -p "$SL_OBS_DIR/.claude/state"
-echo '{"phase": "implement", "autonomy_level": 2, "last_observation_id": 3007, "message_shown": true, "active_skill": ""}' > "$SL_OBS_DIR/.claude/state/workflow.json"
+echo '{"phase": "implement", "autonomy_level": "ask", "last_observation_id": 3007, "message_shown": true, "active_skill": ""}' > "$SL_OBS_DIR/.claude/state/workflow.json"
 OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_OBS_DIR\",\"mcp_servers\":[\"claude-mem\"]}")
 assert_contains "$OUTPUT" "[#3007]" "statusline shows observation ID in brackets when present"
 assert_contains "$OUTPUT" "Claude-Mem" "statusline still shows Claude-Mem label"
@@ -1943,6 +1943,14 @@ assert_eq "3416" "$(get_tracked_observations)" "tracked observations preserved: 
 set_phase "off"
 assert_eq "3416" "$(get_tracked_observations)" "tracked observations preserved: implement → off"
 
+# Test: set_tracked_observations skips non-numeric CSV elements
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+set_phase "implement"
+set_tracked_observations "1,abc,3"
+RESULT=$(get_tracked_observations)
+assert_eq "1,3" "$RESULT" "set_tracked_observations skips non-numeric CSV elements"
+
 # ============================================================
 # TEST SUITE: _update_state Safety Guards
 # ============================================================
@@ -1974,7 +1982,7 @@ assert_eq "off" "$PHASE_AFTER" "jq failure: state file unchanged"
 PHASE_ZERO=$(get_phase)
 assert_eq "off" "$PHASE_ZERO" "zero-byte state: get_phase returns off"
 LEVEL_ZERO=$(get_autonomy_level)
-assert_eq "2" "$LEVEL_ZERO" "zero-byte state: get_autonomy_level returns 2"
+assert_eq "ask" "$LEVEL_ZERO" "zero-byte state: get_autonomy_level returns ask"
 MSG_ZERO=$(get_message_shown)
 assert_eq "false" "$MSG_ZERO" "zero-byte state: get_message_shown returns false"
 
@@ -2031,7 +2039,7 @@ setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh"
 set_phase "off"
 chmod 000 "$STATE_DIR"
-SET_ERR=$(set_autonomy_level 3 2>&1) && SET_EXIT=0 || SET_EXIT=$?
+SET_ERR=$(set_autonomy_level ask 2>&1) && SET_EXIT=0 || SET_EXIT=$?
 chmod 755 "$STATE_DIR"
 assert_eq "1" "$SET_EXIT" "failure propagation: set_autonomy_level returns non-zero on write failure"
 

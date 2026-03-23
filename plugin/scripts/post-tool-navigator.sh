@@ -112,7 +112,7 @@ Done when: Validation results in decision record, README checked, claude-mem obs
         esac
         # Append Level 3 auto-transition guidance if applicable
         AUTONOMY_LEVEL=$(get_autonomy_level)
-        if [ "$AUTONOMY_LEVEL" = "3" ] && [ -n "$MESSAGES" ]; then
+        if [ "$AUTONOMY_LEVEL" = "auto" ] && [ -n "$MESSAGES" ]; then
             MESSAGES="$MESSAGES
 ▶▶▶ Level 3 active — when this phase's work is complete, proceed to the next phase without waiting for user confirmation. Exceptions: stop for user input in DISCUSS/DEFINE, stop before git push, stop if review finds blocking issues."
         fi

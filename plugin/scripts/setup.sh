@@ -35,6 +35,9 @@ STATE_FILE="$STATE_DIR/workflow.json"
 # Create state directory
 mkdir -p "$STATE_DIR"
 
+# Clean up stale temp files from interrupted writes (older than 5 minutes)
+find "$STATE_DIR" -name '*.tmp.*' -mmin +5 -delete 2>/dev/null || true
+
 # Write default workflow.json if it doesn't exist
 if [ ! -f "$STATE_FILE" ]; then
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -48,7 +51,7 @@ if [ ! -f "$STATE_FILE" ]; then
       layer2_fired: []
     },
     updated: $ts,
-    autonomy_level: 2
+    autonomy_level: "ask"
   }' > "$STATE_FILE"
 fi
 
