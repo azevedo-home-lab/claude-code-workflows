@@ -800,6 +800,130 @@ RESULT=$(echo '{"tool_input":{"command":"git commit -m \"feat: something\""}}' |
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
 assert_eq "" "$RESULT" "bash-guard: git commit allowed at Level 1"
 
+# --- Item 8: Write guard hardening ---
+
+# Ensure we're in discuss phase for these tests
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+python3 -c "import json; d=json.load(open('$TEST_DIR/.claude/state/workflow.json')); d['autonomy_level']=2; json.dump(d,open('$TEST_DIR/.claude/state/workflow.json','w'),indent=2)"
+
+# Test: multi-line python3 with open() blocked in DISCUSS
+RESULT=$(printf '{"tool_input":{"command":"python3 -c \\\"\\nimport json\\nwith open('"'"'f'"'"','"'"'w'"'"') as fh:\\n  fh.write('"'"'x'"'"')\\n\\\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: multi-line python3 open() blocked in DISCUSS"
+
+# Test: multi-line python3 with shutil blocked
+RESULT=$(printf '{"tool_input":{"command":"python3 -c \\\"\\nimport shutil\\nshutil.copy('"'"'a'"'"','"'"'b'"'"')\\n\\\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: multi-line python3 shutil blocked"
+
+# Test: multi-line python3 with subprocess blocked
+RESULT=$(printf '{"tool_input":{"command":"python3 -c \\\"\\nimport subprocess\\nsubprocess.run(['"'"'cp'"'"','"'"'a'"'"','"'"'b'"'"'])\\n\\\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: multi-line python3 subprocess blocked"
+
+# Test: multi-line python3 with os.system blocked
+RESULT=$(printf '{"tool_input":{"command":"python3 -c \\\"\\nimport os\\nos.system('"'"'rm file'"'"')\\n\\\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: multi-line python3 os.system blocked"
+
+# Test: harmless python3 -c allowed
+RESULT=$(echo '{"tool_input":{"command":"python3 -c \"print('"'"'hello'"'"')\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_eq "" "$RESULT" "bash-guard: harmless python3 -c allowed in DISCUSS"
+
+# Test: eval blocked in DISCUSS
+RESULT=$(echo '{"tool_input":{"command":"eval \"echo data > file.txt\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: eval blocked in DISCUSS"
+
+# Test: bash -c blocked in DISCUSS
+RESULT=$(echo '{"tool_input":{"command":"bash -c \"cp src dst\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: bash -c blocked in DISCUSS"
+
+# Test: sh -c blocked in DISCUSS
+RESULT=$(echo '{"tool_input":{"command":"sh -c \"mv a b\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: sh -c blocked in DISCUSS"
+
+# Test: chained cp (no ^ anchor) blocked in DISCUSS
+RESULT=$(echo '{"tool_input":{"command":"cd /tmp && cp src dst"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: chained cp blocked in DISCUSS"
+
+# Test: prefixed rm blocked in DISCUSS
+RESULT=$(echo '{"tool_input":{"command":"VAR=x rm file"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: prefixed rm blocked in DISCUSS"
+
+# Test: command cp blocked in DISCUSS
+RESULT=$(echo '{"tool_input":{"command":"command cp src dst"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: command cp blocked in DISCUSS"
+
+# Test: bash heredoc blocked
+RESULT=$(echo '{"tool_input":{"command":"bash << EOF\necho hello\nEOF"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: bash heredoc blocked in DISCUSS"
+
+# Test: python3 heredoc blocked
+RESULT=$(echo '{"tool_input":{"command":"python3 << EOF\nprint(1)\nEOF"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: python3 heredoc blocked in DISCUSS"
+
+# Test: touch blocked in DISCUSS
+RESULT=$(echo '{"tool_input":{"command":"touch newfile.txt"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: touch blocked in DISCUSS"
+
+# Test: truncate blocked in DISCUSS
+RESULT=$(echo '{"tool_input":{"command":"truncate -s 0 file"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: truncate blocked in DISCUSS"
+
+# Test: perl -i blocked in DISCUSS
+RESULT=$(echo '{"tool_input":{"command":"perl -i -pe '"'"'s/old/new/'"'"' file"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: perl -i blocked in DISCUSS"
+
+# Test: tar xf blocked in DISCUSS
+RESULT=$(echo '{"tool_input":{"command":"tar xf archive.tar"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: tar xf blocked in DISCUSS"
+
+# Test: unzip blocked in DISCUSS
+RESULT=$(echo '{"tool_input":{"command":"unzip archive.zip"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: unzip blocked in DISCUSS"
+
+# Test: rsync blocked in DISCUSS
+RESULT=$(echo '{"tool_input":{"command":"rsync -av src/ dst/"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: rsync blocked in DISCUSS"
+
+# Regression: all new patterns allowed in IMPLEMENT
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+python3 -c "import json; d=json.load(open('$TEST_DIR/.claude/state/workflow.json')); d['autonomy_level']=2; json.dump(d,open('$TEST_DIR/.claude/state/workflow.json','w'),indent=2)"
+RESULT=$(echo '{"tool_input":{"command":"eval \"echo hello\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_eq "" "$RESULT" "bash-guard: eval allowed in IMPLEMENT"
+
+RESULT=$(echo '{"tool_input":{"command":"touch newfile.txt"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_eq "" "$RESULT" "bash-guard: touch allowed in IMPLEMENT"
+
+# Regression: multi-line python3 blocked at Level 1 even in IMPLEMENT
+python3 -c "import json; d=json.load(open('$TEST_DIR/.claude/state/workflow.json')); d['autonomy_level']=1; json.dump(d,open('$TEST_DIR/.claude/state/workflow.json','w'),indent=2)"
+RESULT=$(printf '{"tool_input":{"command":"python3 -c \\\"\\nwith open('"'"'f'"'"','"'"'w'"'"') as fh:\\n  fh.write('"'"'x'"'"')\\n\\\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: python3 write blocked at Level 1 in IMPLEMENT"
+
+# Reset state
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+
 # ============================================================
 # TEST SUITE: install.sh
 # ============================================================

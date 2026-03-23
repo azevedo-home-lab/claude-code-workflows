@@ -18,10 +18,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/workflow-state.sh"
 
-# Detect write patterns: redirections, sed -i, tee, heredocs, python file writes,
-# cp, mv, install, curl -o, wget -O (common file-writing commands)
-# Note: python3 -c only blocked when combined with file-write indicators (open/write)
-WRITE_PATTERN='(>[^&]|>>|sed[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|python[3]?[[:space:]]+-c.*\.(write|open)|echo[[:space:]].*>|^[[:space:]]*cp[[:space:]]|^[[:space:]]*mv[[:space:]]|^[[:space:]]*rm[[:space:]]|^[[:space:]]*install[[:space:]]|curl[[:space:]].*-o[[:space:]]|wget[[:space:]].*-O[[:space:]]|dd[[:space:]].*of=|^[[:space:]]*patch[[:space:]]|^[[:space:]]*ln[[:space:]])'
+# Write pattern — detects file-writing operations
+# Groups:
+#   1. Redirections: >, >>, echo >
+#   2. In-place editors: sed -i, perl -i, ruby -i
+#   3. Stream writers: tee
+#   4. Heredocs: cat <<, bash <<, sh <<, python3 <<
+#   5. File operations (no ^ anchor — catches mid-command): cp, mv, rm, install, patch, ln, touch, truncate
+#   6. Network downloads: curl -o, wget -O
+#   7. Archive extraction: tar -x, tar x, unzip
+#   8. Block devices: dd of=
+#   9. Sync: rsync
+#  10. Wrappers: eval, bash -c, sh -c
+WRITE_PATTERN='(>[^&]|>>|sed[[:space:]]+-i|perl[[:space:]]+-i|ruby[[:space:]]+-i|tee[[:space:]]|cat[[:space:]].*<<|bash[[:space:]].*<<|sh[[:space:]].*<<|python[3]?[[:space:]].*<<|echo[[:space:]].*>|cp[[:space:]]|mv[[:space:]]|rm[[:space:]]|install[[:space:]]|curl[[:space:]].*-o[[:space:]]|wget[[:space:]].*-O[[:space:]]|dd[[:space:]].*of=|patch[[:space:]]|ln[[:space:]]|touch[[:space:]]|truncate[[:space:]]|tar[[:space:]].*-?x|unzip[[:space:]]|rsync[[:space:]]|eval[[:space:]]|bash[[:space:]]+-c|sh[[:space:]]+-c)'
 
 # No state file = no enforcement (first run, hooks not yet activated)
 if [ ! -f "$STATE_FILE" ]; then
@@ -88,13 +97,22 @@ fi
 # 2>/dev/null, 2>&1, 1>&2 etc. are not file writes
 CLEAN_CMD=$(echo "$COMMAND" | sed -E 's/[0-9]+>\/dev\/null//g; s/[0-9]*>&[0-9]+//g')
 
+# Multi-line python3 write detection — separate from WRITE_PATTERN because
+# the compound pattern (python -c + write indicator) can span lines.
+PYTHON_WRITE=false
+if echo "$COMMAND" | grep -qE 'python[3]?[[:space:]]+-c'; then
+    if echo "$COMMAND" | grep -qiE '\.(write|open|read_text|write_text)|os\.(system|remove|rename|unlink|makedirs)|subprocess\.(run|call|Popen|check_call|check_output)|shutil\.(copy|move|rmtree|copytree)'; then
+        PYTHON_WRITE=true
+    fi
+fi
+
 # ---------------------------------------------------------------------------
 # Autonomy Level 1: block ALL Bash write commands regardless of phase
 # ---------------------------------------------------------------------------
 
 AUTONOMY_LEVEL=$(get_autonomy_level)
 if [ "$AUTONOMY_LEVEL" = "1" ]; then
-    if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN"; then
+    if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ]; then
         emit_deny "BLOCKED: ▶ Level 1 (supervised) — read-only mode. No Bash write operations allowed. Run /autonomy 2 to enable writes."
         exit 0
     fi
@@ -118,7 +136,7 @@ case "$PHASE" in
     *)              exit 0 ;;
 esac
 
-if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN"; then
+if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ]; then
     # Extract the write target path from the command for whitelist checking
     # For redirections: extract path after > or >>
     # For cp/mv: extract the last argument
