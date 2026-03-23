@@ -49,3 +49,26 @@ Single pass: create jq-based helper and migrate all setters at once.
 
 - **Item 5 (concurrent writes):** Option B — atomic writes via jq's temp+mv pattern, document remaining edge cases. Not implementing flock or advisory locking.
 - **Item 6 (duplicate plugin.json):** No changes — accepted as structural necessity.
+
+## Review Findings
+
+**Review date:** 2026-03-23
+**Reviewers:** Code Quality, Security, Architecture & Plan Compliance (3 agents)
+**Verification:** All findings verified against actual code; 1 false positive removed (disk-full test)
+
+### Critical
+None.
+
+### Warnings (fixed)
+- **Stale test assertion** (`tests/run-tests.sh:424`): Corrupt JSON test checked for Python "Traceback" which jq never produces. Updated to check for false gate block instead.
+- **Missing mismatch test** (`check-version-sync.sh`): Only happy path tested. Added test for version mismatch detection (exit code 1 + error message).
+
+### Suggestions (addressed)
+- **`_update_state` missing guard** (`workflow-state.sh:17`): Added `[ ! -f "$STATE_FILE" ]` check as defense-in-depth.
+- **Dual-mode exit comment** (`setup.sh:22`): Added explanatory comment for `return 1 2>/dev/null || exit 1` idiom.
+
+### Suggestions (accepted as-is)
+- **python3 in test fixtures** (~21 calls): Provides test independence — test setup doesn't go through system-under-test. Documented.
+- **Triple fallback in get_phase**: Belt-and-suspenders — negligible cost, prevents empty phase.
+- **Individual getter calls in _read_preserved_state**: More readable than single @tsv call. Negligible performance difference.
+- **Three file-creation paths bypass _update_state**: Inherent to `jq -n` pattern for creating new files.
