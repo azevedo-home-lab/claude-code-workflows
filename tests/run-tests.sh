@@ -540,14 +540,7 @@ assert_contains "$OUTPUT" "/autonomy" "Level 1 deny message mentions /autonomy c
 # Test: Level 1 does NOT block writes when phase is OFF
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
-python3 -c "
-import json
-with open('$TEST_DIR/.claude/state/workflow.json', 'r') as f:
-    d = json.load(f)
-d['autonomy_level'] = 1
-with open('$TEST_DIR/.claude/state/workflow.json', 'w') as f:
-    json.dump(d, f, indent=2)
-"
+jq '.autonomy_level = 1' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_not_contains "$OUTPUT" "deny" "Level 1 does NOT block writes when phase is OFF"
 
@@ -808,7 +801,7 @@ RESULT=$(echo '{"tool_input":{"command":"git commit -m \"feat: something\""}}' |
 assert_eq "" "$RESULT" "bash-guard: git commit allowed at Level 1"
 
 # Test: /usr/bin/git commit allowed (full path)
-python3 -c "import json; d=json.load(open('$STATE_FILE')); d['autonomy_level']=2; json.dump(d,open('$STATE_FILE','w'),indent=2)"
+jq '.autonomy_level = 2' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
 RESULT=$(echo '{"tool_input":{"command":"/usr/bin/git commit -m \"docs: test\""}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
 assert_eq "" "$RESULT" "bash-guard: /usr/bin/git commit allowed (full path)"
@@ -818,7 +811,7 @@ assert_eq "" "$RESULT" "bash-guard: /usr/bin/git commit allowed (full path)"
 # Ensure we're in discuss phase for these tests
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-python3 -c "import json; d=json.load(open('$TEST_DIR/.claude/state/workflow.json')); d['autonomy_level']=2; json.dump(d,open('$TEST_DIR/.claude/state/workflow.json','w'),indent=2)"
+jq '.autonomy_level = 2' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 
 # Test: multi-line python3 with open() blocked in DISCUSS
 RESULT=$(printf '{"tool_input":{"command":"python3 -c \\\"\\nimport json\\nwith open('"'"'f'"'"','"'"'w'"'"') as fh:\\n  fh.write('"'"'x'"'"')\\n\\\""}}' | \
@@ -928,7 +921,7 @@ assert_contains "$RESULT" "deny" "bash-guard: rsync blocked in DISCUSS"
 # Regression: all new patterns allowed in IMPLEMENT
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-python3 -c "import json; d=json.load(open('$TEST_DIR/.claude/state/workflow.json')); d['autonomy_level']=2; json.dump(d,open('$TEST_DIR/.claude/state/workflow.json','w'),indent=2)"
+jq '.autonomy_level = 2' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 RESULT=$(echo '{"tool_input":{"command":"eval \"echo hello\""}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
 assert_eq "" "$RESULT" "bash-guard: eval allowed in IMPLEMENT"
@@ -938,7 +931,7 @@ RESULT=$(echo '{"tool_input":{"command":"touch newfile.txt"}}' | \
 assert_eq "" "$RESULT" "bash-guard: touch allowed in IMPLEMENT"
 
 # Regression: multi-line python3 blocked at Level 1 even in IMPLEMENT
-python3 -c "import json; d=json.load(open('$TEST_DIR/.claude/state/workflow.json')); d['autonomy_level']=1; json.dump(d,open('$TEST_DIR/.claude/state/workflow.json','w'),indent=2)"
+jq '.autonomy_level = 1' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 RESULT=$(printf '{"tool_input":{"command":"python3 -c \\\"\\nwith open('"'"'f'"'"','"'"'w'"'"') as fh:\\n  fh.write('"'"'x'"'"')\\n\\\""}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
 assert_contains "$RESULT" "deny" "bash-guard: python3 write blocked at Level 1 in IMPLEMENT"
@@ -975,19 +968,9 @@ assert_contains "$MIGRATE_OUTPUT" "Old hook-based installation detected" "migrat
 assert_file_not_exists "$MIGRATE_DIR/.claude/hooks/workflow-gate.sh" "migration removes old workflow-gate.sh"
 assert_file_not_exists "$MIGRATE_DIR/.claude/hooks/bash-write-guard.sh" "migration removes old bash-write-guard.sh"
 # Verify hooks key removed from settings.json but permissions preserved
-MIGRATED_HOOKS=$(python3 -c "
-import json
-with open('$MIGRATE_DIR/.claude/settings.json') as f:
-    d = json.load(f)
-print('true' if 'hooks' not in d else 'false')
-")
+MIGRATED_HOOKS=$(jq -r 'if has("hooks") then "false" else "true" end' "$MIGRATE_DIR/.claude/settings.json")
 assert_eq "true" "$MIGRATED_HOOKS" "migration removes hooks from settings.json"
-MIGRATED_PERMS=$(python3 -c "
-import json
-with open('$MIGRATE_DIR/.claude/settings.json') as f:
-    d = json.load(f)
-print('true' if 'Bash' in d.get('permissions', {}).get('allow', []) else 'false')
-")
+MIGRATED_PERMS=$(jq -r 'if (.permissions.allow // [] | index("Bash")) != null then "true" else "false" end' "$MIGRATE_DIR/.claude/settings.json")
 assert_eq "true" "$MIGRATED_PERMS" "migration preserves permissions in settings.json"
 rm -rf "$MIGRATE_DIR"
 
@@ -1175,7 +1158,7 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
 cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 # Pre-fire Layer 2 source_edit trigger so it doesn't consume the first write
-python3 -c "import json; d=json.load(open('$STATE_FILE')); d.setdefault('coaching',{})['layer2_fired']=['source_edit']; json.dump(d,open('$STATE_FILE','w'),indent=2)"
+jq '.coaching.layer2_fired = ["source_edit"]' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
 for i in $(seq 1 4); do
     echo '{"tool_name":"Write","tool_input":{"file_path":"src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
 done
@@ -1219,14 +1202,7 @@ setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
 cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
-python3 -c "
-import json
-with open('$TEST_DIR/.claude/state/workflow.json', 'r') as f:
-    d = json.load(f)
-d['message_shown'] = False
-with open('$TEST_DIR/.claude/state/workflow.json', 'w') as f:
-    json.dump(d, f, indent=2)
-"
+jq '.message_shown = false' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/project/src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_contains "$OUTPUT" "Level 3" "Level 3 coaching mentions Level 3 in phase entry"
 assert_contains "$OUTPUT" "proceed" "Level 3 coaching includes auto-transition guidance"
@@ -1236,14 +1212,7 @@ setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
 cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
-python3 -c "
-import json
-with open('$TEST_DIR/.claude/state/workflow.json', 'r') as f:
-    d = json.load(f)
-d['message_shown'] = False
-with open('$TEST_DIR/.claude/state/workflow.json', 'w') as f:
-    json.dump(d, f, indent=2)
-"
+jq '.message_shown = false' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/project/src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_not_contains "$OUTPUT" "Level 3" "Level 2 coaching does not mention Level 3"
 
@@ -1288,14 +1257,10 @@ assert_eq "1234" "$RESULT" "hook captures observation ID from get_observations"
 # --- Observation ID tracking in OFF phase ---
 
 # Test: observation ID captured when phase is OFF + state file exists
-python3 -c "
-import json
-d = {'phase':'off','message_shown':False,'active_skill':'','decision_record':'','coaching':{'tool_calls_since_agent':0,'layer2_fired':[]},'autonomy_level':2}
-with open('$STATE_FILE','w') as f: json.dump(d,f,indent=2); f.write('\n')
-"
+jq -n '{"phase":"off","message_shown":false,"active_skill":"","decision_record":"","coaching":{"tool_calls_since_agent":0,"layer2_fired":[]},"autonomy_level":2}' > "$STATE_FILE"
 echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"test"},"tool_response":{"content":[{"type":"text","text":"{\"id\":9999,\"success\":true}"}]}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1
-OBS_ID=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('last_observation_id',''))")
+OBS_ID=$(jq -r '.last_observation_id // ""' "$STATE_FILE")
 assert_eq "9999" "$OBS_ID" "obs-tracking: ID captured when phase is OFF"
 
 # Test: observation ID captured when no state file exists
@@ -1303,61 +1268,43 @@ rm -f "$STATE_FILE"
 echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"test"},"tool_response":{"content":[{"type":"text","text":"{\"id\":8888,\"success\":true}"}]}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1
 if [ -f "$STATE_FILE" ]; then
-    OBS_ID=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('last_observation_id',''))")
+    OBS_ID=$(jq -r '.last_observation_id // ""' "$STATE_FILE")
     assert_eq "8888" "$OBS_ID" "obs-tracking: ID captured and state file created"
 else
     assert_eq "exists" "missing" "obs-tracking: state file should have been created"
 fi
 
 # Test: observation ID still works in active phase (regression)
-python3 -c "
-import json
-d = {'phase':'discuss','message_shown':True,'active_skill':'','decision_record':'','coaching':{'tool_calls_since_agent':0,'layer2_fired':[]},'autonomy_level':2}
-with open('$STATE_FILE','w') as f: json.dump(d,f,indent=2); f.write('\n')
-"
+jq -n '{"phase":"discuss","message_shown":true,"active_skill":"","decision_record":"","coaching":{"tool_calls_since_agent":0,"layer2_fired":[]},"autonomy_level":2}' > "$STATE_FILE"
 echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__get_observations","tool_input":{"ids":[1]},"tool_response":{"content":[{"type":"text","text":"[{\"id\":7777}]"}]}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1
-OBS_ID=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('last_observation_id',''))")
+OBS_ID=$(jq -r '.last_observation_id // ""' "$STATE_FILE")
 assert_eq "7777" "$OBS_ID" "obs-tracking: ID captured in active phase (regression)"
 
 # --- Coaching refresh tests ---
 
 # Test: Layer 2 trigger fires normally (baseline)
-python3 -c "
-import json
-d = {'phase':'discuss','message_shown':True,'active_skill':'','decision_record':'','coaching':{'tool_calls_since_agent':0,'layer2_fired':[]},'autonomy_level':2}
-with open('$STATE_FILE','w') as f: json.dump(d,f,indent=2); f.write('\n')
-"
+jq -n '{"phase":"discuss","message_shown":true,"active_skill":"","decision_record":"","coaching":{"tool_calls_since_agent":0,"layer2_fired":[]},"autonomy_level":2}' > "$STATE_FILE"
 echo '{"tool_name":"Agent","tool_input":{"prompt":"This is a test prompt with enough characters to avoid the short prompt check which requires at least 150 characters of content in the prompt field here"}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
-FIRED=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('coaching',{}).get('layer2_fired',[]))")
+FIRED=$(jq -r '.coaching.layer2_fired // []' "$STATE_FILE")
 assert_contains "$FIRED" "agent_return_discuss" "coaching: Layer 2 trigger fires on Agent return"
 
 # Test: last_layer2_at is updated when trigger fires
-L2_AT=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('coaching',{}).get('last_layer2_at', 'NOT_SET'))")
+L2_AT=$(jq -r '.coaching.last_layer2_at // "NOT_SET"' "$STATE_FILE")
 assert_eq "0" "$L2_AT" "coaching: last_layer2_at set when trigger fires"
 
 # Test: after 30 calls of silence, trigger can re-fire
-python3 -c "
-import json
-d = json.load(open('$STATE_FILE'))
-d['coaching']['tool_calls_since_agent'] = 31
-d['coaching']['last_layer2_at'] = 0
-with open('$STATE_FILE','w') as f: json.dump(d,f,indent=2); f.write('\n')
-"
+jq '.coaching.tool_calls_since_agent = 31 | .coaching.last_layer2_at = 0' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
 echo '{"tool_name":"Agent","tool_input":{"prompt":"This is another test prompt with enough characters to avoid the short prompt check which requires at least 150 characters of content in the prompt field here"}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
-FIRED_COUNT=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('coaching',{}).get('layer2_fired',[]).count('agent_return_discuss'))")
+FIRED_COUNT=$(jq -r '[.coaching.layer2_fired[]? | select(. == "agent_return_discuss")] | length' "$STATE_FILE")
 assert_eq "1" "$FIRED_COUNT" "coaching: trigger re-fires after 30 calls of silence"
-REFRESHED_AT=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('coaching',{}).get('last_layer2_at', 'NOT_SET'))")
+REFRESHED_AT=$(jq -r '.coaching.last_layer2_at // "NOT_SET"' "$STATE_FILE")
 assert_eq "0" "$REFRESHED_AT" "coaching: last_layer2_at reset after refresh and re-fire"
 
 # Test: backward compat — state file without last_layer2_at field
-python3 -c "
-import json
-d = {'phase':'discuss','message_shown':True,'active_skill':'','decision_record':'','coaching':{'tool_calls_since_agent':5,'layer2_fired':[]},'autonomy_level':2}
-with open('$STATE_FILE','w') as f: json.dump(d,f,indent=2); f.write('\n')
-"
+jq -n '{"phase":"discuss","message_shown":true,"active_skill":"","decision_record":"","coaching":{"tool_calls_since_agent":5,"layer2_fired":[]},"autonomy_level":2}' > "$STATE_FILE"
 echo '{"tool_name":"Agent","tool_input":{"prompt":"This is a backward compat test prompt with enough characters to avoid the short prompt check which requires at least 150 characters of content here"}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
 RESULT=$?
@@ -1371,28 +1318,24 @@ cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 STATE_FILE="$TEST_DIR/.claude/state/workflow.json"
 
 # Set up state with a known observation ID
-python3 -c "
-import json
-d = {'phase':'discuss','message_shown':True,'active_skill':'','decision_record':'','coaching':{'tool_calls_since_agent':0,'layer2_fired':[]},'autonomy_level':2,'last_observation_id':1234}
-with open('$STATE_FILE','w') as f: json.dump(d,f,indent=2); f.write('\n')
-"
+jq -n '{"phase":"discuss","message_shown":true,"active_skill":"","decision_record":"","coaching":{"tool_calls_since_agent":0,"layer2_fired":[]},"autonomy_level":2,"last_observation_id":1234}' > "$STATE_FILE"
 
 # Test: empty content array — preserves existing ID
 echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"test"},"tool_response":{"content":[]}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
-OBS_ID=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('last_observation_id',''))")
+OBS_ID=$(jq -r '.last_observation_id // ""' "$STATE_FILE")
 assert_eq "1234" "$OBS_ID" "obs-extraction: empty content preserves existing ID"
 
 # Test: non-JSON text block — preserves existing ID
 echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"test"},"tool_response":{"content":[{"type":"text","text":"not valid json"}]}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
-OBS_ID=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('last_observation_id',''))")
+OBS_ID=$(jq -r '.last_observation_id // ""' "$STATE_FILE")
 assert_eq "1234" "$OBS_ID" "obs-extraction: non-JSON preserves existing ID"
 
 # Test: missing id field — preserves existing ID
 echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"test"},"tool_response":{"content":[{"type":"text","text":"{\"success\":true}"}]}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
-OBS_ID=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('last_observation_id',''))")
+OBS_ID=$(jq -r '.last_observation_id // ""' "$STATE_FILE")
 assert_eq "1234" "$OBS_ID" "obs-extraction: missing id preserves existing ID"
 
 # --- Layer 3 Check 3: all findings downgraded ---
@@ -1400,7 +1343,7 @@ setup_test_project
 cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 STATE_FILE="$TEST_DIR/.claude/state/workflow.json"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
-python3 -c "import json; d=json.load(open('$STATE_FILE')); d['message_shown']=True; json.dump(d,open('$STATE_FILE','w'),indent=2)"
+jq '.message_shown = true' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
 
 # Create a decisions.md with only Suggestions
 DECISIONS_FILE="$TEST_DIR/docs/decisions.md"
@@ -1421,7 +1364,7 @@ setup_test_project
 cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 STATE_FILE="$TEST_DIR/.claude/state/workflow.json"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
-python3 -c "import json; d=json.load(open('$STATE_FILE')); d['message_shown']=True; json.dump(d,open('$STATE_FILE','w'),indent=2)"
+jq '.message_shown = true' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
 
 RESULT=$(echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"short","project":"test"},"tool_response":{"content":[{"type":"text","text":"{\"id\":1,\"success\":true}"}]}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>/dev/null)
@@ -1432,13 +1375,7 @@ setup_test_project
 cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 STATE_FILE="$TEST_DIR/.claude/state/workflow.json"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-python3 -c "
-import json
-d = json.load(open('$STATE_FILE'))
-d['message_shown'] = True
-d['coaching']['layer2_fired'] = ['agent_return_discuss']
-json.dump(d, open('$STATE_FILE','w'), indent=2)
-"
+jq '.message_shown = true | .coaching.layer2_fired = ["agent_return_discuss"]' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
 
 RESULT=$(echo '{"tool_name":"AskUserQuestion","tool_input":{"question":"which option?"}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
@@ -1949,6 +1886,14 @@ jq --arg v "$ORIG_VERSION" '.version = $v' "$REPO_DIR/plugin/.claude-plugin/plug
 assert_eq "1" "$MISMATCH_EXIT" "Version sync detects mismatch"
 assert_contains "$MISMATCH_OUTPUT" "mismatch" "Version sync reports mismatch"
 
+# Test field mismatch detection (name differs between plugin.json files)
+ORIG_NAME=$(jq -r '.name' "$REPO_DIR/plugin/.claude-plugin/plugin.json")
+jq '.name = "wrong-name"' "$REPO_DIR/plugin/.claude-plugin/plugin.json" > "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" && mv "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" "$REPO_DIR/plugin/.claude-plugin/plugin.json"
+FIELD_OUTPUT=$(bash "$REPO_DIR/scripts/check-version-sync.sh" 2>&1) && FIELD_EXIT=0 || FIELD_EXIT=$?
+jq --arg n "$ORIG_NAME" '.name = $n' "$REPO_DIR/plugin/.claude-plugin/plugin.json" > "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" && mv "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" "$REPO_DIR/plugin/.claude-plugin/plugin.json"
+assert_eq "1" "$FIELD_EXIT" "Version sync detects field mismatch"
+assert_contains "$FIELD_OUTPUT" "Field" "Version sync reports field mismatch"
+
 # ============================================================
 # TEST SUITE: Tracked Observations Lifecycle
 # ============================================================
@@ -1960,7 +1905,7 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh"
 
 # Test: add_tracked_observation adds to empty list
 set_phase "off"
-python3 -c "import json; d=json.load(open('$STATE_FILE')); d.pop('tracked_observations',None); json.dump(d,open('$STATE_FILE','w'),indent=2)"
+jq 'del(.tracked_observations)' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
 add_tracked_observation 100
 assert_eq "100" "$(get_tracked_observations)" "add_tracked_observation adds to empty list"
 
@@ -1981,7 +1926,7 @@ set_tracked_observations "500,600,700"
 assert_eq "500,600,700" "$(get_tracked_observations)" "set_tracked_observations replaces entire list"
 
 # Test: get_tracked_observations returns empty string for no list
-python3 -c "import json; d=json.load(open('$STATE_FILE')); d.pop('tracked_observations',None); json.dump(d,open('$STATE_FILE','w'),indent=2)"
+jq 'del(.tracked_observations)' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
 assert_eq "" "$(get_tracked_observations)" "get_tracked_observations returns empty for missing field"
 
 # Test: set_tracked_observations with empty string clears list
@@ -1997,6 +1942,41 @@ set_phase "implement"
 assert_eq "3416" "$(get_tracked_observations)" "tracked observations preserved: define → implement"
 set_phase "off"
 assert_eq "3416" "$(get_tracked_observations)" "tracked observations preserved: implement → off"
+
+# ============================================================
+# TEST SUITE: _update_state Safety Guards
+# ============================================================
+echo ""
+echo "=== _update_state Safety Guards ==="
+
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+set_phase "off"
+
+# Test: 10KB size guard rejects oversized writes
+OVERSIZE_ERR=$(_update_state '.bloat = ("x" * 12000)' 2>&1) && OVERSIZE_EXIT=0 || OVERSIZE_EXIT=$?
+assert_eq "1" "$OVERSIZE_EXIT" "size guard: rejects write exceeding 10KB"
+assert_contains "$OVERSIZE_ERR" "10KB" "size guard: error message mentions 10KB"
+# Verify original state file is unchanged (phase still "off")
+PHASE_AFTER=$(jq -r '.phase' "$STATE_FILE")
+assert_eq "off" "$PHASE_AFTER" "size guard: state file unchanged after rejection"
+
+# Test: temp file cleaned up on jq failure
+INVALID_ERR=$(_update_state 'INVALID_SYNTAX!!!' 2>&1) && INVALID_EXIT=0 || INVALID_EXIT=$?
+assert_eq "1" "$INVALID_EXIT" "jq failure: returns non-zero"
+TMP_FILES=$(find "$STATE_DIR" -name '*.tmp.*' 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "0" "$TMP_FILES" "jq failure: no temp files left behind"
+PHASE_AFTER=$(jq -r '.phase' "$STATE_FILE")
+assert_eq "off" "$PHASE_AFTER" "jq failure: state file unchanged"
+
+# Test: zero-byte state file returns safe defaults (not empty string)
+: > "$STATE_FILE"
+PHASE_ZERO=$(get_phase)
+assert_eq "off" "$PHASE_ZERO" "zero-byte state: get_phase returns off"
+LEVEL_ZERO=$(get_autonomy_level)
+assert_eq "2" "$LEVEL_ZERO" "zero-byte state: get_autonomy_level returns 2"
+MSG_ZERO=$(get_message_shown)
+assert_eq "false" "$MSG_ZERO" "zero-byte state: get_message_shown returns false"
 
 # ============================================================
 # TEST SUITE: Completion Snapshot (Loop-back Exception)
@@ -2067,7 +2047,7 @@ echo "=== setup.sh Functional Tests ==="
 SETUP_TEST_DIR=$(mktemp -d)
 mkdir -p "$SETUP_TEST_DIR/.claude"
 # Create minimal settings.json with just Bash permission
-python3 -c "import json; json.dump({'permissions':{'allow':['Bash']}},open('$SETUP_TEST_DIR/.claude/settings.json','w'),indent=2)"
+jq -n '{"permissions":{"allow":["Bash"]}}' > "$SETUP_TEST_DIR/.claude/settings.json"
 
 # Run setup.sh
 CLAUDE_PROJECT_DIR="$SETUP_TEST_DIR" bash "$REPO_DIR/plugin/scripts/setup.sh" 2>/dev/null
@@ -2106,7 +2086,7 @@ assert_contains "$SETTINGS_CONTENT" "Bash" "setup.sh preserves existing Bash per
 
 # Test: idempotency (run twice, no duplication)
 CLAUDE_PROJECT_DIR="$SETUP_TEST_DIR" bash "$REPO_DIR/plugin/scripts/setup.sh" 2>/dev/null
-READ_COUNT=$(python3 -c "import json; d=json.load(open('$SETUP_TEST_DIR/.claude/settings.json')); print(d['permissions']['allow'].count('Read'))")
+READ_COUNT=$(jq -r '[.permissions.allow[]? | select(. == "Read")] | length' "$SETUP_TEST_DIR/.claude/settings.json")
 assert_eq "1" "$READ_COUNT" "setup.sh is idempotent (no duplicate permissions)"
 
 # Test: .gitignore idempotency
