@@ -12,6 +12,9 @@
 
 set -euo pipefail
 
+# Verify python3 is available (required for JSON state management)
+command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 is required for Workflow Manager" >&2; exit 1; }
+
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 

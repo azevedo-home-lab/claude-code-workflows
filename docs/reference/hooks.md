@@ -43,23 +43,37 @@ New sessions default to OFF if no state file exists.
 
 ## Files
 
+The plugin distributes hooks and commands from `plugin/`:
+
 ```
-.claude/
+plugin/
+├── .claude-plugin/
+│   └── plugin.json             # Plugin manifest (name, version)
 ├── hooks/
+│   └── hooks.json              # Auto-wires PreToolUse and PostToolUse hooks
+├── scripts/
 │   ├── workflow-state.sh       # State read/write utility (sourced by hooks and wrapper)
 │   ├── workflow-cmd.sh         # Shell-independent wrapper — always runs under bash via shebang
 │   ├── workflow-gate.sh        # PreToolUse: blocks Write/Edit in DEFINE/DISCUSS/COMPLETE
 │   ├── bash-write-guard.sh     # PreToolUse: blocks Bash writes in DEFINE/DISCUSS/COMPLETE
-│   └── post-tool-navigator.sh  # PostToolUse: three-layer coaching system
+│   ├── post-tool-navigator.sh  # PostToolUse: three-layer coaching system
+│   └── setup.sh                # Setup hook: initializes state + installs statusline
 ├── commands/
 │   ├── define.md               # /define → OFF to DEFINE
 │   ├── discuss.md              # /discuss → any phase to DISCUSS
 │   ├── implement.md            # /implement → DISCUSS to IMPLEMENT
 │   ├── review.md               # /review → IMPLEMENT to REVIEW
-│   └── complete.md             # /complete → REVIEW to COMPLETE
-├── state/
-│   └── workflow.json           # Consolidated workflow state (gitignored)
-└── settings.json               # Hook configuration
+│   ├── complete.md             # /complete → REVIEW to COMPLETE
+│   └── autonomy.md             # /autonomy → set autonomy level
+├── statusline/
+│   └── statusline.sh           # Status bar with version display
+└── docs/
+    └── reference/
+        └── professional-standards.md
+
+Per-project state (gitignored):
+.claude/state/
+└── workflow.json               # Consolidated workflow state
 ```
 
 ## Hook Details

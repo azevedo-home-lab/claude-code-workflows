@@ -104,7 +104,8 @@ WM_STATE_FILE="${CWD}/.claude/state/workflow.json"
 # Workflow Manager: version from plugin cache, phase/autonomy from project state
 WM_PLUGIN_DIR="$HOME/.claude/plugins/cache/azevedo-home-lab/workflow-manager"
 if [ -d "$WM_PLUGIN_DIR" ]; then
-  WM_VERSION=$(ls -1 "$WM_PLUGIN_DIR" | sort -V | tail -1)
+  WM_VERSION=$(ls -1 "$WM_PLUGIN_DIR" 2>/dev/null | sort -V | tail -1)
+  WM_VERSION="${WM_VERSION:-?}"
   OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Workflow Manager ${WM_VERSION} ✓${RESET}"
   # Show phase if state file exists
   if [ -f "$WM_STATE_FILE" ]; then
@@ -140,7 +141,8 @@ fi
 # Superpowers: version from plugin cache, active skill from project state
 SP_PLUGIN_DIR="$HOME/.claude/plugins/cache/superpowers-marketplace/superpowers"
 if [ -d "$SP_PLUGIN_DIR" ]; then
-  SP_VERSION=$(ls -1 "$SP_PLUGIN_DIR" | sort -V | tail -1)
+  SP_VERSION=$(ls -1 "$SP_PLUGIN_DIR" 2>/dev/null | sort -V | tail -1)
+  SP_VERSION="${SP_VERSION:-?}"
   OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Superpowers ${SP_VERSION} ✓${RESET}"
   # Read active skill from workflow.json (same file as phase)
   if [ -f "$WM_STATE_FILE" ]; then
@@ -156,7 +158,8 @@ fi
 # Claude-Mem: version from plugin cache, observation ID from project state
 CM_PLUGIN_DIR="$HOME/.claude/plugins/cache/thedotmack/claude-mem"
 if [ -d "$CM_PLUGIN_DIR" ]; then
-  CM_VERSION=$(ls -1 "$CM_PLUGIN_DIR" | sort -V | tail -1)
+  CM_VERSION=$(ls -1 "$CM_PLUGIN_DIR" 2>/dev/null | sort -V | tail -1)
+  CM_VERSION="${CM_VERSION:-?}"
   CM_SUFFIX=""
   if [ -f "$WM_STATE_FILE" ]; then
     CM_OBS_ID=$(grep -o '"last_observation_id"[[:space:]]*:[[:space:]]*[0-9]*' "$WM_STATE_FILE" | grep -o '[0-9]*$')
