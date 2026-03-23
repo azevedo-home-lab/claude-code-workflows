@@ -800,6 +800,12 @@ RESULT=$(echo '{"tool_input":{"command":"git commit -m \"feat: something\""}}' |
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
 assert_eq "" "$RESULT" "bash-guard: git commit allowed at Level 1"
 
+# Test: /usr/bin/git commit allowed (full path)
+python3 -c "import json; d=json.load(open('$STATE_FILE')); d['autonomy_level']=2; json.dump(d,open('$STATE_FILE','w'),indent=2)"
+RESULT=$(echo '{"tool_input":{"command":"/usr/bin/git commit -m \"docs: test\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_eq "" "$RESULT" "bash-guard: /usr/bin/git commit allowed (full path)"
+
 # --- Item 8: Write guard hardening ---
 
 # Ensure we're in discuss phase for these tests

@@ -73,7 +73,7 @@ fi
 # A chained command like 'git commit -m "msg" && rm -rf /' embeds the chain
 # AFTER the quoted message ends — detect by checking the first line only
 # (before heredoc expansion) for operators outside the git commit prefix.
-if echo "$COMMAND" | grep -qE '^[[:space:]]*git[[:space:]]+commit\b'; then
+if echo "$COMMAND" | grep -qE '^[[:space:]]*(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+commit\b'; then
     # Extract only the first line of the command (before any heredoc body)
     FIRST_LINE=$(echo "$COMMAND" | head -1)
     # Check for shell operators that appear after the closing quote of -m "..."
