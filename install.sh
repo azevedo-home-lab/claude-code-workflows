@@ -86,6 +86,8 @@ mkdir -p "$TARGET/.claude/state"
 
 # Copy hooks
 cp "$SCRIPT_DIR/.claude/hooks/workflow-state.sh" "$TARGET/.claude/hooks/"
+cp "$SCRIPT_DIR/.claude/hooks/workflow-cmd.sh" "$TARGET/.claude/hooks/"
+chmod +x "$TARGET/.claude/hooks/workflow-cmd.sh"
 cp "$SCRIPT_DIR/.claude/hooks/workflow-gate.sh" "$TARGET/.claude/hooks/"
 cp "$SCRIPT_DIR/.claude/hooks/bash-write-guard.sh" "$TARGET/.claude/hooks/"
 cp "$SCRIPT_DIR/.claude/hooks/post-tool-navigator.sh" "$TARGET/.claude/hooks/"

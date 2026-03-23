@@ -16,7 +16,7 @@ Set the Workflow Manager autonomy level. This controls how much independence Cla
 Run this to set the level:
 
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level "$ARGUMENTS"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_autonomy_level "$ARGUMENTS"
 echo "Autonomy level set to $ARGUMENTS"
 ```
 

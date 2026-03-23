@@ -1,7 +1,7 @@
 Transition the workflow to DISCUSS phase. Run this command:
 
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss" && set_active_skill ""
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_phase "discuss" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_active_skill ""
 echo "Phase set to DISCUSS — code edits are now blocked until plan is ready."
 ```
 
@@ -17,8 +17,8 @@ Before proceeding:
 If no decision record exists yet, create one and register it:
 
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh"
-EXISTING=$(get_decision_record)
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+EXISTING=$("$WF_DIR/.claude/hooks/workflow-cmd.sh" get_decision_record)
 if [ -z "$EXISTING" ]; then
     echo "No decision record found — will create one during this phase."
 fi
@@ -31,7 +31,7 @@ If no decision record exists, brainstorming will naturally cover problem discove
 Use `superpowers:brainstorming` with **solution-design context**. Focus on how to solve the defined problem. Update the skill tracker:
 
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_active_skill "brainstorming"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_active_skill "brainstorming"
 ```
 
 ### Diverge Phase
@@ -78,7 +78,7 @@ After user selects an approach, enrich the decision record with:
 Use `superpowers:writing-plans` to create the step-by-step implementation plan. Update the skill tracker:
 
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_active_skill "writing-plans"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_active_skill "writing-plans"
 ```
 
 Every plan step must trace back to the chosen approach. If a step can't be justified by the decision, it's scope creep.

@@ -534,8 +534,8 @@ _check_milestones() {
         return
     fi
     local missing=""
+    local val=""
     for field in "$@"; do
-        local val
         val=$(_get_section_field "$section" "$field")
         [ "$val" != "true" ] && missing="$missing $field"
     done

@@ -1,8 +1,8 @@
 Transition the workflow to REVIEW phase. First check for soft gate warnings:
 
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh"
-WARN=$(check_soft_gate "review")
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+WARN=$("$WF_DIR/.claude/hooks/workflow-cmd.sh" check_soft_gate "review")
 if [ -n "$WARN" ]; then
     echo "WARNING: $WARN"
 fi
@@ -11,7 +11,7 @@ fi
 If a warning was shown, ask the user: "Proceed anyway? (yes/no)". If they say no, stop. If yes or no warning, continue:
 
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "review" && reset_review_status && set_active_skill "review-pipeline"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_phase "review" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" reset_review_status && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_active_skill "review-pipeline"
 echo "Phase set to REVIEW — running review pipeline."
 ```
 
@@ -40,8 +40,8 @@ If tests found, run them and capture the output.
 
 Update state after this step:
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh"
-set_review_field "verification_complete" "true"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+"$WF_DIR/.claude/hooks/workflow-cmd.sh" set_review_field "verification_complete" "true"
 ```
 
 ### Step 2: Detect Changed Files
@@ -112,15 +112,15 @@ Would you like to:
 
 Update state:
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh"
-set_review_field "agents_dispatched" "true"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+"$WF_DIR/.claude/hooks/workflow-cmd.sh" set_review_field "agents_dispatched" "true"
 set_review_field "findings_presented" "true"
 ```
 
 Wait for the user's response. If they choose option 2 (acknowledge):
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh"
-set_review_field "findings_acknowledged" "true"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+"$WF_DIR/.claude/hooks/workflow-cmd.sh" set_review_field "findings_acknowledged" "true"
 ```
 
 **Level 3 auto-transition:** If autonomy level is 3: fix ALL findings — critical, warnings, and suggestions. Only stop if there are critical findings or decisions that require user judgment. Do not acknowledge findings without fixing them unless the user has explicitly accepted them. After all findings are fixed, invoke `/complete` now. Do not wait for the user.

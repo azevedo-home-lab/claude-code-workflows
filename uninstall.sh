@@ -17,6 +17,7 @@ echo ""
 
 # Remove hook files
 rm -f "$TARGET/.claude/hooks/workflow-state.sh"
+rm -f "$TARGET/.claude/hooks/workflow-cmd.sh"
 rm -f "$TARGET/.claude/hooks/workflow-gate.sh"
 rm -f "$TARGET/.claude/hooks/bash-write-guard.sh"
 rm -f "$TARGET/.claude/hooks/post-tool-navigator.sh"

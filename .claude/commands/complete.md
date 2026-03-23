@@ -1,8 +1,8 @@
 Transition the workflow to COMPLETE phase. First check for soft gate warnings:
 
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh"
-WARN=$(check_soft_gate "complete")
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+WARN=$("$WF_DIR/.claude/hooks/workflow-cmd.sh" check_soft_gate "complete")
 if [ -n "$WARN" ]; then
     echo "WARNING: $WARN"
 fi
@@ -11,7 +11,7 @@ fi
 If a warning was shown, ask the user: "Review hasn't been run. The workflow should be followed for best results. Proceed anyway?" If they say no, stop. If yes or no warning, continue:
 
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete" && reset_completion_status && set_active_skill "completion-pipeline"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_phase "complete" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" reset_completion_status && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_active_skill "completion-pipeline"
 echo "Phase set to COMPLETE — running completion pipeline. Code edits blocked, doc updates allowed."
 ```
 
@@ -36,8 +36,8 @@ Before proceeding:
 
 Read the decision record path:
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh"
-echo "Decision record: $(get_decision_record)"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+echo "Decision record: $("$WF_DIR/.claude/hooks/workflow-cmd.sh" get_decision_record)"
 ```
 
 **If a plan file exists** (check `docs/superpowers/plans/`, `docs/plans/`, or any plan referenced in the decision record):
@@ -53,7 +53,7 @@ Dispatch a **Plan validator agent** to:
 
 Mark milestone:
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "plan_validated" "true"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_completion_field "plan_validated" "true"
 ```
 
 ### Step 2: Outcome Validation
@@ -77,7 +77,7 @@ Dispatch an **Outcome validator agent** to:
 
 Mark milestone:
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "outcomes_validated" "true"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_completion_field "outcomes_validated" "true"
 ```
 
 ### Step 3: Present Validation Results
@@ -130,7 +130,7 @@ If REDO: fix the issues and re-dispatch the reviewer. Max 3 iterations, then sur
 
 Mark milestone:
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "results_presented" "true"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_completion_field "results_presented" "true"
 ```
 
 ### Step 4: Smart Documentation Detection
@@ -155,7 +155,7 @@ If REDO: fix and re-dispatch. Max 3 iterations, then surface to user.
 
 Mark milestone:
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "docs_checked" "true"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_completion_field "docs_checked" "true"
 ```
 
 ### Step 5: Commit & Push
@@ -190,7 +190,7 @@ If step was skipped (nothing to commit): skip this gate.
 
 Mark milestone (also mark if skipped — clean tree means committed is N/A):
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "committed" "true"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_completion_field "committed" "true"
 ```
 
 ### Step 6: Branch Integration & Worktree Cleanup
@@ -256,7 +256,7 @@ If REDO: fix and re-dispatch. Max 3 iterations, then surface to user.
 
 Mark milestone:
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "tech_debt_audited" "true"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_completion_field "tech_debt_audited" "true"
 ```
 
 ### Step 8: Handover (Claude-Mem Observation)
@@ -283,7 +283,7 @@ If REDO: fix and re-save the observation, then re-dispatch. Max 3 iterations, th
 
 Mark milestone:
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "handover_saved" "true"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_completion_field "handover_saved" "true"
 ```
 
 ### Step 9: Phase Transition
@@ -291,7 +291,7 @@ WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd
 **HARD GATE: `set_phase("off")` will refuse if any completion milestone is incomplete. All 7 milestones must be marked true before the workflow can close.**
 
 ```bash
-WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && source "$WF_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
+WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" && "$WF_DIR/.claude/hooks/workflow-cmd.sh" set_phase "off"
 echo "Task complete. Phase set to OFF — workflow enforcement disabled."
 ```
 
