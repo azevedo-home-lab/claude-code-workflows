@@ -258,16 +258,19 @@ for path in ['.claude-plugin/marketplace.json', '.claude-plugin/plugin.json', 'p
 
 Run `scripts/check-version-sync.sh` to validate all 3 files match. Include version files in the commit staging.
 3. Draft a concise conventional commit message explaining why
-4. Commit with YubiKey touch banner:
+4. Commit:
    ```bash
-   echo "========== YUBIKEY: TOUCH NOW FOR GIT COMMIT ==========" && git commit -m "$(cat <<'EOF'
+   git commit -m "$(cat <<'EOF'
    <type>: <description>
 
    Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
    EOF
    )"
    ```
-5. Ask: "Push to remote? (yes / no)"
+5. Ask: "Push to remote? (yes / no)" — if yes, warn about YubiKey touch:
+   ```
+   ========== YUBIKEY: TOUCH NOW FOR GIT PUSH ==========
+   ```
 
 If clean working tree: skip and note "Nothing to commit."
 
