@@ -54,3 +54,35 @@
 ### Step 6: python3→jq in test fixtures
 - Migrated all 33 python3 infrastructure calls to jq equivalents
 - 23 remaining python3 references are test inputs for bash-write-guard (must stay — they test that python3 writes get blocked)
+
+---
+
+## Round 2: Remaining Tech Debt (from devil's advocate review of Round 1)
+
+**Date:** 2026-03-23 (second pass)
+**Origin:** Handover #3615 — 5 items from devil's advocate review, 1 accepted as-is
+
+### Approaches Considered (DISCUSS phase — diverge)
+
+#### Approach A: Extract `_safe_write` helper (chosen)
+- Extract write-temp-size-check-mv into shared helper; all 5 write paths pipe through it
+- Pros: eliminates class of bug, single source of truth for size guard
+- Cons: one more level of indirection
+
+#### Approach B: Inline fixes at each call site
+- Add size check inline at each of 4 direct-write locations
+- Pros: zero abstraction, smaller diff
+- Cons: 4 copies of same logic, next contributor must remember the pattern
+
+### Decision (DISCUSS phase — converge)
+
+- **Chosen approach:** Approach A — `_safe_write` helper + phase enum guard
+- **Rationale:** Eliminates the class of bug rather than patching instances
+- **Trade-offs accepted:**
+  - One more level of indirection (pipe into helper)
+  - Item 5 (env leak via filter param) accepted as documented risk — all callers are internal
+  - Item 2 (concurrent last-writer-wins) accepted as documented behavior — no file locking
+- **Risks identified:** Pipe changes error propagation — mitigated by zero-byte rejection in `_safe_write`
+- **Constraints applied:** `workflow-state.sh` does not set `pipefail`, so zero-byte check is load-bearing
+- **Tech debt acknowledged:** None — this round clears all remaining items
+- **Spec:** `docs/superpowers/specs/2026-03-23-remaining-tech-debt-design.md`
