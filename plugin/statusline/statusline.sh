@@ -180,7 +180,7 @@ try:
 except Exception:
     pass
 " "$WM_STATE_FILE" 2>/dev/null)
-    [ -n "$CM_TRACKED" ] && CM_SUFFIX+=" ${DIM}track:[${CM_TRACKED}]${RESET}"
+    [ -n "$CM_TRACKED" ] && CM_SUFFIX+=" ${DIM}Open:[${CM_TRACKED}]${RESET}"
   fi
   OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Claude-Mem ${CM_VERSION} ✓${RESET}${CM_SUFFIX}"
 else
