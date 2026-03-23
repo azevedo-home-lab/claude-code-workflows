@@ -156,6 +156,167 @@ with open(filepath, 'w') as f:
 " "$obs_id" "$ts" "$STATE_FILE"
 }
 
+# ---------------------------------------------------------------------------
+# Tracked observations (tech debt, open issues, next steps)
+# ---------------------------------------------------------------------------
+
+get_tracked_observations() {
+    if [ ! -f "$STATE_FILE" ]; then
+        echo ""
+        return
+    fi
+    python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        d = json.load(f)
+    obs = d.get('tracked_observations', [])
+    print(','.join(str(x) for x in obs) if obs else '')
+except Exception:
+    print('')
+" "$STATE_FILE" 2>/dev/null
+}
+
+set_tracked_observations() {
+    local ids_csv="$1"
+    mkdir -p "$STATE_DIR"
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    if [ ! -f "$STATE_FILE" ]; then
+        python3 -c "
+import json, sys
+ids_csv, ts, filepath = sys.argv[1], sys.argv[2], sys.argv[3]
+ids = [int(x.strip()) for x in ids_csv.split(',') if x.strip()] if ids_csv else []
+state = {'phase': 'off', 'tracked_observations': ids, 'updated': ts}
+with open(filepath, 'w') as f:
+    json.dump(state, f, indent=2)
+    f.write('\n')
+" "$ids_csv" "$ts" "$STATE_FILE"
+        return
+    fi
+    python3 -c "
+import json, sys
+ids_csv, ts, filepath = sys.argv[1], sys.argv[2], sys.argv[3]
+ids = [int(x.strip()) for x in ids_csv.split(',') if x.strip()] if ids_csv else []
+with open(filepath, 'r') as f:
+    d = json.load(f)
+d['tracked_observations'] = ids
+d['updated'] = ts
+with open(filepath, 'w') as f:
+    json.dump(d, f, indent=2)
+    f.write('\n')
+" "$ids_csv" "$ts" "$STATE_FILE"
+}
+
+add_tracked_observation() {
+    local obs_id="$1"
+    if [ -z "$obs_id" ]; then return 1; fi
+    mkdir -p "$STATE_DIR"
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    if [ ! -f "$STATE_FILE" ]; then
+        python3 -c "
+import json, sys
+obs_id, ts, filepath = sys.argv[1], sys.argv[2], sys.argv[3]
+state = {'phase': 'off', 'tracked_observations': [int(obs_id)], 'updated': ts}
+with open(filepath, 'w') as f:
+    json.dump(state, f, indent=2)
+    f.write('\n')
+" "$obs_id" "$ts" "$STATE_FILE"
+        return
+    fi
+    python3 -c "
+import json, sys
+obs_id, ts, filepath = int(sys.argv[1]), sys.argv[2], sys.argv[3]
+with open(filepath, 'r') as f:
+    d = json.load(f)
+obs = d.get('tracked_observations', [])
+if obs_id not in obs:
+    obs.append(obs_id)
+d['tracked_observations'] = obs
+d['updated'] = ts
+with open(filepath, 'w') as f:
+    json.dump(d, f, indent=2)
+    f.write('\n')
+" "$obs_id" "$ts" "$STATE_FILE"
+}
+
+remove_tracked_observation() {
+    local obs_id="$1"
+    if [ -z "$obs_id" ] || [ ! -f "$STATE_FILE" ]; then return 1; fi
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    python3 -c "
+import json, sys
+obs_id, ts, filepath = int(sys.argv[1]), sys.argv[2], sys.argv[3]
+with open(filepath, 'r') as f:
+    d = json.load(f)
+obs = d.get('tracked_observations', [])
+obs = [x for x in obs if x != obs_id]
+d['tracked_observations'] = obs
+d['updated'] = ts
+with open(filepath, 'w') as f:
+    json.dump(d, f, indent=2)
+    f.write('\n')
+" "$obs_id" "$ts" "$STATE_FILE"
+}
+
+# ---------------------------------------------------------------------------
+# Completion snapshot (loop-back exception from COMPLETE → IMPLEMENT → COMPLETE)
+# ---------------------------------------------------------------------------
+
+save_completion_snapshot() {
+    if [ ! -f "$STATE_FILE" ]; then return; fi
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    python3 -c "
+import json, sys
+ts, filepath = sys.argv[1], sys.argv[2]
+with open(filepath, 'r') as f:
+    d = json.load(f)
+completion = d.get('completion', {})
+if completion:
+    d['completion_snapshot'] = dict(completion)
+d['updated'] = ts
+with open(filepath, 'w') as f:
+    json.dump(d, f, indent=2)
+    f.write('\n')
+" "$ts" "$STATE_FILE"
+}
+
+restore_completion_snapshot() {
+    if [ ! -f "$STATE_FILE" ]; then return; fi
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    python3 -c "
+import json, sys
+ts, filepath = sys.argv[1], sys.argv[2]
+with open(filepath, 'r') as f:
+    d = json.load(f)
+snapshot = d.get('completion_snapshot', {})
+if snapshot:
+    d['completion'] = dict(snapshot)
+    del d['completion_snapshot']
+d['updated'] = ts
+with open(filepath, 'w') as f:
+    json.dump(d, f, indent=2)
+    f.write('\n')
+" "$ts" "$STATE_FILE"
+}
+
+has_completion_snapshot() {
+    if [ ! -f "$STATE_FILE" ]; then echo "false"; return; fi
+    python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        d = json.load(f)
+    print('true' if 'completion_snapshot' in d and d['completion_snapshot'] else 'false')
+except Exception:
+    print('false')
+" "$STATE_FILE" 2>/dev/null
+}
+
 set_phase() {
     local new_phase="$1"
 
@@ -204,6 +365,8 @@ set_phase() {
     local existing_decision_record=""
     local existing_autonomy_level=""
     local existing_last_observation_id=""
+    local existing_tracked_observations=""
+    local existing_completion_snapshot=""
     local current_phase="off"
     if [ -f "$STATE_FILE" ]; then
         current_phase=$(get_phase)
@@ -211,6 +374,17 @@ set_phase() {
         existing_decision_record=$(get_decision_record)
         existing_autonomy_level=$(get_autonomy_level)
         existing_last_observation_id=$(get_last_observation_id)
+        existing_tracked_observations=$(get_tracked_observations)
+        existing_completion_snapshot=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        d = json.load(f)
+    snap = d.get('completion_snapshot', {})
+    print(json.dumps(snap) if snap else '')
+except Exception:
+    print('')
+" "$STATE_FILE" 2>/dev/null)
     fi
 
     # If new phase is off, clear active_skill, decision_record, and autonomy_level (cycle complete)
@@ -243,6 +417,8 @@ ts = sys.argv[5]
 filepath = sys.argv[6]
 autonomy_level = sys.argv[7]
 last_observation_id = sys.argv[8]
+tracked_obs_csv = sys.argv[9]
+completion_snapshot_json = sys.argv[10]
 
 state = {
     'phase': new_phase,
@@ -262,6 +438,12 @@ if autonomy_level:
 if last_observation_id:
     state['last_observation_id'] = int(last_observation_id)
 
+if tracked_obs_csv:
+    state['tracked_observations'] = [int(x.strip()) for x in tracked_obs_csv.split(',') if x.strip()]
+
+if completion_snapshot_json:
+    state['completion_snapshot'] = json.loads(completion_snapshot_json)
+
 # Only include review sub-object if we are NOT leaving review
 # (i.e., if current was review and new is not, we omit it)
 # The review sub-object is only present during REVIEW phase
@@ -270,7 +452,7 @@ if last_observation_id:
 with open(filepath, 'w') as f:
     json.dump(state, f, indent=2)
     f.write('\n')
-" "$new_phase" "$current_phase" "$existing_active_skill" "$existing_decision_record" "$ts" "$STATE_FILE" "$existing_autonomy_level" "$existing_last_observation_id"
+" "$new_phase" "$current_phase" "$existing_active_skill" "$existing_decision_record" "$ts" "$STATE_FILE" "$existing_autonomy_level" "$existing_last_observation_id" "$existing_tracked_observations" "$existing_completion_snapshot"
 }
 
 get_message_shown() {
