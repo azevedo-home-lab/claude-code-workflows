@@ -1375,6 +1375,38 @@ echo '{"tool_name":"Agent","tool_input":{"prompt":"This is a backward compat tes
 RESULT=$?
 assert_eq "0" "$RESULT" "coaching: no crash without last_layer2_at field"
 
+# --- Observation extraction edge cases ---
+
+# Setup for edge case tests
+setup_test_project
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+STATE_FILE="$TEST_DIR/.claude/state/workflow.json"
+
+# Set up state with a known observation ID
+python3 -c "
+import json
+d = {'phase':'discuss','message_shown':True,'active_skill':'','decision_record':'','coaching':{'tool_calls_since_agent':0,'layer2_fired':[]},'autonomy_level':2,'last_observation_id':1234}
+with open('$STATE_FILE','w') as f: json.dump(d,f,indent=2); f.write('\n')
+"
+
+# Test: empty content array — preserves existing ID
+echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"test"},"tool_response":{"content":[]}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
+OBS_ID=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('last_observation_id',''))")
+assert_eq "1234" "$OBS_ID" "obs-extraction: empty content preserves existing ID"
+
+# Test: non-JSON text block — preserves existing ID
+echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"test"},"tool_response":{"content":[{"type":"text","text":"not valid json"}]}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
+OBS_ID=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('last_observation_id',''))")
+assert_eq "1234" "$OBS_ID" "obs-extraction: non-JSON preserves existing ID"
+
+# Test: missing id field — preserves existing ID
+echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"test"},"tool_response":{"content":[{"type":"text","text":"{\"success\":true}"}]}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
+OBS_ID=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('last_observation_id',''))")
+assert_eq "1234" "$OBS_ID" "obs-extraction: missing id preserves existing ID"
+
 # ============================================================
 # TEST SUITE: statusline.sh
 # ============================================================
