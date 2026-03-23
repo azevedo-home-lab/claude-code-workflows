@@ -295,4 +295,23 @@ WF_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd
 echo "Task complete. Phase set to OFF — workflow enforcement disabled."
 ```
 
-Confirm to the user that the task is complete and the workflow has reset to OFF phase.
+After the phase transition succeeds, output a **handover summary** for the user and for the next Claude Code session:
+
+```
+## Session Complete
+
+**Handover observation:** #<ID> (saved to claude-mem, project: <repo-name>)
+**Commit:** <hash> on <branch>
+**Tests:** <count> passing
+
+### What was done
+- <1-2 sentence summary of each work stream>
+
+### Open issues / next steps
+- <tech debt items from Step 7, prioritized>
+
+### For next session
+Load handover: `get_observations([<ID>])`
+```
+
+This message serves two purposes: (1) the user sees a clean summary of what happened, and (2) the next Claude Code session can reference the observation ID to load full context.
