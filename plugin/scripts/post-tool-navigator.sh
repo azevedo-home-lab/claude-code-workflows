@@ -19,11 +19,11 @@ source "$SCRIPT_DIR/workflow-state.sh"
 
 # Read tool name and input from stdin (must happen before any early exits)
 INPUT=$(cat)
-TOOL_NAME=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null || echo "")
+TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null) || TOOL_NAME=""
 
 # Helper: extract bash command from tool input (used by Layer 2/3 checks)
 extract_bash_command() {
-    echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo ""
+    echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo ""
 }
 
 # ---------------------------------------------------------------------------
@@ -33,35 +33,15 @@ extract_bash_command() {
 # Runs before phase checks so IDs are captured regardless of phase.
 # ---------------------------------------------------------------------------
 if echo "$TOOL_NAME" | grep -qE 'mcp.*(save_observation|get_observations)'; then
-    # Determine extraction mode: save returns a dict, get returns a list
-    EXTRACT_MODE="dict"
-    if echo "$TOOL_NAME" | grep -qE 'get_observations'; then
-        EXTRACT_MODE="list"
-    fi
-    OBS_ID=$(echo "$INPUT" | EXTRACT_MODE="$EXTRACT_MODE" python3 -c "
-import sys, json, os
-mode = os.environ.get('EXTRACT_MODE', 'dict')
-d = json.load(sys.stdin)
-resp = d.get('tool_response', {})
-content = resp.get('content', [])
-for block in content:
-    if block.get('type') == 'text':
-        try:
-            data = json.loads(block['text'])
-            if mode == 'dict' and isinstance(data, dict) and 'id' in data:
-                print(data['id'])
-                sys.exit(0)
-            elif mode == 'list' and isinstance(data, list) and len(data) > 0 and 'id' in data[-1]:
-                print(data[-1]['id'])
-                sys.exit(0)
-        except (json.JSONDecodeError, KeyError):
-            pass
-# Fallback: try tool_response directly (non-MCP format)
-if isinstance(resp, dict) and 'id' in resp:
-    print(resp['id'])
-else:
-    print('')
-" 2>/dev/null || echo "")
+    OBS_ID=$(echo "$INPUT" | jq -r '
+    .tool_response.content[]?
+    | select(.type == "text")
+    | .text
+    | try fromjson catch empty
+    | if type == "array" then .[-1].id // empty
+      elif type == "object" then .id // empty
+      else empty end
+' 2>/dev/null | tail -1) || OBS_ID=""
     # Validate OBS_ID is numeric before storing
     if [[ "$OBS_ID" =~ ^[0-9]+$ ]]; then
         set_last_observation_id "$OBS_ID"
@@ -148,16 +128,7 @@ case "$TOOL_NAME" in
     mcp*save_observation|mcp*get_observations) ;;
     *) # Tool is irrelevant to coaching — output any Layer 1 message and exit
         if [ -n "$MESSAGES" ]; then
-            MESSAGES="$MESSAGES" python3 -c "
-import json, os
-output = {
-    'hookSpecificOutput': {
-        'hookEventName': 'PostToolUse',
-        'systemMessage': os.environ['MESSAGES']
-    }
-}
-print(json.dumps(output))
-"
+            jq -n --arg msg "$MESSAGES" '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "systemMessage": $msg}}'
         fi
         exit 0
         ;;
@@ -171,7 +142,7 @@ esac
 FILE_PATH=""
 case "$TOOL_NAME" in
     Write|Edit|MultiEdit)
-        FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
+        FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null) || FILE_PATH=""
         ;;
 esac
 
@@ -297,12 +268,7 @@ L3_MSG=""
 
 # Check 1: Short agent prompts (< 150 chars)
 if [ "$TOOL_NAME" = "Agent" ]; then
-    PROMPT_LEN=$(echo "$INPUT" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-prompt = d.get('tool_input', {}).get('prompt', '')
-print(len(prompt))
-" 2>/dev/null || echo "999")
+    PROMPT_LEN=$(echo "$INPUT" | jq -r '.tool_input.prompt // "" | length' 2>/dev/null) || PROMPT_LEN=999
     if [ "$PROMPT_LEN" -lt 150 ]; then
         L3_MSG="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] Agent prompts must be detailed enough for autonomous work. Include: context, specific task, expected output format, constraints. Short prompts produce shallow results."
     fi
@@ -312,23 +278,22 @@ fi
 if [ "$TOOL_NAME" = "Bash" ]; then
     COMMAND=$(extract_bash_command)
     if echo "$COMMAND" | grep -qE 'git commit'; then
-        COMMIT_MSG_LEN=$(echo "$COMMAND" | python3 -c "
-import sys, re
-cmd = sys.stdin.read()
-# Match -m followed by a double-quoted or single-quoted string
-# Use \x22 for double-quote and \x27 for single-quote to avoid shell quoting issues
-m = re.search(r'-m\s+[\x22\x27](.*?)[\x22\x27]', cmd)
-if m and '\$(cat' not in m.group(1) and '<<' not in m.group(1):
-    print(len(m.group(1)))
-else:
-    # Try HEREDOC: look for EOF markers with \n as line separators
-    m2 = re.search(r'EOF.*?\\\\n(.*?)\\\\n.*?EOF', cmd)
-    if m2:
-        first_line = m2.group(1).strip()
-        print(len(first_line))
-    else:
-        print(999)
-" 2>/dev/null || echo "999")
+        COMMIT_MSG_LEN=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null | {
+    cmd=$(cat)
+    # Try -m "..." or -m '...' (single-line, no HEREDOC)
+    msg=$(echo "$cmd" | sed -n 's/.*-m[[:space:]]*"\([^"]*\)".*/\1/p; s/.*-m[[:space:]]*'"'"'\([^'"'"']*\)'"'"'.*/\1/p' | head -1)
+    if [ -n "$msg" ] && ! echo "$msg" | grep -qE '(\$\(cat|<<)'; then
+        echo "${#msg}"
+    else
+        # Try HEREDOC: normalise literal \n to real newlines, then extract first line after EOF
+        first_line=$(echo "$cmd" | sed 's/\\n/\n/g' | awk 'found && !/^EOF/{print; exit} /EOF/{found=1}' | head -1)
+        if [ -n "$first_line" ]; then
+            echo "${#first_line}"
+        else
+            echo "999"
+        fi
+    fi
+}) || COMMIT_MSG_LEN=999
         if [ "$COMMIT_MSG_LEN" -lt 30 ]; then
             L3_MSG="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] Commit messages must explain why, not what. The diff shows what changed. Include context and reasoning."
         fi
@@ -339,30 +304,23 @@ fi
 if [ "$PHASE" = "review" ] && { [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; }; then
     if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
         # Check if all findings are under Suggestions with no Critical or Warning entries
-        ALL_SUGGESTIONS=$(python3 -c "
-import sys
-try:
-    with open(sys.argv[1]) as f:
-        content = f.read()
-    in_review = False
-    has_critical = False
-    has_warning = False
-    for line in content.split('\n'):
-        if '## Review Findings' in line:
-            in_review = True
-        elif in_review and line.startswith('## ') and 'Review Findings' not in line:
-            break
-        elif in_review:
-            if '### Critical' in line: has_critical = True
-            if '### Warning' in line: has_warning = True
-    # If we found the section but no critical/warning headings with content
-    if in_review and not has_critical and not has_warning:
-        print('true')
-    else:
-        print('false')
-except Exception:
-    print('false')
-" "$FILE_PATH" 2>/dev/null || echo "false")
+        ALL_SUGGESTIONS="false"
+        if [ -f "$FILE_PATH" ]; then
+            IN_REVIEW=false
+            HAS_CRITICAL=false
+            HAS_WARNING=false
+            while IFS= read -r line; do
+                if echo "$line" | grep -q '## Review Findings'; then IN_REVIEW=true; fi
+                if [ "$IN_REVIEW" = "true" ] && echo "$line" | grep -qE '^## ' && ! echo "$line" | grep -q 'Review Findings'; then break; fi
+                if [ "$IN_REVIEW" = "true" ]; then
+                    if echo "$line" | grep -q '### Critical'; then HAS_CRITICAL=true; fi
+                    if echo "$line" | grep -q '### Warning'; then HAS_WARNING=true; fi
+                fi
+            done < "$FILE_PATH"
+            if [ "$IN_REVIEW" = "true" ] && [ "$HAS_CRITICAL" = "false" ] && [ "$HAS_WARNING" = "false" ]; then
+                ALL_SUGGESTIONS="true"
+            fi
+        fi
         if [ "$ALL_SUGGESTIONS" = "true" ]; then
             L3_MSG="[Workflow Coach — REVIEW] All findings were rated as suggestions. Review severity assessments. Are you downgrading to avoid friction?"
         fi
@@ -370,16 +328,13 @@ except Exception:
 fi
 
 # Check 4: save_observation quality (handover length + project field)
-# Single python3 call extracts both text length and project presence
+# Single jq call extracts both text length and project presence
 if echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
-    OBS_CHECK=$(echo "$INPUT" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-ti = d.get('tool_input', {})
-text = ti.get('narrative', ti.get('text', ''))
-project = ti.get('project', '')
-print(f'{len(text)} {\"true\" if project else \"false\"}')
-" 2>/dev/null || echo "999 true")
+    OBS_CHECK=$(echo "$INPUT" | jq -r '
+        (.tool_input.narrative // .tool_input.text // "") as $t |
+        (.tool_input.project // "") as $p |
+        "\($t | length) \(if $p != "" then "true" else "false" end)"
+    ' 2>/dev/null) || OBS_CHECK="999 true"
     OBS_LEN="${OBS_CHECK%% *}"
     HAS_PROJECT="${OBS_CHECK##* }"
 
@@ -404,14 +359,7 @@ fi
 # Check 5: Skipping research in DEFINE/DISCUSS (fires on every match per spec Layer 3)
 # Moved from Layer 2 to Layer 3 because spec says this fires on every match, not once per phase
 if [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ]; then
-    COUNTER=$(python3 -c "
-import json, sys
-try:
-    with open(sys.argv[1]) as f:
-        d = json.load(f)
-    print(d.get('coaching', {}).get('tool_calls_since_agent', 0))
-except Exception: print(0)
-" "$STATE_FILE" 2>/dev/null || echo "0")
+    COUNTER=$(jq -r '.coaching.tool_calls_since_agent // 0' "$STATE_FILE" 2>/dev/null) || COUNTER=0
     if [ "$COUNTER" -gt 10 ]; then
         SKIP_MSG="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] You're in a research phase but haven't dispatched background agents. Is this trivial enough to skip? State explicitly."
         if [ -n "$L3_MSG" ]; then
@@ -430,16 +378,7 @@ fi
 # This is approximate — may produce false positives. Fires in any active phase.
 if [ "$TOOL_NAME" = "AskUserQuestion" ]; then
     # Check if any agent has returned in this phase (any agent_return_* trigger fired)
-    AGENTS_RETURNED=$(python3 -c "
-import json, sys
-try:
-    with open(sys.argv[1]) as f:
-        d = json.load(f)
-    fired = d.get('coaching', {}).get('layer2_fired', [])
-    has_agent = any(t.startswith('agent_return') for t in fired)
-    print('true' if has_agent else 'false')
-except Exception: print('false')
-" "$STATE_FILE" 2>/dev/null || echo "false")
+    AGENTS_RETURNED=$(jq -r '[.coaching.layer2_fired[]? | select(startswith("agent_return"))] | if length > 0 then "true" else "false" end' "$STATE_FILE" 2>/dev/null) || AGENTS_RETURNED="false"
     if [ "$AGENTS_RETURNED" = "true" ]; then
         L3_RECOMMEND="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] Don't just list options. State which you recommend and why. The user needs your professional judgment, not a menu."
         if [ -n "$L3_MSG" ]; then
@@ -495,14 +434,5 @@ fi
 # ============================================================
 
 if [ -n "$MESSAGES" ]; then
-    MESSAGES="$MESSAGES" python3 -c "
-import json, os
-output = {
-    'hookSpecificOutput': {
-        'hookEventName': 'PostToolUse',
-        'systemMessage': os.environ['MESSAGES']
-    }
-}
-print(json.dumps(output))
-"
+    jq -n --arg msg "$MESSAGES" '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "systemMessage": $msg}}'
 fi
