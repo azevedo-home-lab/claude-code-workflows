@@ -872,6 +872,11 @@ RESULT=$(echo '{"tool_input":{"command":"python3 << EOF\nprint(1)\nEOF"}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
 assert_contains "$RESULT" "deny" "bash-guard: python3 heredoc blocked in DISCUSS"
 
+# Test: sh heredoc blocked in DISCUSS
+RESULT=$(echo '{"tool_input":{"command":"sh << EOF\necho hello\nEOF"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: sh heredoc blocked in DISCUSS"
+
 # Test: touch blocked in DISCUSS
 RESULT=$(echo '{"tool_input":{"command":"touch newfile.txt"}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
@@ -886,6 +891,11 @@ assert_contains "$RESULT" "deny" "bash-guard: truncate blocked in DISCUSS"
 RESULT=$(echo '{"tool_input":{"command":"perl -i -pe '"'"'s/old/new/'"'"' file"}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
 assert_contains "$RESULT" "deny" "bash-guard: perl -i blocked in DISCUSS"
+
+# Test: ruby -i blocked in DISCUSS
+RESULT=$(echo '{"tool_input":{"command":"ruby -i -pe '\''gsub(/old/,\"new\")'\'' file"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: ruby -i blocked in DISCUSS"
 
 # Test: tar xf blocked in DISCUSS
 RESULT=$(echo '{"tool_input":{"command":"tar xf archive.tar"}}' | \
@@ -1471,6 +1481,55 @@ echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_i
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" > /dev/null 2>&1 || true
 OBS_ID=$(python3 -c "import json; d=json.load(open('$STATE_FILE')); print(d.get('last_observation_id',''))")
 assert_eq "1234" "$OBS_ID" "obs-extraction: missing id preserves existing ID"
+
+# --- Layer 3 Check 3: all findings downgraded ---
+setup_test_project
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+STATE_FILE="$TEST_DIR/.claude/state/workflow.json"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+python3 -c "import json; d=json.load(open('$STATE_FILE')); d['message_shown']=True; json.dump(d,open('$STATE_FILE','w'),indent=2)"
+
+# Create a decisions.md with only Suggestions
+DECISIONS_FILE="$TEST_DIR/docs/decisions.md"
+mkdir -p "$(dirname "$DECISIONS_FILE")"
+cat > "$DECISIONS_FILE" << 'DECFILE'
+## Review Findings
+### Suggestions
+- Some minor thing
+DECFILE
+
+RESULT=$(echo '{"tool_name":"Edit","tool_input":{"file_path":"'"$DECISIONS_FILE"'"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>/dev/null)
+assert_contains "$RESULT" "downgrad" "coaching L3: warns when all findings are suggestions only"
+rm -f "$DECISIONS_FILE"
+
+# --- Layer 3 Check 4a: minimal handover ---
+setup_test_project
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+STATE_FILE="$TEST_DIR/.claude/state/workflow.json"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
+python3 -c "import json; d=json.load(open('$STATE_FILE')); d['message_shown']=True; json.dump(d,open('$STATE_FILE','w'),indent=2)"
+
+RESULT=$(echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"text":"short","project":"test"},"tool_response":{"content":[{"type":"text","text":"{\"id\":1,\"success\":true}"}]}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>/dev/null)
+assert_contains "$RESULT" "handover" "coaching L3: warns on minimal handover in COMPLETE"
+
+# --- Layer 3 Check 6: options without recommendation ---
+setup_test_project
+cp "$REPO_DIR/.claude/hooks/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+STATE_FILE="$TEST_DIR/.claude/state/workflow.json"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+python3 -c "
+import json
+d = json.load(open('$STATE_FILE'))
+d['message_shown'] = True
+d['coaching']['layer2_fired'] = ['agent_return_discuss']
+json.dump(d, open('$STATE_FILE','w'), indent=2)
+"
+
+RESULT=$(echo '{"tool_name":"AskUserQuestion","tool_input":{"question":"which option?"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$RESULT" "recommend" "coaching L3: warns about options without recommendation"
 
 # ============================================================
 # TEST SUITE: statusline.sh
