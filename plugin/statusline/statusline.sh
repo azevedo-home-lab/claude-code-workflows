@@ -169,17 +169,7 @@ if [ -d "$CM_PLUGIN_DIR" ]; then
     CM_OBS_ID=$(grep -o '"last_observation_id"[[:space:]]*:[[:space:]]*[0-9]*' "$WM_STATE_FILE" | grep -o '[0-9]*$')
     [ -n "$CM_OBS_ID" ] && CM_SUFFIX=" ${CYAN}[#${CM_OBS_ID}]${RESET}"
     # Tracked observations (tech debt, open issues, next steps)
-    CM_TRACKED=$(python3 -c "
-import json, sys
-try:
-    with open(sys.argv[1]) as f:
-        d = json.load(f)
-    obs = d.get('tracked_observations', [])
-    if obs:
-        print(','.join('#' + str(x) for x in obs))
-except Exception:
-    pass
-" "$WM_STATE_FILE" 2>/dev/null)
+    CM_TRACKED=$(jq -r '.tracked_observations // [] | map("#" + tostring) | join(",")' "$WM_STATE_FILE" 2>/dev/null)
     [ -n "$CM_TRACKED" ] && CM_SUFFIX+=" ${DIM}Open:[${CM_TRACKED}]${RESET}"
   fi
   OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Claude-Mem ${CM_VERSION} ✓${RESET}${CM_SUFFIX}"
