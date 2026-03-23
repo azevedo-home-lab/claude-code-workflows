@@ -17,7 +17,7 @@ STATE_FILE="$STATE_DIR/workflow.json"
 RESTRICTED_WRITE_WHITELIST='(\.claude/state/|docs/superpowers/specs/|docs/superpowers/plans/|docs/plans/)'
 
 # Docs-allowed tier: COMPLETE phase
-COMPLETE_WRITE_WHITELIST='(\.claude/state/|docs/|^[^/]*\.md$)'
+COMPLETE_WRITE_WHITELIST='(\.claude/state/|\.claude/commands/|docs/|^[^/]*\.md$)'
 
 # ---------------------------------------------------------------------------
 # Shared hook helpers
