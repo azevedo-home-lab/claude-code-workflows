@@ -37,24 +37,19 @@ mkdir -p "$STATE_DIR"
 
 # Write default workflow.json if it doesn't exist
 if [ ! -f "$STATE_FILE" ]; then
-  python3 -c "
-import json, sys, datetime
-state = {
-    'phase': 'off',
-    'message_shown': False,
-    'active_skill': '',
-    'decision_record': '',
-    'coaching': {
-        'tool_calls_since_agent': 0,
-        'layer2_fired': []
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  jq -n --arg ts "$ts" '{
+    phase: "off",
+    message_shown: false,
+    active_skill: "",
+    decision_record: "",
+    coaching: {
+      tool_calls_since_agent: 0,
+      layer2_fired: []
     },
-    'updated': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-    'autonomy_level': 2
-}
-with open(sys.argv[1], 'w') as f:
-    json.dump(state, f, indent=2)
-    f.write('\n')
-" "$STATE_FILE"
+    updated: $ts,
+    autonomy_level: 2
+  }' > "$STATE_FILE"
 fi
 
 # Add .claude/state/ to .gitignore if not already there
@@ -90,28 +85,13 @@ if [ -f "$STATUSLINE_SRC" ]; then
   chmod +x "$STATUSLINE_DST"
 
   # Configure statusLine in global settings.json
-  python3 -c "
-import json, os, sys
-
-settings_path = sys.argv[1]
-
-# Load existing settings or start fresh
-if os.path.isfile(settings_path):
-    with open(settings_path, 'r') as f:
-        settings = json.load(f)
-else:
-    settings = {}
-
-settings['statusLine'] = {
-    'type': 'command',
-    'command': '~/.claude/statusline.sh',
-    'padding': 2
-}
-
-with open(settings_path, 'w') as f:
-    json.dump(settings, f, indent=2)
-    f.write('\n')
-" "$GLOBAL_SETTINGS" || true
+  if [ -f "$GLOBAL_SETTINGS" ]; then
+    jq '.statusLine = {"type": "command", "command": "~/.claude/statusline.sh", "padding": 2}' \
+      "$GLOBAL_SETTINGS" > "$GLOBAL_SETTINGS.tmp" && mv "$GLOBAL_SETTINGS.tmp" "$GLOBAL_SETTINGS"
+  else
+    jq -n '{"statusLine": {"type": "command", "command": "~/.claude/statusline.sh", "padding": 2}}' \
+      > "$GLOBAL_SETTINGS"
+  fi || true
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -123,28 +103,6 @@ fi
 # (unattended) is broken by constant approval dialogs.
 PROJECT_SETTINGS="$PROJECT_DIR/.claude/settings.json"
 if [ -f "$PROJECT_SETTINGS" ]; then
-  python3 -c "
-import json, sys
-
-settings_path = sys.argv[1]
-with open(settings_path, 'r') as f:
-    settings = json.load(f)
-
-permissions = settings.setdefault('permissions', {})
-allow = permissions.setdefault('allow', [])
-
-# Tools required for unattended workflow operation
-required_tools = ['Read', 'Agent', 'Glob', 'Grep']
-
-changed = False
-for tool in required_tools:
-    if tool not in allow:
-        allow.append(tool)
-        changed = True
-
-if changed:
-    with open(settings_path, 'w') as f:
-        json.dump(settings, f, indent=2)
-        f.write('\n')
-" "$PROJECT_SETTINGS" || true
+  jq '.permissions.allow = ((.permissions.allow // []) + ["Read", "Agent", "Glob", "Grep"] | unique)' \
+    "$PROJECT_SETTINGS" > "$PROJECT_SETTINGS.tmp" && mv "$PROJECT_SETTINGS.tmp" "$PROJECT_SETTINGS" || true
 fi
