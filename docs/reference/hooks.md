@@ -46,7 +46,8 @@ New sessions default to OFF if no state file exists.
 ```
 .claude/
 ├── hooks/
-│   ├── workflow-state.sh       # State read/write utility (sourced by other scripts)
+│   ├── workflow-state.sh       # State read/write utility (sourced by hooks and wrapper)
+│   ├── workflow-cmd.sh         # Shell-independent wrapper — always runs under bash via shebang
 │   ├── workflow-gate.sh        # PreToolUse: blocks Write/Edit in DEFINE/DISCUSS/COMPLETE
 │   ├── bash-write-guard.sh     # PreToolUse: blocks Bash writes in DEFINE/DISCUSS/COMPLETE
 │   └── post-tool-navigator.sh  # PostToolUse: three-layer coaching system
