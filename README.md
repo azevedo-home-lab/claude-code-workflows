@@ -6,27 +6,10 @@ Structured development with Claude Code. Think before coding, review before ship
 
 Four tools that work together:
 
-- **Workflow Manager** — hooks that block code edits until you have a plan
+- **Workflow Manager** — Phase-based workflow enforcement with coaching and edit gates
 - **Superpowers** — skills for brainstorming, TDD, planning, debugging, code review
 - **claude-mem** — cross-session memory via MCP server
 - **Status Line** — context usage, git branch, workflow phase at a glance
-
-## Install
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/install.sh | bash
-```
-
-Or clone and install manually:
-
-```bash
-git clone https://github.com/azevedo-home-lab/claude-code-workflows.git
-./claude-code-workflows/install.sh /path/to/your/project
-```
-
-Uninstall: `./uninstall.sh`
-
-If your project has a `CLAUDE.md`, review [`claude.md.template`](claude.md.template) and merge any relevant sections.
 
 ## Workflow
 
@@ -61,10 +44,17 @@ Each cycle produces a **decision record** tracking problem, approaches, rational
 
 | Tool | What it does | Docs |
 |------|-------------|------|
-| Workflow Manager | Phase-based edit gates + coaching system | [Hooks reference](docs/reference/hooks.md) |
+| Workflow Manager | Phase-based enforcement + coaching | [Hooks reference](docs/reference/hooks.md) |
 | Superpowers | Auto-activated development skills | [Integration guide](docs/guides/integration-guide.md) |
 | claude-mem | Persistent cross-session observations | [Memory guide](docs/guides/claude-mem-guide.md) |
 | Status Line | Color-coded status bar | [Setup guide](docs/guides/statusline-guide.md) |
+
+### Optional Tools
+
+Installed separately with `--iterm` or `--yubikey` flags:
+
+| Tool | What it does | Docs |
+|------|-------------|------|
 | YubiKey signing | FIDO2 commit signing + push auth | [YubiKey setup](tools/yubikey-setup/) |
 | iTerm Launcher | Dedicated Claude Code window | [Launcher](tools/iterm-launcher/) |
 
@@ -75,8 +65,27 @@ Each cycle produces a **decision record** tracking problem, approaches, rational
 - [Command Reference](docs/quick-reference/commands.md) — all commands
 - [Professional Standards](docs/reference/professional-standards.md) — behavioral expectations per phase
 
-## Informed By
+## Install
 
+```bash
+curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/install.sh | bash
+```
+
+Or clone and install manually:
+
+```bash
+git clone https://github.com/azevedo-home-lab/claude-code-workflows.git
+./claude-code-workflows/install.sh /path/to/your/project
+```
+
+Uninstall: `./uninstall.sh`
+
+If your project has a `CLAUDE.md`, review [`claude.md.template`](claude.md.template) and merge any relevant sections.
+
+## Sources
+
+- [claude-mem](https://github.com/thedotmack/claude-mem) — cross-session memory MCP server
+- [Context Engineering for AI Agents](https://docs.claude-mem.ai/context-engineering) — context rot, progressive disclosure, agentic memory
 - [Reduce Hallucinations](https://docs.anthropic.com/en/docs/test-and-evaluate/strengthen-guardrails/reduce-hallucinations) — grounding, citations, uncertainty
 - [Claude Code Best Practices](https://code.claude.com/docs/en/best-practices) — agentic coding patterns
 - [Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) — tool design, evaluation loops
