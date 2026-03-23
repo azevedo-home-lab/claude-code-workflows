@@ -132,7 +132,31 @@ SETTINGS="$TARGET/.claude/settings.json"
 
 if [ -f "$SETTINGS" ]; then
     if grep -q "workflow-gate.sh" "$SETTINGS" 2>/dev/null; then
-        ok "Hooks already configured in settings.json"
+        # Hooks present — ensure permissions are also set
+        PERM_STATUS=$(python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    settings = json.load(f)
+perms = settings.setdefault('permissions', {})
+allow = perms.setdefault('allow', [])
+changed = False
+for tool in ['Bash', 'WebFetch', 'WebSearch']:
+    if tool not in allow:
+        allow.append(tool)
+        changed = True
+if changed:
+    with open(sys.argv[1], 'w') as f:
+        json.dump(settings, f, indent=2)
+        f.write('\n')
+    print('updated')
+else:
+    print('ok')
+" "$SETTINGS")
+        if [ "$PERM_STATUS" = "updated" ]; then
+            ok "Hooks already configured, added missing permissions"
+        else
+            ok "Hooks already configured in settings.json"
+        fi
     else
         python3 -c "
 import json, sys
@@ -162,6 +186,13 @@ nav_entry = {
 }
 post.append(nav_entry)
 
+# Permissions
+perms = settings.setdefault('permissions', {})
+allow = perms.setdefault('allow', [])
+for tool in ['Bash', 'WebFetch', 'WebSearch']:
+    if tool not in allow:
+        allow.append(tool)
+
 with open(sys.argv[1], 'w') as f:
     json.dump(settings, f, indent=2)
     f.write('\n')
@@ -171,6 +202,13 @@ with open(sys.argv[1], 'w') as f:
 else
     cat > "$SETTINGS" <<'HOOKSCFG'
 {
+  "permissions": {
+    "allow": [
+      "Bash",
+      "WebFetch",
+      "WebSearch"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {

@@ -998,6 +998,71 @@ assert_contains "$SECOND_OUTPUT" "already configured" "skips settings.json on re
 
 rm -rf "$INSTALL_TARGET" "$NON_GIT"
 
+# Test: fresh install includes Bash in permissions allow list
+FRESH_DIR=$(mktemp -d)
+mkdir -p "$FRESH_DIR/.git"
+bash "$REPO_DIR/install.sh" "$FRESH_DIR" > /dev/null 2>&1
+BASH_ALLOWED=$(python3 -c "
+import json
+with open('$FRESH_DIR/.claude/settings.json') as f:
+    d = json.load(f)
+perms = d.get('permissions', {}).get('allow', [])
+print('true' if 'Bash' in perms else 'false')
+")
+assert_eq "true" "$BASH_ALLOWED" "install: fresh install includes Bash permission"
+
+# Test: fresh install includes WebFetch and WebSearch
+WF_WS_ALLOWED=$(python3 -c "
+import json
+with open('$FRESH_DIR/.claude/settings.json') as f:
+    d = json.load(f)
+perms = d.get('permissions', {}).get('allow', [])
+print('true' if 'WebFetch' in perms and 'WebSearch' in perms else 'false')
+")
+assert_eq "true" "$WF_WS_ALLOWED" "install: fresh install includes WebFetch/WebSearch permissions"
+rm -rf "$FRESH_DIR"
+
+# Test: merge install adds permissions to existing settings.json
+MERGE_DIR=$(mktemp -d)
+mkdir -p "$MERGE_DIR/.git" "$MERGE_DIR/.claude"
+echo '{"permissions":{"allow":["SomeExisting"]}}' > "$MERGE_DIR/.claude/settings.json"
+bash "$REPO_DIR/install.sh" "$MERGE_DIR" > /dev/null 2>&1
+BASH_MERGED=$(python3 -c "
+import json
+with open('$MERGE_DIR/.claude/settings.json') as f:
+    d = json.load(f)
+perms = d.get('permissions', {}).get('allow', [])
+print('true' if all(t in perms for t in ['Bash','WebFetch','WebSearch','SomeExisting']) else 'false')
+")
+assert_eq "true" "$BASH_MERGED" "install: merge preserves existing and adds all permissions"
+rm -rf "$MERGE_DIR"
+
+# Test: re-install with hooks present but no permissions adds permissions
+RERUN_DIR=$(mktemp -d)
+mkdir -p "$RERUN_DIR/.git" "$RERUN_DIR/.claude"
+cat > "$RERUN_DIR/.claude/settings.json" <<'NOPERMS'
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{"type":"command","command":"$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-gate.sh"}]
+      }
+    ]
+  }
+}
+NOPERMS
+bash "$REPO_DIR/install.sh" "$RERUN_DIR" > /dev/null 2>&1
+RERUN_PERMS=$(python3 -c "
+import json
+with open('$RERUN_DIR/.claude/settings.json') as f:
+    d = json.load(f)
+perms = d.get('permissions', {}).get('allow', [])
+print('true' if 'Bash' in perms else 'false')
+")
+assert_eq "true" "$RERUN_PERMS" "install: re-install adds permissions when hooks already present"
+rm -rf "$RERUN_DIR"
+
 # ============================================================
 # TEST SUITE: uninstall.sh
 # ============================================================
