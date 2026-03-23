@@ -175,6 +175,49 @@ has_completion_snapshot() {
     echo "$result"
 }
 
+# Returns non-zero if a hard gate blocks the phase transition.
+# Gate error message is sent to stderr.
+# Pure validation — no side effects.
+_check_phase_gates() {
+    local current="$1" new_phase="$2"
+
+    # IMPLEMENT exit gate: leaving implement → must have completed implementation milestones
+    if [ "$current" = "implement" ] && [ "$new_phase" != "implement" ]; then
+        local missing=""
+        missing=$(_check_milestones "implement" "plan_read" "tests_passing" "all_tasks_complete")
+        if [ -n "$missing" ]; then
+            echo "HARD GATE: Cannot leave IMPLEMENT — incomplete milestones:$missing. Complete all implementation steps before transitioning." >&2
+            return 1
+        fi
+    fi
+
+    # COMPLETE exit gate: leaving complete → must have completed completion pipeline
+    if [ "$current" = "complete" ] && [ "$new_phase" != "complete" ]; then
+        local missing=""
+        missing=$(_check_milestones "completion" "plan_validated" "outcomes_validated" "results_presented" "docs_checked" "committed" "tech_debt_audited" "handover_saved")
+        if [ -n "$missing" ]; then
+            echo "HARD GATE: Cannot leave COMPLETE — incomplete pipeline steps:$missing. Complete all completion steps before transitioning." >&2
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
+# Reads fields from current state that must be preserved across phase transitions.
+# Sets variables in the caller's scope (no `local` — writes to caller's declared locals).
+# Caller must declare these variables with `local` before calling this function.
+_read_preserved_state() {
+    if [ ! -f "$STATE_FILE" ]; then return; fi
+
+    preserved_skill=$(get_active_skill)
+    preserved_decision=$(get_decision_record)
+    preserved_autonomy=$(get_autonomy_level)
+    preserved_obs_id=$(get_last_observation_id)
+    preserved_tracked=$(get_tracked_observations)
+    preserved_snapshot=$(jq -c '.completion_snapshot // null' "$STATE_FILE" 2>/dev/null) || preserved_snapshot="null"
+}
+
 set_phase() {
     local new_phase="$1"
 
@@ -186,96 +229,62 @@ set_phase() {
 
     mkdir -p "$STATE_DIR"
 
-    # ---------------------------------------------------------------------------
-    # Hard gates: block phase transitions if milestones are incomplete
-    # Only enforced when reset_*_status was called (status object exists)
-    # ---------------------------------------------------------------------------
-    # gate_error is set to a non-empty string if the gate blocks the transition.
-    # The state write MUST NOT run if gate_error is non-empty.
-    local gate_error=""
+    # Hard gate checks: block phase transitions if milestones are incomplete.
+    # Only enforced when reset_*_status was called (status object exists).
+    # The state write MUST NOT run if a gate blocks.
     if [ -f "$STATE_FILE" ]; then
         local current
         current=$(get_phase)
-
-        # Leaving IMPLEMENT → must have completed implementation milestones
-        if [ "$current" = "implement" ] && [ "$new_phase" != "implement" ]; then
-            local missing=""
-            missing=$(_check_milestones "implement" "plan_read" "tests_passing" "all_tasks_complete")
-            if [ -n "$missing" ]; then
-                gate_error="HARD GATE: Cannot leave IMPLEMENT — incomplete milestones:$missing. Complete all implementation steps before transitioning."
-            fi
-        fi
-
-        # Leaving COMPLETE → must have completed completion pipeline
-        if [ -z "$gate_error" ] && [ "$current" = "complete" ] && [ "$new_phase" != "complete" ]; then
-            local missing=""
-            missing=$(_check_milestones "completion" "plan_validated" "outcomes_validated" "results_presented" "docs_checked" "committed" "tech_debt_audited" "handover_saved")
-            if [ -n "$missing" ]; then
-                gate_error="HARD GATE: Cannot leave COMPLETE — incomplete pipeline steps:$missing. Complete all completion steps before transitioning."
-            fi
+        if ! _check_phase_gates "$current" "$new_phase"; then
+            return 1
         fi
     fi
 
-    # Emit gate error and abort — state write must not happen
-    if [ -n "$gate_error" ]; then
-        echo "$gate_error" >&2
-        return 1
-    fi
-
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-
-    # Read existing state to preserve fields
-    local existing_active_skill=""
-    local existing_decision_record=""
-    local existing_autonomy_level=""
-    local existing_last_observation_id=""
-    local existing_tracked_observations=""
-    local existing_completion_snapshot=""
+    # Read existing state to preserve fields across transitions
+    local preserved_skill="" preserved_decision="" preserved_autonomy=""
+    local preserved_obs_id="" preserved_tracked="" preserved_snapshot="null"
     local current_phase="off"
     if [ -f "$STATE_FILE" ]; then
         current_phase=$(get_phase)
-        existing_active_skill=$(get_active_skill)
-        existing_decision_record=$(get_decision_record)
-        existing_autonomy_level=$(get_autonomy_level)
-        existing_last_observation_id=$(get_last_observation_id)
-        existing_tracked_observations=$(get_tracked_observations)
-        existing_completion_snapshot=$(jq -c '.completion_snapshot // null' "$STATE_FILE" 2>/dev/null) || existing_completion_snapshot="null"
+        _read_preserved_state
     fi
 
     # If new phase is off, clear active_skill, decision_record, and autonomy_level (cycle complete)
     # Note: last_observation_id is preserved — it's useful in the statusline even when workflow is OFF
     if [ "$new_phase" = "off" ]; then
-        existing_active_skill=""
-        existing_decision_record=""
-        existing_autonomy_level=""
+        preserved_skill=""
+        preserved_decision=""
+        preserved_autonomy=""
     fi
 
     # Initialize autonomy_level to 2 when transitioning from OFF to active phase.
     # Note: this guard only fires on the very first set_phase call (no state file yet),
     # because get_autonomy_level returns "2" as default when a file exists.
     # After set_phase("off") clears autonomy_level, the next get_autonomy_level still
-    # returns "2" (default), so existing_autonomy_level is never empty in normal cycling.
-    if [ "$current_phase" = "off" ] && [ "$new_phase" != "off" ] && [ -z "$existing_autonomy_level" ]; then
-        existing_autonomy_level="2"
+    # returns "2" (default), so preserved_autonomy is never empty in normal cycling.
+    if [ "$current_phase" = "off" ] && [ "$new_phase" != "off" ] && [ -z "$preserved_autonomy" ]; then
+        preserved_autonomy="2"
     fi
 
     # Build tracked observations as JSON array
     local tracked_json="[]"
-    if [ -n "$existing_tracked_observations" ]; then
-        tracked_json=$(jq -n --arg csv "$existing_tracked_observations" '$csv | split(",") | map(select(. != "") | tonumber)')
+    if [ -n "$preserved_tracked" ]; then
+        tracked_json=$(jq -n --arg csv "$preserved_tracked" '$csv | split(",") | map(select(. != "") | tonumber)')
     fi
 
     # Build the new state: preserve active_skill, decision_record, and autonomy_level,
     # reset message_shown, fresh coaching, clean up review if leaving review
-    local snapshot_json="${existing_completion_snapshot:-null}"
+    local snapshot_json="${preserved_snapshot:-null}"
     # Treat empty string as null for jq
     if [ -z "$snapshot_json" ]; then snapshot_json="null"; fi
 
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
     jq -n --arg phase "$new_phase" --arg ts "$ts" \
-        --arg skill "$existing_active_skill" --arg decision "$existing_decision_record" \
-        --argjson autonomy "${existing_autonomy_level:-null}" \
-        --arg obs_id "$existing_last_observation_id" \
+        --arg skill "$preserved_skill" --arg decision "$preserved_decision" \
+        --argjson autonomy "${preserved_autonomy:-null}" \
+        --arg obs_id "$preserved_obs_id" \
         --argjson tracked "$tracked_json" \
         --argjson snapshot "$snapshot_json" \
         '{
