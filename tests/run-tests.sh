@@ -1978,6 +1978,53 @@ assert_eq "2" "$LEVEL_ZERO" "zero-byte state: get_autonomy_level returns 2"
 MSG_ZERO=$(get_message_shown)
 assert_eq "false" "$MSG_ZERO" "zero-byte state: get_message_shown returns false"
 
+# Test: _safe_write rejects oversized input
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+set_phase "off"
+OVERSIZE_SW_ERR=$(printf '%0.sx' $(seq 1 12000) | _safe_write 2>&1) && OVERSIZE_SW_EXIT=0 || OVERSIZE_SW_EXIT=$?
+assert_eq "1" "$OVERSIZE_SW_EXIT" "_safe_write: rejects oversized input"
+assert_contains "$OVERSIZE_SW_ERR" "10KB" "_safe_write: error message mentions 10KB"
+TMP_FILES=$(find "$STATE_DIR" -name '*.tmp.*' 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "0" "$TMP_FILES" "_safe_write: no temp files left after oversized rejection"
+
+# Test: _safe_write rejects zero-byte input
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+set_phase "off"
+ORIGINAL=$(cat "$STATE_FILE")
+printf '' | _safe_write 2>/dev/null && ZERO_SW_EXIT=0 || ZERO_SW_EXIT=$?
+assert_eq "1" "$ZERO_SW_EXIT" "_safe_write: rejects zero-byte input"
+TMP_FILES=$(find "$STATE_DIR" -name '*.tmp.*' 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "0" "$TMP_FILES" "_safe_write: no temp files left after zero-byte rejection"
+AFTER=$(cat "$STATE_FILE")
+assert_eq "$ORIGINAL" "$AFTER" "_safe_write: state file unchanged after zero-byte rejection"
+
+# Test: initial-creation via _safe_write produces valid JSON
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+rm -f "$STATE_FILE"
+set_last_observation_id 9999
+VALID=$(jq -e '.last_observation_id' "$STATE_FILE" 2>/dev/null) && VALID_EXIT=0 || VALID_EXIT=$?
+assert_eq "0" "$VALID_EXIT" "initial creation: produces valid JSON via _safe_write"
+assert_eq "9999" "$VALID" "initial creation: contains expected observation ID"
+
+# Test: get_phase returns "off" for unknown phase string (enum guard)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+set_phase "off"
+jq '.phase = "bogus"' "$STATE_FILE" > "$STATE_FILE.tmp.test" && mv "$STATE_FILE.tmp.test" "$STATE_FILE"
+RESULT=$(get_phase)
+assert_eq "off" "$RESULT" "phase enum guard: unknown phase string returns off"
+
+# Test: get_phase returns "off" for null phase (enum guard)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+set_phase "off"
+jq '.phase = null' "$STATE_FILE" > "$STATE_FILE.tmp.test" && mv "$STATE_FILE.tmp.test" "$STATE_FILE"
+RESULT=$(get_phase)
+assert_eq "off" "$RESULT" "phase enum guard: null phase returns off"
+
 # ============================================================
 # TEST SUITE: Completion Snapshot (Loop-back Exception)
 # ============================================================

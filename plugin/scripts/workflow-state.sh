@@ -12,26 +12,40 @@
 STATE_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/.claude/state"
 STATE_FILE="$STATE_DIR/workflow.json"
 
-# Generic state write helper. Atomic: writes to PID-scoped temp file, then mv.
-# Rejects writes that would exceed 10KB to prevent runaway state growth.
-# Usage: _update_state <jq_filter> [--arg name val]... [--argjson name val]...
-_update_state() {
-    if [ ! -f "$STATE_FILE" ]; then return 1; fi
-    local filter="$1"; shift
-    local ts tmpfile
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    tmpfile="${STATE_FILE}.tmp.$$"
-    jq --arg ts "$ts" "$@" \
-        "$filter | .updated = \$ts" \
-        "$STATE_FILE" > "$tmpfile" || { rm -f "$tmpfile"; return 1; }
+# Atomic write helper. Reads stdin → PID-scoped temp file → size guards → mv.
+# All state file writes MUST go through this function.
+# Rejects zero-byte input (catches pipe-from-failed-jq) and >10KB output.
+_safe_write() {
+    local tmpfile="${STATE_FILE}.tmp.$$"
+    cat > "$tmpfile" || { rm -f "$tmpfile"; return 1; }
     local size
     size=$(wc -c < "$tmpfile")
+    if [ "$size" -eq 0 ]; then
+        rm -f "$tmpfile"
+        return 1
+    fi
     if [ "$size" -gt 10240 ]; then
         rm -f "$tmpfile"
         echo "ERROR: State file would exceed 10KB ($size bytes). Write rejected." >&2
         return 1
     fi
     mv "$tmpfile" "$STATE_FILE"
+}
+
+# Generic state write helper. Pipes jq output through _safe_write for atomic,
+# size-guarded writes.
+# SECURITY NOTE: The $filter parameter is interpolated into jq. This is safe
+# because all callers are within this file with hardcoded filter strings.
+# Do not expose _update_state to untrusted input.
+# Usage: _update_state <jq_filter> [--arg name val]... [--argjson name val]...
+_update_state() {
+    if [ ! -f "$STATE_FILE" ]; then return 1; fi
+    local filter="$1"; shift
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    jq --arg ts "$ts" "$@" \
+        "$filter | .updated = \$ts" \
+        "$STATE_FILE" | _safe_write
 }
 
 # Restrictive tier: DEFINE and DISCUSS phases
@@ -70,6 +84,10 @@ get_phase() {
     local phase
     phase=$(jq -r '.phase // "off"' "$STATE_FILE" 2>/dev/null) || phase="off"
     [ -z "$phase" ] && phase="off"
+    case "$phase" in
+        off|define|discuss|implement|review|complete) ;;
+        *) phase="off" ;;
+    esac
     echo "$phase"
 }
 
@@ -121,8 +139,8 @@ set_last_observation_id() {
     if [ ! -f "$STATE_FILE" ]; then
         # Create minimal state file for observation tracking
         jq -n --argjson id "$obs_id" --arg ts "$ts" \
-            '{"phase": "off", "last_observation_id": $id, "updated": $ts}' > "$STATE_FILE"
-        return
+            '{"phase": "off", "last_observation_id": $id, "updated": $ts}' | _safe_write
+        return $?
     fi
     _update_state '.last_observation_id = $id' --argjson id "$obs_id"
 }
@@ -148,8 +166,8 @@ set_tracked_observations() {
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     if [ ! -f "$STATE_FILE" ]; then
         jq -n --arg ids "$ids_csv" --arg ts "$ts" \
-            '{"phase": "off", "tracked_observations": (if $ids == "" then [] else ($ids | split(",") | map(select(. != "") | tonumber)) end), "updated": $ts}' > "$STATE_FILE"
-        return
+            '{"phase": "off", "tracked_observations": (if $ids == "" then [] else ($ids | split(",") | map(select(. != "") | tonumber)) end), "updated": $ts}' | _safe_write
+        return $?
     fi
     _update_state '.tracked_observations = (if $ids == "" then [] else ($ids | split(",") | map(select(. != "") | tonumber)) end)' --arg ids "$ids_csv"
 }
@@ -162,8 +180,8 @@ add_tracked_observation() {
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     if [ ! -f "$STATE_FILE" ]; then
         jq -n --argjson id "$obs_id" --arg ts "$ts" \
-            '{"phase": "off", "tracked_observations": [$id], "updated": $ts}' > "$STATE_FILE"
-        return
+            '{"phase": "off", "tracked_observations": [$id], "updated": $ts}' | _safe_write
+        return $?
     fi
     _update_state '.tracked_observations = ((.tracked_observations // []) + [$id] | unique)' --argjson id "$obs_id"
 }
@@ -312,7 +330,7 @@ set_phase() {
         + (if $obs_id != "" and $obs_id != "null" then {last_observation_id: ($obs_id | tonumber)} else {} end)
         + (if ($tracked | length) > 0 then {tracked_observations: $tracked} else {} end)
         + (if $snapshot != null then {completion_snapshot: $snapshot} else {} end)' \
-        > "${STATE_FILE}.tmp.$$" && mv "${STATE_FILE}.tmp.$$" "$STATE_FILE"
+        | _safe_write
 }
 
 get_message_shown() {
