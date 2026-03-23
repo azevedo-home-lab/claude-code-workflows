@@ -57,6 +57,33 @@ if echo "$COMMAND" | grep -qE '^[[:space:]]*(source[[:space:]]|\.[ /]).*workflow
     fi
 fi
 
+# Allow git commit — writes to git object store, not arbitrary files.
+# Commit message quality monitored by Layer 3 coaching.
+# Chain guard: check only the portion before the -m flag for shell operators,
+# since the commit message body may legitimately contain &&, ||, ; in examples.
+# A chained command like 'git commit -m "msg" && rm -rf /' embeds the chain
+# AFTER the quoted message ends — detect by checking the first line only
+# (before heredoc expansion) for operators outside the git commit prefix.
+if echo "$COMMAND" | grep -qE '^[[:space:]]*git[[:space:]]+commit\b'; then
+    # Extract only the first line of the command (before any heredoc body)
+    FIRST_LINE=$(echo "$COMMAND" | head -1)
+    # Check for shell operators that appear after the closing quote of -m "..."
+    # Strategy: strip the -m "..." or -m '...' inline value, then check for &&/||/;
+    STRIPPED=$(echo "$FIRST_LINE" | python3 -c "
+import sys, re
+line = sys.stdin.read().strip()
+# Strip inline quoted -m argument: -m \"...\" or -m '...'
+line = re.sub(r'\s-m\s+\"[^\"]*\"', ' -m MSG', line)
+line = re.sub(r'\s-m\s+[^\s]+', ' -m MSG', line)
+print(line)
+" 2>/dev/null)
+    if ! echo "$STRIPPED" | grep -qE '(&&|\|\||;)'; then
+        exit 0
+    fi
+    emit_deny "BLOCKED: 'git commit' chained with other commands is not allowed. Run git commit as a standalone command."
+    exit 0
+fi
+
 # Strip safe redirects before checking write patterns
 # 2>/dev/null, 2>&1, 1>&2 etc. are not file writes
 CLEAN_CMD=$(echo "$COMMAND" | sed -E 's/[0-9]+>\/dev\/null//g; s/[0-9]*>&[0-9]+//g')

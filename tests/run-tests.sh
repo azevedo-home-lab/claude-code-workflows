@@ -772,6 +772,34 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
 OUTPUT=$(run_bash_guard 'source .claude/hooks/workflow-state.sh && echo pwned > evil.txt')
 assert_contains "$OUTPUT" "deny" "Level 1 blocks chained workflow-state bypass"
 
+# --- git commit allowlist ---
+
+# Test: git commit with HEREDOC allowed in DISCUSS
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
+RESULT=$(echo '{"tool_input":{"command":"git commit -m \"$(cat <<'"'"'EOF'"'"'\nfeat: something\nEOF\n)\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_eq "" "$RESULT" "bash-guard: git commit with HEREDOC allowed in DISCUSS"
+
+# Test: git commit with simple message allowed in DISCUSS
+RESULT=$(echo '{"tool_input":{"command":"git commit -m \"feat: add feature\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_eq "" "$RESULT" "bash-guard: git commit with simple message allowed in DISCUSS"
+
+# Test: git commit chained with destructive command blocked
+RESULT=$(echo '{"tool_input":{"command":"git commit -m \"msg\" && rm -rf /"}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: git commit && rm blocked"
+
+# Test: git commit allowed at Level 1
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
+RESULT=$(echo '{"tool_input":{"command":"git commit -m \"feat: something\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_eq "" "$RESULT" "bash-guard: git commit allowed at Level 1"
+
 # ============================================================
 # TEST SUITE: install.sh
 # ============================================================
