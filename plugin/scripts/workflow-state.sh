@@ -332,29 +332,36 @@ set_phase() {
     # Hard gates: block phase transitions if milestones are incomplete
     # Only enforced when reset_*_status was called (status object exists)
     # ---------------------------------------------------------------------------
+    # gate_error is set to a non-empty string if the gate blocks the transition.
+    # The state write MUST NOT run if gate_error is non-empty.
+    local gate_error=""
     if [ -f "$STATE_FILE" ]; then
         local current
         current=$(get_phase)
 
         # Leaving IMPLEMENT → must have completed implementation milestones
         if [ "$current" = "implement" ] && [ "$new_phase" != "implement" ]; then
-            local missing
+            local missing=""
             missing=$(_check_milestones "implement" "plan_read" "tests_passing" "all_tasks_complete")
             if [ -n "$missing" ]; then
-                echo "HARD GATE: Cannot leave IMPLEMENT — incomplete milestones:$missing. Complete all implementation steps before transitioning." >&2
-                return 1
+                gate_error="HARD GATE: Cannot leave IMPLEMENT — incomplete milestones:$missing. Complete all implementation steps before transitioning."
             fi
         fi
 
         # Leaving COMPLETE → must have completed completion pipeline
-        if [ "$current" = "complete" ] && [ "$new_phase" != "complete" ]; then
-            local missing
+        if [ -z "$gate_error" ] && [ "$current" = "complete" ] && [ "$new_phase" != "complete" ]; then
+            local missing=""
             missing=$(_check_milestones "completion" "plan_validated" "outcomes_validated" "results_presented" "docs_checked" "committed" "tech_debt_audited" "handover_saved")
             if [ -n "$missing" ]; then
-                echo "HARD GATE: Cannot leave COMPLETE — incomplete pipeline steps:$missing. Complete all completion steps before transitioning." >&2
-                return 1
+                gate_error="HARD GATE: Cannot leave COMPLETE — incomplete pipeline steps:$missing. Complete all completion steps before transitioning."
             fi
         fi
+    fi
+
+    # Emit gate error and abort — state write must not happen
+    if [ -n "$gate_error" ]; then
+        echo "$gate_error" >&2
+        return 1
     fi
 
     local ts

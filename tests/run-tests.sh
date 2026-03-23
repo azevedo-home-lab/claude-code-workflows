@@ -113,6 +113,7 @@ setup_test_project() {
     TEST_DIR=$(mktemp -d)
     mkdir -p "$TEST_DIR/.claude/hooks" "$TEST_DIR/.claude/state" "$TEST_DIR/.claude/commands"
     cp "$HOOKS_DIR/workflow-state.sh" "$TEST_DIR/.claude/hooks/"
+    cp "$HOOKS_DIR/workflow-cmd.sh" "$TEST_DIR/.claude/hooks/"
     cp "$HOOKS_DIR/workflow-gate.sh" "$TEST_DIR/.claude/hooks/"
     cp "$HOOKS_DIR/bash-write-guard.sh" "$TEST_DIR/.claude/hooks/"
     # Set CLAUDE_PROJECT_DIR for hooks
@@ -1933,6 +1934,197 @@ SYNC_OUTPUT=$(bash "$REPO_DIR/scripts/check-version-sync.sh" 2>&1)
 SYNC_EXIT=$?
 assert_eq "0" "$SYNC_EXIT" "Version sync check passes"
 assert_contains "$SYNC_OUTPUT" "All versions in sync" "Version sync reports success"
+
+# ============================================================
+# TEST SUITE: Tracked Observations Lifecycle
+# ============================================================
+echo ""
+echo "=== Tracked Observations Lifecycle ==="
+
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+
+# Test: add_tracked_observation adds to empty list
+set_phase "off"
+python3 -c "import json; d=json.load(open('$STATE_FILE')); d.pop('tracked_observations',None); json.dump(d,open('$STATE_FILE','w'),indent=2)"
+add_tracked_observation 100
+assert_eq "100" "$(get_tracked_observations)" "add_tracked_observation adds to empty list"
+
+# Test: add_tracked_observation appends
+add_tracked_observation 200
+assert_eq "100,200" "$(get_tracked_observations)" "add_tracked_observation appends to list"
+
+# Test: add_tracked_observation is idempotent
+add_tracked_observation 100
+assert_eq "100,200" "$(get_tracked_observations)" "add_tracked_observation is idempotent"
+
+# Test: remove_tracked_observation removes single item
+remove_tracked_observation 100
+assert_eq "200" "$(get_tracked_observations)" "remove_tracked_observation removes single item"
+
+# Test: set_tracked_observations replaces entire list
+set_tracked_observations "500,600,700"
+assert_eq "500,600,700" "$(get_tracked_observations)" "set_tracked_observations replaces entire list"
+
+# Test: get_tracked_observations returns empty string for no list
+python3 -c "import json; d=json.load(open('$STATE_FILE')); d.pop('tracked_observations',None); json.dump(d,open('$STATE_FILE','w'),indent=2)"
+assert_eq "" "$(get_tracked_observations)" "get_tracked_observations returns empty for missing field"
+
+# Test: tracked observations preserved across phase transitions
+set_tracked_observations "3416"
+set_phase "define"
+assert_eq "3416" "$(get_tracked_observations)" "tracked observations preserved: off → define"
+set_phase "implement"
+assert_eq "3416" "$(get_tracked_observations)" "tracked observations preserved: define → implement"
+set_phase "off"
+assert_eq "3416" "$(get_tracked_observations)" "tracked observations preserved: implement → off"
+
+# ============================================================
+# TEST SUITE: Completion Snapshot (Loop-back Exception)
+# ============================================================
+echo ""
+echo "=== Completion Snapshot ==="
+
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+
+# Test: has_completion_snapshot returns false when no snapshot
+set_phase "complete"
+assert_eq "false" "$(has_completion_snapshot)" "has_completion_snapshot false when no snapshot"
+
+# Test: save/restore cycle
+reset_completion_status
+set_completion_field "plan_validated" "true"
+set_completion_field "outcomes_validated" "true"
+save_completion_snapshot
+assert_eq "true" "$(has_completion_snapshot)" "has_completion_snapshot true after save"
+
+# Test: snapshot survives phase transition to implement
+# Complete all milestones so the hard gate allows leaving COMPLETE
+set_completion_field "results_presented" "true"
+set_completion_field "docs_checked" "true"
+set_completion_field "committed" "true"
+set_completion_field "tech_debt_audited" "true"
+set_completion_field "handover_saved" "true"
+set_phase "implement"
+assert_eq "true" "$(has_completion_snapshot)" "snapshot survives transition to implement"
+
+# Test: restore_completion_snapshot restores milestones
+set_phase "complete"
+reset_completion_status
+assert_eq "false" "$(get_completion_field plan_validated)" "milestones reset before restore"
+restore_completion_snapshot
+assert_eq "true" "$(get_completion_field plan_validated)" "plan_validated restored from snapshot"
+assert_eq "true" "$(get_completion_field outcomes_validated)" "outcomes_validated restored from snapshot"
+assert_eq "false" "$(has_completion_snapshot)" "snapshot cleared after restore"
+
+# ============================================================
+# TEST SUITE: workflow-cmd.sh Allowlist
+# ============================================================
+echo ""
+echo "=== workflow-cmd.sh Allowlist ==="
+
+setup_test_project
+
+# Test: public function succeeds
+RESULT=$(CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/workflow-cmd.sh" get_phase 2>&1)
+assert_eq "off" "$RESULT" "allowlist: get_phase succeeds"
+
+# Test: private _reset_section blocked
+RESULT=$(CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/workflow-cmd.sh" _reset_section test 2>&1 || true)
+assert_contains "$RESULT" "ERROR: Unknown command" "allowlist: _reset_section blocked"
+
+# Test: unknown function blocked
+RESULT=$(CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/workflow-cmd.sh" nonexistent_func 2>&1 || true)
+assert_contains "$RESULT" "ERROR: Unknown command" "allowlist: unknown function blocked"
+
+# ============================================================
+# TEST SUITE: setup.sh Functional Tests
+# ============================================================
+echo ""
+echo "=== setup.sh Functional Tests ==="
+
+# Create a clean test environment for setup.sh
+SETUP_TEST_DIR=$(mktemp -d)
+mkdir -p "$SETUP_TEST_DIR/.claude"
+# Create minimal settings.json with just Bash permission
+python3 -c "import json; json.dump({'permissions':{'allow':['Bash']}},open('$SETUP_TEST_DIR/.claude/settings.json','w'),indent=2)"
+
+# Run setup.sh
+CLAUDE_PROJECT_DIR="$SETUP_TEST_DIR" bash "$REPO_DIR/plugin/scripts/setup.sh" 2>/dev/null
+
+# Test: state directory created
+if [ -d "$SETUP_TEST_DIR/.claude/state" ]; then
+    echo -e "  ${GREEN}PASS${NC} setup.sh creates state directory"
+    PASS=$((PASS + 1))
+else
+    echo -e "  ${RED}FAIL${NC} setup.sh creates state directory"
+    FAIL=$((FAIL + 1))
+    ERRORS="$ERRORS\n  FAIL: setup.sh creates state directory"
+fi
+
+# Test: workflow.json created
+if [ -f "$SETUP_TEST_DIR/.claude/state/workflow.json" ]; then
+    echo -e "  ${GREEN}PASS${NC} setup.sh creates workflow.json"
+    PASS=$((PASS + 1))
+else
+    echo -e "  ${RED}FAIL${NC} setup.sh creates workflow.json"
+    FAIL=$((FAIL + 1))
+    ERRORS="$ERRORS\n  FAIL: setup.sh creates workflow.json"
+fi
+
+# Test: .gitignore updated
+assert_contains "$(cat "$SETUP_TEST_DIR/.gitignore" 2>/dev/null)" ".claude/state/" "setup.sh adds .claude/state/ to .gitignore"
+
+# Test: permissions updated with Read, Agent, Glob, Grep
+SETTINGS_CONTENT=$(cat "$SETUP_TEST_DIR/.claude/settings.json")
+assert_contains "$SETTINGS_CONTENT" "Read" "setup.sh adds Read permission"
+assert_contains "$SETTINGS_CONTENT" "Agent" "setup.sh adds Agent permission"
+assert_contains "$SETTINGS_CONTENT" "Glob" "setup.sh adds Glob permission"
+assert_contains "$SETTINGS_CONTENT" "Grep" "setup.sh adds Grep permission"
+# Original Bash permission preserved
+assert_contains "$SETTINGS_CONTENT" "Bash" "setup.sh preserves existing Bash permission"
+
+# Test: idempotency (run twice, no duplication)
+CLAUDE_PROJECT_DIR="$SETUP_TEST_DIR" bash "$REPO_DIR/plugin/scripts/setup.sh" 2>/dev/null
+READ_COUNT=$(python3 -c "import json; d=json.load(open('$SETUP_TEST_DIR/.claude/settings.json')); print(d['permissions']['allow'].count('Read'))")
+assert_eq "1" "$READ_COUNT" "setup.sh is idempotent (no duplicate permissions)"
+
+# Test: .gitignore idempotency
+GITIGNORE_COUNT=$(grep -c '.claude/state/' "$SETUP_TEST_DIR/.gitignore" 2>/dev/null || echo "0")
+assert_eq "1" "$GITIGNORE_COUNT" "setup.sh .gitignore is idempotent"
+
+rm -rf "$SETUP_TEST_DIR"
+
+# ============================================================
+# TEST SUITE: Statusline Version Detection
+# ============================================================
+echo ""
+echo "=== Statusline Version Detection ==="
+
+# Create mock plugin cache for testing
+MOCK_CACHE=$(mktemp -d)
+
+# Test: empty directory returns "?"
+MOCK_EMPTY="$MOCK_CACHE/empty-plugin"
+mkdir -p "$MOCK_EMPTY"
+VERSION=$(ls -1 "$MOCK_EMPTY" 2>/dev/null | sort -V | tail -1)
+VERSION="${VERSION:-?}"
+assert_eq "?" "$VERSION" "version detection: empty dir returns ?"
+
+# Test: single version detected
+MOCK_SINGLE="$MOCK_CACHE/single-plugin"
+mkdir -p "$MOCK_SINGLE/1.0.0"
+VERSION=$(ls -1 "$MOCK_SINGLE" 2>/dev/null | sort -V | tail -1)
+assert_eq "1.0.0" "$VERSION" "version detection: single version detected"
+
+# Test: highest of multiple versions picked
+MOCK_MULTI="$MOCK_CACHE/multi-plugin"
+mkdir -p "$MOCK_MULTI/1.0.0" "$MOCK_MULTI/1.1.0" "$MOCK_MULTI/2.0.0" "$MOCK_MULTI/1.9.9"
+VERSION=$(ls -1 "$MOCK_MULTI" 2>/dev/null | sort -V | tail -1)
+assert_eq "2.0.0" "$VERSION" "version detection: highest version picked from multiple"
+
+rm -rf "$MOCK_CACHE"
 
 # ============================================================
 # RESULTS
