@@ -37,7 +37,7 @@ if [ "$AUTONOMY_LEVEL" = "off" ]; then
     exit 0
 fi
 
-# Allow everything in implement and review phases (Level 2/3 only reach here)
+# Allow everything in implement and review phases (ask/auto only reach here)
 case "$PHASE" in
     implement|review) exit 0 ;;
 esac

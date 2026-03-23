@@ -40,8 +40,8 @@ Before proceeding:
 **Execute all steps in order. Missing artifacts cause steps to be skipped gracefully — the pipeline never hard-blocks.**
 
 **Autonomy-aware behavior:**
-- **Level 3 (▶▶▶):** Make operational decisions autonomously: auto-commit, auto-update docs (yes), auto-select recommended options. Only stop for git push (always requires confirmation) and validation failures that need user judgment.
-- **Level 1-2:** Ask the user at each decision point (doc updates, commit, push, tech debt actions).
+- **auto (▶▶▶):** Make operational decisions autonomously: auto-commit, auto-update docs (yes), auto-select recommended options. Only stop for git push (always requires confirmation) and validation failures that need user judgment.
+- **off/ask:** Ask the user at each decision point (doc updates, commit, push, tech debt actions).
 
 ### Step 1: Plan Validation
 

@@ -123,4 +123,4 @@ WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh"
 "$WF" set_review_field "findings_acknowledged" "true"
 ```
 
-**Level 3 auto-transition:** If autonomy level is 3: fix ALL findings — critical, warnings, and suggestions. Only stop if there are critical findings or decisions that require user judgment. Do not acknowledge findings without fixing them unless the user has explicitly accepted them. After all findings are fixed, invoke `/complete` now. Do not wait for the user.
+**Auto-transition:** If autonomy is auto: fix ALL findings — critical, warnings, and suggestions. Only stop if there are critical findings or decisions that require user judgment. Do not acknowledge findings without fixing them unless the user has explicitly accepted them. After all findings are fixed, invoke `/complete` now. Do not wait for the user.

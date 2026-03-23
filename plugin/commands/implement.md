@@ -21,8 +21,8 @@ Then confirm to the user that the phase has changed and they can now proceed wit
 1. Read `${CLAUDE_PLUGIN_ROOT}/docs/reference/professional-standards.md` — apply the Universal Standards and IMPLEMENT Phase Standards throughout this phase.
 
 **Autonomy-aware behavior:**
-- **Level 3 (▶▶▶):** Use `superpowers:subagent-driven-development` (recommended execution mode) without asking. Make operational decisions (execution approach, model selection, task ordering) autonomously. Only stop for genuine blockers.
-- **Level 1-2:** Ask the user which execution approach they prefer if multiple options exist.
+- **auto (▶▶▶):** Use `superpowers:subagent-driven-development` (recommended execution mode) without asking. Make operational decisions (execution approach, model selection, task ordering) autonomously. Only stop for genuine blockers.
+- **off/ask:** Ask the user which execution approach they prefer if multiple options exist.
 
 Follow this workflow:
 1. Read the plan file and mark milestone:
@@ -39,7 +39,7 @@ WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_implement_field 
 ```bash
 WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_implement_field "tests_passing" "true"
 ```
-6. Proceed to `/review` (Level 3) or wait for the user to run `/review` (Level 1-2)
+6. Proceed to `/review` (auto) or wait for the user to run `/review` (off/ask)
 
 **HARD GATE: You cannot transition to /review without completing all 3 milestones (plan_read, all_tasks_complete, tests_passing). set_phase will refuse.**
 
@@ -51,4 +51,4 @@ WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_active_skill "SK
 ```
 Replace SKILL_NAME with the skill being used (e.g., "executing-plans", "test-driven-development").
 
-**Level 3 auto-transition:** If autonomy level is 3, invoke `/review` now when all plan tasks are complete and tests pass. Do not wait for the user.
+**Auto-transition:** If autonomy is auto, invoke `/review` now when all plan tasks are complete and tests pass. Do not wait for the user.

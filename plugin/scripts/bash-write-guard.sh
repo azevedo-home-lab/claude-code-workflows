@@ -101,7 +101,7 @@ if echo "$COMMAND" | grep -qE 'python[3]?[[:space:]]+-c'; then
 fi
 
 # ---------------------------------------------------------------------------
-# Autonomy Level 1: block ALL Bash write commands regardless of phase
+# Autonomy "off": block ALL Bash write commands regardless of phase
 # ---------------------------------------------------------------------------
 
 AUTONOMY_LEVEL=$(get_autonomy_level)
@@ -115,10 +115,10 @@ if [ "$AUTONOMY_LEVEL" = "off" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Phase-gate: Level 2/3 enforcement by phase
+# Phase-gate: ask/auto enforcement by phase
 # ---------------------------------------------------------------------------
 
-# Allow everything in implement and review phases (Level 2/3 only reach here)
+# Allow everything in implement and review phases (ask/auto only reach here)
 case "$PHASE" in
     implement|review) exit 0 ;;
 esac

@@ -1197,17 +1197,17 @@ assert_contains "$OUTPUT" "specific about validation failures" "Layer 2 fires on
 
 # --- Autonomy level coaching ---
 
-# Test: Level 3 coaching includes auto-transition guidance
+# Test: auto coaching includes auto-transition guidance
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level auto
 cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 jq '.message_shown = false' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/project/src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
-assert_contains "$OUTPUT" "Level 3" "Level 3 coaching mentions Level 3 in phase entry"
-assert_contains "$OUTPUT" "proceed" "Level 3 coaching includes auto-transition guidance"
+assert_contains "$OUTPUT" "Unattended" "auto coaching mentions Unattended in phase entry"
+assert_contains "$OUTPUT" "proceed" "auto coaching includes auto-transition guidance"
 
-# Test: Level 2 coaching does NOT include auto-transition guidance
+# Test: ask coaching does NOT include auto-transition guidance
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level ask
@@ -2039,7 +2039,7 @@ setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh"
 set_phase "off"
 chmod 000 "$STATE_DIR"
-SET_ERR=$(set_autonomy_level ask 2>&1) && SET_EXIT=0 || SET_EXIT=$?
+SET_ERR=$(set_autonomy_level auto 2>&1) && SET_EXIT=0 || SET_EXIT=$?
 chmod 755 "$STATE_DIR"
 assert_eq "1" "$SET_EXIT" "failure propagation: set_autonomy_level returns non-zero on write failure"
 

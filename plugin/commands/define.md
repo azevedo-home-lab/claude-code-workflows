@@ -79,4 +79,4 @@ WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_decision_record 
 
 Confirm to the user: "Problem and outcomes saved to the decision record. Use `/discuss` to proceed to solution design."
 
-**Level 3 auto-transition:** If autonomy level is 3, invoke `/discuss` now. Do not wait for the user.
+**Auto-transition:** If autonomy is auto, invoke `/discuss` now. Do not wait for the user.
