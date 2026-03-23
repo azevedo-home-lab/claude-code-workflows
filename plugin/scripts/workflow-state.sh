@@ -213,12 +213,12 @@ set_phase() {
         existing_last_observation_id=$(get_last_observation_id)
     fi
 
-    # If new phase is off, clear active_skill, decision_record, autonomy_level, and last_observation_id (cycle complete)
+    # If new phase is off, clear active_skill, decision_record, and autonomy_level (cycle complete)
+    # Note: last_observation_id is preserved — it's useful in the statusline even when workflow is OFF
     if [ "$new_phase" = "off" ]; then
         existing_active_skill=""
         existing_decision_record=""
         existing_autonomy_level=""
-        existing_last_observation_id=""
     fi
 
     # Initialize autonomy_level to 2 when transitioning from OFF to active phase.

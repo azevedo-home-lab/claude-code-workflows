@@ -327,10 +327,10 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_last_observation_id)
 assert_eq "3007" "$RESULT" "last_observation_id preserved across phase transitions"
 
-# Test: set_phase("off") clears last_observation_id
+# Test: set_phase("off") preserves last_observation_id (useful in statusline when workflow is OFF)
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_last_observation_id)
-assert_eq "" "$RESULT" "set_phase off clears last_observation_id"
+assert_eq "3007" "$RESULT" "set_phase off preserves last_observation_id"
 
 # --- Hard gates: phase transition enforcement ---
 
