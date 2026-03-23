@@ -51,12 +51,7 @@ esac
 
 # Check if the target file is in a whitelisted path
 INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-ti = d.get('tool_input', {})
-print(ti.get('file_path', ''))
-" 2>/dev/null || echo "")
+FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null) || FILE_PATH=""
 
 # Reject path traversal attempts
 if [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE '\.\.'; then
