@@ -12,6 +12,17 @@
 STATE_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/.claude/state"
 STATE_FILE="$STATE_DIR/workflow.json"
 
+# Generic state write helper. Atomic: writes to temp file, then mv.
+# Usage: _update_state <jq_filter> [--arg name val]... [--argjson name val]...
+_update_state() {
+    local filter="$1"; shift
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    jq --arg ts "$ts" "$@" \
+        "$filter | .updated = \$ts" \
+        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+}
+
 # Restrictive tier: DEFINE and DISCUSS phases
 # NOTE: .claude/hooks/ deliberately excluded — enforcement mechanism must not be self-modifiable
 RESTRICTED_WRITE_WHITELIST='(\.claude/state/|docs/superpowers/specs/|docs/superpowers/plans/|docs/plans/)'
@@ -70,10 +81,7 @@ set_autonomy_level() {
         echo "WARNING: No workflow state file. Start a workflow phase first (e.g., /define)." >&2
         return 1
     fi
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    jq --argjson v "$level" --arg ts "$ts" '.autonomy_level = $v | .updated = $ts' \
-        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    _update_state '.autonomy_level = $v' --argjson v "$level"
 }
 
 # ---------------------------------------------------------------------------
@@ -103,9 +111,7 @@ set_last_observation_id() {
             '{"phase": "off", "last_observation_id": $id, "updated": $ts}' > "$STATE_FILE"
         return
     fi
-    jq --argjson id "$obs_id" --arg ts "$ts" \
-        '.last_observation_id = $id | .updated = $ts' \
-        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    _update_state '.last_observation_id = $id' --argjson id "$obs_id"
 }
 
 # ---------------------------------------------------------------------------
@@ -132,9 +138,7 @@ set_tracked_observations() {
             '{"phase": "off", "tracked_observations": (if $ids == "" then [] else ($ids | split(",") | map(select(. != "") | tonumber)) end), "updated": $ts}' > "$STATE_FILE"
         return
     fi
-    jq --arg ids "$ids_csv" --arg ts "$ts" \
-        '.tracked_observations = (if $ids == "" then [] else ($ids | split(",") | map(select(. != "") | tonumber)) end) | .updated = $ts' \
-        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    _update_state '.tracked_observations = (if $ids == "" then [] else ($ids | split(",") | map(select(. != "") | tonumber)) end)' --arg ids "$ids_csv"
 }
 
 add_tracked_observation() {
@@ -148,40 +152,21 @@ add_tracked_observation() {
             '{"phase": "off", "tracked_observations": [$id], "updated": $ts}' > "$STATE_FILE"
         return
     fi
-    jq --argjson id "$obs_id" --arg ts "$ts" \
-        '.tracked_observations = ((.tracked_observations // []) + [$id] | unique) | .updated = $ts' \
-        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    _update_state '.tracked_observations = ((.tracked_observations // []) + [$id] | unique)' --argjson id "$obs_id"
 }
 
 remove_tracked_observation() {
     local obs_id="$1"
     if [ -z "$obs_id" ] || [ ! -f "$STATE_FILE" ]; then return 1; fi
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    jq --argjson id "$obs_id" --arg ts "$ts" \
-        '.tracked_observations |= map(select(. != $id)) | .updated = $ts' \
-        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    _update_state '.tracked_observations |= map(select(. != $id))' --argjson id "$obs_id"
 }
 
 # ---------------------------------------------------------------------------
 # Completion snapshot (loop-back exception from COMPLETE → IMPLEMENT → COMPLETE)
 # ---------------------------------------------------------------------------
 
-save_completion_snapshot() {
-    if [ ! -f "$STATE_FILE" ]; then return; fi
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    jq --arg ts "$ts" '.completion_snapshot = (.completion // {}) | .updated = $ts' \
-        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
-}
-
-restore_completion_snapshot() {
-    if [ ! -f "$STATE_FILE" ]; then return; fi
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    jq --arg ts "$ts" '.completion = (.completion_snapshot // {}) | del(.completion_snapshot) | .updated = $ts' \
-        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
-}
+save_completion_snapshot() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.completion_snapshot = (.completion // {})'; }
+restore_completion_snapshot() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.completion = (.completion_snapshot // {}) | del(.completion_snapshot)'; }
 
 has_completion_snapshot() {
     if [ ! -f "$STATE_FILE" ]; then echo "false"; return; fi
@@ -318,30 +303,13 @@ get_message_shown() {
     echo "${val:-false}"
 }
 
-set_message_shown() {
-    if [ ! -f "$STATE_FILE" ]; then
-        return
-    fi
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    jq --arg ts "$ts" '.message_shown = true | .updated = $ts' \
-        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
-}
+set_message_shown() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.message_shown = true'; }
 
 # ---------------------------------------------------------------------------
 # Active skill management
 # ---------------------------------------------------------------------------
 
-set_active_skill() {
-    local name="$1"
-    if [ ! -f "$STATE_FILE" ]; then
-        return
-    fi
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    jq --arg v "$name" --arg ts "$ts" '.active_skill = $v | .updated = $ts' \
-        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
-}
+set_active_skill() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.active_skill = $v' --arg v "$1"; }
 
 get_active_skill() {
     if [ ! -f "$STATE_FILE" ]; then
@@ -357,16 +325,7 @@ get_active_skill() {
 # Decision record management
 # ---------------------------------------------------------------------------
 
-set_decision_record() {
-    local record_path="$1"
-    if [ ! -f "$STATE_FILE" ]; then
-        return
-    fi
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    jq --arg v "$record_path" --arg ts "$ts" '.decision_record = $v | .updated = $ts' \
-        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
-}
+set_decision_record() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.decision_record = $v' --arg v "$1"; }
 
 get_decision_record() {
     if [ ! -f "$STATE_FILE" ]; then
@@ -435,8 +394,6 @@ check_soft_gate() {
 _reset_section() {
     local section="$1"; shift
     if [ ! -f "$STATE_FILE" ]; then return; fi
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     local filter=".${section} = {"
     local first=true
     for field in "$@"; do
@@ -444,9 +401,8 @@ _reset_section() {
         filter+="\"$field\": false"
         first=false
     done
-    filter+="} | .updated = \$ts"
-    jq --arg ts "$ts" "$filter" \
-        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    filter+="}"
+    _update_state "$filter"
 }
 
 # Read a field from a status section
@@ -464,14 +420,10 @@ _get_section_field() {
 _set_section_field() {
     local section="$1" field="$2" value="$3"
     if [ ! -f "$STATE_FILE" ]; then return; fi
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     if [ "$value" = "true" ] || [ "$value" = "false" ]; then
-        jq --arg ts "$ts" ".${section}.${field} = ${value} | .updated = \$ts" \
-            "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+        _update_state ".${section}.${field} = ${value}"
     else
-        jq --arg v "$value" --arg ts "$ts" ".${section}.${field} = \$v | .updated = \$ts" \
-            "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+        _update_state ".${section}.${field} = \$v" --arg v "$value"
     fi
 }
 
@@ -525,36 +477,12 @@ set_implement_field() { _set_section_field "implement" "$1" "$2"; }
 # Coaching helpers
 # ---------------------------------------------------------------------------
 
-increment_coaching_counter() {
-    if [ ! -f "$STATE_FILE" ]; then
-        return
-    fi
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    jq --arg ts "$ts" '.coaching.tool_calls_since_agent += 1 | .updated = $ts' \
-        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
-}
-
-reset_coaching_counter() {
-    if [ ! -f "$STATE_FILE" ]; then
-        return
-    fi
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    jq --arg ts "$ts" '.coaching.tool_calls_since_agent = 0 | .updated = $ts' \
-        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
-}
+increment_coaching_counter() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.coaching.tool_calls_since_agent += 1'; }
+reset_coaching_counter() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.coaching.tool_calls_since_agent = 0'; }
 
 add_coaching_fired() {
-    local trigger_type="$1"
-    if [ ! -f "$STATE_FILE" ]; then
-        return
-    fi
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    jq --arg t "$trigger_type" --arg ts "$ts" \
-        '.coaching.layer2_fired += [$t] | .coaching.last_layer2_at = .coaching.tool_calls_since_agent | .updated = $ts' \
-        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    if [ ! -f "$STATE_FILE" ]; then return; fi
+    _update_state '.coaching.layer2_fired += [$t] | .coaching.last_layer2_at = .coaching.tool_calls_since_agent' --arg t "$1"
 }
 
 has_coaching_fired() {
@@ -573,27 +501,14 @@ has_coaching_fired() {
 # to avoid corrupting hook JSON stream.
 check_coaching_refresh() {
     if [ ! -f "$STATE_FILE" ]; then return; fi
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    jq --arg ts "$ts" '
-        if (.coaching.tool_calls_since_agent - (.coaching.last_layer2_at // 0)) >= 30 then
-            .coaching.layer2_fired = [] | .coaching.last_layer2_at = .coaching.tool_calls_since_agent | .updated = $ts
-        else . end
-    ' "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
+    _update_state 'if (.coaching.tool_calls_since_agent - (.coaching.last_layer2_at // 0)) >= 30 then .coaching.layer2_fired = [] | .coaching.last_layer2_at = .coaching.tool_calls_since_agent else . end'
 }
 
 # ---------------------------------------------------------------------------
 # Pending verify tracking
 # ---------------------------------------------------------------------------
 
-set_pending_verify() {
-    local count="${1:-0}"
-    if [ ! -f "$STATE_FILE" ]; then return; fi
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    jq --argjson c "$count" --arg ts "$ts" '.coaching.pending_verify = $c | .updated = $ts' \
-        "$STATE_FILE" > "${STATE_FILE}.tmp" && mv "${STATE_FILE}.tmp" "$STATE_FILE"
-}
+set_pending_verify() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.coaching.pending_verify = $c' --argjson c "${1:-0}"; }
 
 get_pending_verify() {
     if [ ! -f "$STATE_FILE" ]; then echo "0"; return; fi
