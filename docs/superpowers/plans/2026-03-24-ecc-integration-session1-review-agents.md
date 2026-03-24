@@ -417,6 +417,9 @@ Add a new test suite section after the last one.
 Add this test suite to `tests/run-tests.sh`:
 
 ```bash
+echo ""
+echo "=== Agent Definitions (REVIEW phase) ==="
+
 # ─────────────────────────────────────────────────────────────────────────────
 # TEST SUITE: Agent Definitions (REVIEW phase)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -424,28 +427,18 @@ Add this test suite to `tests/run-tests.sh`:
 REVIEW_AGENTS="code-quality-reviewer security-reviewer architecture-reviewer governance-reviewer review-verifier"
 
 for agent in $REVIEW_AGENTS; do
-    AGENT_FILE="$TEST_DIR/../plugin/agents/${agent}.md"
+    AGENT_FILE="$REPO_DIR/plugin/agents/${agent}.md"
+
     # Test: agent file exists
-    if [ -f "$AGENT_FILE" ]; then
-        pass "agent file exists: ${agent}.md"
-    else
-        fail "agent file exists: ${agent}.md" "File not found: $AGENT_FILE"
-    fi
+    assert_file_exists "$AGENT_FILE" "agent file exists: ${agent}.md"
 
     # Test: agent file has valid YAML frontmatter with name field
     if [ -f "$AGENT_FILE" ]; then
         FIRST_LINE=$(head -1 "$AGENT_FILE")
-        if [ "$FIRST_LINE" = "---" ]; then
-            NAME_LINE=$(sed -n '2,/^---$/p' "$AGENT_FILE" | grep "^name:")
-            if [ -n "$NAME_LINE" ]; then
-                AGENT_NAME=$(echo "$NAME_LINE" | sed 's/^name:[[:space:]]*//')
-                assert_eq "$agent" "$AGENT_NAME" "agent frontmatter name matches filename: ${agent}"
-            else
-                fail "agent frontmatter has name field: ${agent}" "No 'name:' found in frontmatter"
-            fi
-        else
-            fail "agent file has YAML frontmatter: ${agent}" "First line is not '---'"
-        fi
+        assert_eq "---" "$FIRST_LINE" "agent file has YAML frontmatter: ${agent}"
+
+        AGENT_NAME=$(sed -n '2,/^---$/p' "$AGENT_FILE" | grep "^name:" | sed 's/^name:[[:space:]]*//')
+        assert_eq "$agent" "$AGENT_NAME" "agent frontmatter name matches filename: ${agent}"
     fi
 done
 ```
@@ -512,31 +505,19 @@ Context: "Candidate findings from 4 review agents: [ALL FINDINGS FROM STEP 3]"
 
 - [ ] **Step 3: Update Step 5 findings presentation — add governance category**
 
-In the findings presentation template, add `[GOV]` prefix option alongside existing categories. Update the report template:
+In the Step 5 findings presentation template, add `[GOV]` prefix option. **IMPORTANT:** Preserve all existing content after the report template — the state-update bash blocks, user response handling, and auto-transition logic must remain unchanged. Only modify the report template itself:
 
-```markdown
-4. Present the report:
+In the report template (the fenced block starting with `## Review Findings`), add the category prefix instruction after the Critical heading:
 
 ```
-## Review Findings
-
-### Critical (must fix before merge)
-- [findings or "None"]
   Prefix findings with category: [QUAL] code quality, [SEC] security,
   [ARCH] architecture, [GOV] governance
-
-### Warnings (should fix)
-- [findings or "None"]
-
-### Suggestions (nice to have)
-- [findings or "None"]
-
----
-Would you like to:
-1. Fix issues now (stay in REVIEW phase, re-run /review after fixing)
-2. Proceed to /complete (acknowledge findings as-is)
 ```
-```
+
+Everything below the report template (state updates at lines 113-124, auto-transition at line 126-127) stays exactly as-is. Do NOT remove or modify:
+- The `set_review_field` bash blocks
+- The user response handling (acknowledge)
+- The auto-transition block
 
 - [ ] **Step 4: Fix BUG-2 — chain echo with && to prevent false success**
 
@@ -553,10 +534,18 @@ To:
 WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "review" && "$WF" reset_review_status && "$WF" set_active_skill "review-pipeline" && echo "Phase set to REVIEW — running review pipeline."
 ```
 
-- [ ] **Step 5: Verify the updated review.md is syntactically correct**
+Also add after the bash block: "If the command above fails, report the error to the user. The most common cause is a hard gate blocking the phase transition (e.g., incomplete IMPLEMENT milestones). Do not proceed with the review pipeline."
 
-Run: `wc -l plugin/commands/review.md`
-Expected: Approximately 90-110 lines (shorter than current 127 because inline prompts are removed).
+- [ ] **Step 5: Verify the updated review.md with semantic checks**
+
+Run: `grep -c "workflow-manager:" plugin/commands/review.md`
+Expected: 5 matches (4 review agents + 1 verifier).
+
+Run: `grep -c 'subagent_type.*"code-review"' plugin/commands/review.md`
+Expected: 0 (all old generic references replaced with named agents).
+
+Run: `grep -c "set_review_field" plugin/commands/review.md`
+Expected: 4 (state tracking preserved: verification_complete, agents_dispatched, findings_presented, findings_acknowledged).
 
 - [ ] **Step 6: Commit**
 
@@ -606,3 +595,7 @@ workflow-manager:review-verifier
 
 Run: `grep -c "Check for:" plugin/commands/review.md`
 Expected: 0 (all check instructions are now in agent files, not review.md)
+
+- [ ] **Step 5: Confirm plugin.json does not need agents entry**
+
+Claude Code auto-discovers agents from the `plugin/agents/` directory by convention (same as `skills/` and `commands/`). No changes to `plugin/.claude-plugin/plugin.json` are required. Verify by confirming the agents are namespaced as `workflow-manager:<name>` in review.md — this namespace comes from the plugin's `name` field in `plugin.json`.
