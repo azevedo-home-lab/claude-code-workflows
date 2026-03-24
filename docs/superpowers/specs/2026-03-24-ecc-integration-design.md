@@ -19,7 +19,14 @@ Workflow Manager has three architectural gaps identified through comparison with
 Three changes, each independently valuable:
 
 ### A. Agent Formalization
-Extract all 22 agent personas (21 existing + 1 new governance agent) from inline prompts into `plugin/agents/*.md` files using Claude Code's official Markdown + YAML frontmatter format. Command files reference agents by name instead of embedding prompts.
+Extract all inline agent prompts into `plugin/agents/*.md` files using Claude Code's official Markdown + YAML frontmatter format. Command files reference agents by name instead of embedding prompts.
+
+**Agent count:** 28 agent files total:
+- REVIEW phase: 6 (code-quality-reviewer, security-reviewer, architecture-reviewer, governance-reviewer [new], review-verifier, + governance is new)
+- COMPLETE phase: 12 (plan-validator, outcome-validator, boundary-tester, devils-advocate, docs-detector, versioning-agent, handover-writer, results-reviewer, docs-reviewer, commit-reviewer, tech-debt-reviewer, handover-reviewer)
+- DEFINE phase: 5 (domain-researcher, context-gatherer, assumption-challenger, outcome-structurer, scope-boundary-checker)
+- DISCUSS phase: 5 (solution-researcher-a, solution-researcher-b, prior-art-scanner, codebase-analyst, risk-assessor)
+- IMPLEMENT phase: 0 — execution is delegated to Superpowers process skills (subagent-driven-development, executing-plans, test-driven-development) via the skill registry
 
 ### B. Governance Agent
 Add a 4th parallel review agent in the REVIEW phase focused on production readiness. Enhance the existing Security Reviewer agent with ECC's detection patterns (secret regex, sensitive path detection, destructive command audit).
@@ -29,7 +36,8 @@ A JSON configuration file mapping each WFM operation to available skills from mu
 
 ### Trade-offs accepted
 
-- **22 new files** in `plugin/agents/` — more files, but each is focused and independently maintainable
+- **28 new files** in `plugin/agents/` — more files, but each is focused and independently maintainable
+- **New `plugin/config/` directory** — adds a config directory that doesn't exist today
 - **ECC as optional dependency** — users who want reference skills must install ECC separately. We don't bundle or fork ECC content.
 - **Skill registry adds indirection** — command files read a config file instead of hardcoding skill names. Slightly more complex to follow, but enables configurability.
 - **Continuous Learning is out of scope** — the CL system (observation capture, instinct detection, proposal generation) is a separate plugin with its own design cycle. This spec includes only the WFM integration point (`/proposals` command stub).
@@ -74,6 +82,29 @@ focus areas, and output format requirements.
 | `model` | `inherit` for all agents (use whatever model the parent session uses) |
 
 **Not used:** `permissionMode`, `maxTurns`, `hooks`, `mcpServers` — these are blocked for plugin agents by Claude Code's security model, or unnecessary for our use case.
+
+**Context handoff mechanism:** Agent files contain the agent's personality, focus areas, and output format (static instructions). Command files set the Agent tool's `prompt` parameter to ONLY runtime context — changed files list, plan path, decision record path, or other conversation-specific data. Claude Code merges the agent file's system prompt with the runtime prompt. This separation means the same agent can be dispatched from different phases with different context.
+
+**Naming convention:** Agent files use kebab-case. Role-based agents use a `-reviewer` suffix (code-quality-reviewer, security-reviewer). Task-based agents use descriptive suffixes: `-validator` (plan-validator, outcome-validator), `-tester` (boundary-tester), `-detector` (docs-detector), `-writer` (handover-writer), `-agent` (versioning-agent), `-researcher` (domain-researcher, solution-researcher-a). Future agents should follow this convention.
+
+**`subagent_type` migration:**
+
+| Current reference | File | New reference | Notes |
+|---|---|---|---|
+| `"code-review"` | review.md (Agent 1) | `"workflow-manager:code-quality-reviewer"` | Split into named agent |
+| `"code-review"` | review.md (Agent 2) | `"workflow-manager:security-reviewer"` | Split into named agent |
+| `"code-review"` | review.md (Agent 3) | `"workflow-manager:architecture-reviewer"` | Split into named agent |
+| (new) | review.md (Agent 4) | `"workflow-manager:governance-reviewer"` | New agent |
+| `"code-review"` | review.md (Step 4) | `"workflow-manager:review-verifier"` | Split into named agent |
+| `"superpowers:code-reviewer"` | complete.md (Step 3 gate) | `"workflow-manager:results-reviewer"` | Dedicated gate agent |
+| `"superpowers:code-reviewer"` | complete.md (Step 4 gate) | `"workflow-manager:docs-reviewer"` | Dedicated gate agent |
+| `"superpowers:code-reviewer"` | complete.md (Step 5 gate) | `"workflow-manager:commit-reviewer"` | Dedicated gate agent |
+| `"superpowers:code-reviewer"` | complete.md (Step 7 gate) | `"workflow-manager:tech-debt-reviewer"` | Dedicated gate agent |
+| `"superpowers:code-reviewer"` | complete.md (Step 8 gate) | `"workflow-manager:handover-reviewer"` | Dedicated gate agent |
+| (implicit dispatch) | define.md | `"workflow-manager:domain-researcher"` etc. | Formalized from prose |
+| (implicit dispatch) | discuss.md | `"workflow-manager:solution-researcher-a"` etc. | Formalized from prose |
+
+After migration, WFM no longer depends on `superpowers:code-reviewer` for any dispatches. The Superpowers `code-reviewer` agent remains available if users want to invoke it directly, but WFM's command files use only WFM-defined agents.
 
 ### 2. Agent Inventory
 
@@ -239,11 +270,19 @@ well-organized, and compliant.
 
 ## Check For
 
-### 1. Secrets Hygiene
+### 1. Secrets Hygiene (Process-Level)
+NOTE: Scanning source code for hardcoded secret patterns (AWS keys,
+tokens, JWTs) is handled by the Security Reviewer. Your focus is the
+process: are secrets properly excluded from version control, and is
+the project using a secrets management approach?
+
 - Are .env files gitignored? Run: git ls-files --cached '*.env*'
 - Any credentials, tokens, or keys committed to git history?
   Run: git log --diff-filter=A --name-only -- '*.env*' '*.pem' '*.key'
-- Are secrets loaded from environment or secret manager, not hardcoded?
+- Is the project using environment variables or a secret manager
+  rather than config files for sensitive values?
+- Are there .env.example or similar template files that accidentally
+  contain real values?
 
 ### 2. Permission Model
 - File permission changes (chmod with permissive modes like 777, 666)
@@ -903,12 +942,38 @@ Scope table with clear in/out boundaries and dependency list.
 
 #### DISCUSS Phase (5 agents)
 
-**`solution-researcher.md`**
+**`solution-researcher-a.md`**
 ```markdown
 ---
-name: solution-researcher
+name: solution-researcher-a
 description: Web search specialist for technical approaches, libraries,
-  case studies, and implementation patterns. Use during DISCUSS phase
+  and implementation patterns. Use during DISCUSS phase diverge step.
+tools:
+  - WebSearch
+  - WebFetch
+  - Read
+model: inherit
+---
+
+You are Solution Researcher A. Search the web for technical approaches
+to the defined problem.
+
+## Focus Areas
+- Technical approaches, libraries, frameworks
+- Implementation patterns and best practices
+- Architecture patterns that solve this class of problem
+
+## Output
+Structured findings with sources. Every approach must have stated
+downsides. Unsourced claims are opinions, not research.
+```
+
+**`solution-researcher-b.md`**
+```markdown
+---
+name: solution-researcher-b
+description: Web search specialist for case studies, lessons learned,
+  and how others solved similar problems. Use during DISCUSS phase
   diverge step.
 tools:
   - WebSearch
@@ -917,14 +982,14 @@ tools:
 model: inherit
 ---
 
-You are a Solution Researcher. Search the web for approaches to the
-defined problem.
+You are Solution Researcher B. Search the web for real-world experience
+with the defined problem.
 
 ## Focus Areas
-- Technical approaches, libraries, frameworks
-- Implementation patterns and best practices
 - Case studies — how others solved similar problems
 - Lessons learned and common pitfalls
+- Post-mortems and failure modes
+- Community discussions and Stack Overflow threads
 
 ## Output
 Structured findings with sources. Every approach must have stated
@@ -1216,16 +1281,28 @@ For the resolved operation:
   If not installed, skip silently.
 ```
 
+#### Registry field semantics
+
+| Field | Type | Description |
+|---|---|---|
+| `phase` | string[] | Which WFM phases this operation applies to |
+| `process_skill` | string or null | Interactive skill invoked via Skill tool (e.g., `superpowers:brainstorming`) |
+| `reference_skills` | string[] | Passive skills read as supplementary context. Active by default. |
+| `alternatives` | string[] | Alternative process skills the user can switch to |
+| `available` | string[] | ECC skills that CAN be activated but are NOT active by default. Users select from this list and add their choices to `reference_skills` in `skill-overrides.json`. Used for language-patterns and framework-stacks where the right choice depends on the project. |
+| `description` | string | Human-readable description of the operation |
+
 #### Graceful degradation
 
 - **ECC not installed**: All `ecc:*` reference skills are unavailable. WFM works with Superpowers process skills only. No errors, no warnings — the registry simply has fewer active skills.
 - **Superpowers not installed**: Process skills are unavailable. WFM still enforces phases and dispatches agents, but without interactive skill workflows. This is a degraded experience but not broken.
 - **Override file missing**: Defaults from `skill-registry.json` apply.
 - **Override references nonexistent skill**: Treated same as "not installed" — skipped silently.
+- **Malformed registry or overrides JSON**: Command files should validate the merged registry structure. If either file is malformed JSON, fall back to hardcoded Superpowers defaults and warn the user via stderr.
 
 ### 5. `/proposals` Command Stub
 
-A minimal command for future CL plugin integration:
+A minimal command for future CL plugin integration. **This command is a stub.** Until the Continuous Learning plugin is implemented and begins creating proposal-type observations in claude-mem, the command will always display the "no proposals" message. Its purpose is to reserve the interface and document the expected data contract.
 
 **`plugin/commands/proposals.md`**
 ```markdown
@@ -1317,10 +1394,13 @@ Before invoking a skill, read the skill registry:
 
 ## Delivery Sessions
 
-| Session | Scope | Deliverables |
-|---|---|---|
-| 1 | REVIEW phase agents | 6 agent files (5 extracted + governance), updated review.md |
-| 2 | COMPLETE phase agents | 12 agent files, updated complete.md |
-| 3 | DEFINE + DISCUSS agents | 5 agent files, updated define.md and discuss.md |
-| 4 | Skill registry | skill-registry.json, skill-overrides.json.example, command file updates for registry reads |
-| 5 | `/proposals` stub + docs | proposals.md, architecture.md update, commands.md update, version bump |
+| Session | Scope | Agent Files | Deliverables |
+|---|---|---|---|
+| 1 | REVIEW phase agents | 6 | code-quality-reviewer, security-reviewer, architecture-reviewer, governance-reviewer (new), review-verifier; updated review.md |
+| 2a | COMPLETE phase — task agents | 7 | plan-validator, outcome-validator, boundary-tester, devils-advocate, docs-detector, versioning-agent, handover-writer |
+| 2b | COMPLETE phase — review gate agents | 5 | results-reviewer, docs-reviewer, commit-reviewer, tech-debt-reviewer, handover-reviewer; updated complete.md |
+| 3 | DEFINE + DISCUSS agents | 10 | domain-researcher, context-gatherer, assumption-challenger, outcome-structurer, scope-boundary-checker, solution-researcher-a, solution-researcher-b, prior-art-scanner, codebase-analyst, risk-assessor; updated define.md and discuss.md |
+| 4 | Skill registry | — | plugin/config/ directory, skill-registry.json, skill-overrides.json.example, command file updates for registry reads |
+| 5 | `/proposals` stub + docs | — | proposals.md, architecture.md update, commands.md update, version bump |
+
+**Total: 28 agent files across 6 sessions.**
