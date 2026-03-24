@@ -21,8 +21,8 @@ Three changes, each independently valuable:
 ### A. Agent Formalization
 Extract all inline agent prompts into `plugin/agents/*.md` files using Claude Code's official Markdown + YAML frontmatter format. Command files reference agents by name instead of embedding prompts.
 
-**Agent count:** 28 agent files total:
-- REVIEW phase: 6 (code-quality-reviewer, security-reviewer, architecture-reviewer, governance-reviewer [new], review-verifier, + governance is new)
+**Agent count:** 27 agent files total:
+- REVIEW phase: 5 (code-quality-reviewer, security-reviewer, architecture-reviewer, governance-reviewer [new], review-verifier)
 - COMPLETE phase: 12 (plan-validator, outcome-validator, boundary-tester, devils-advocate, docs-detector, versioning-agent, handover-writer, results-reviewer, docs-reviewer, commit-reviewer, tech-debt-reviewer, handover-reviewer)
 - DEFINE phase: 5 (domain-researcher, context-gatherer, assumption-challenger, outcome-structurer, scope-boundary-checker)
 - DISCUSS phase: 5 (solution-researcher-a, solution-researcher-b, prior-art-scanner, codebase-analyst, risk-assessor)
@@ -36,7 +36,7 @@ A JSON configuration file mapping each WFM operation to available skills from mu
 
 ### Trade-offs accepted
 
-- **28 new files** in `plugin/agents/` — more files, but each is focused and independently maintainable
+- **27 new files** in `plugin/agents/` — more files, but each is focused and independently maintainable
 - **New `plugin/config/` directory** — adds a config directory that doesn't exist today
 - **ECC as optional dependency** — users who want reference skills must install ECC separately. We don't bundle or fork ECC content.
 - **Skill registry adds indirection** — command files read a config file instead of hardcoding skill names. Slightly more complex to follow, but enables configurability.
@@ -101,6 +101,8 @@ focus areas, and output format requirements.
 | `"superpowers:code-reviewer"` | complete.md (Step 5 gate) | `"workflow-manager:commit-reviewer"` | Dedicated gate agent |
 | `"superpowers:code-reviewer"` | complete.md (Step 7 gate) | `"workflow-manager:tech-debt-reviewer"` | Dedicated gate agent |
 | `"superpowers:code-reviewer"` | complete.md (Step 8 gate) | `"workflow-manager:handover-reviewer"` | Dedicated gate agent |
+| (implicit dispatch) | complete.md (Steps 1-2) | `"workflow-manager:plan-validator"`, `outcome-validator`, `boundary-tester`, `devils-advocate` | Formalized from prose |
+| (implicit dispatch) | complete.md (Steps 4-8) | `"workflow-manager:docs-detector"`, `versioning-agent`, `handover-writer` | Formalized from prose |
 | (implicit dispatch) | define.md | `"workflow-manager:domain-researcher"` etc. | Formalized from prose |
 | (implicit dispatch) | discuss.md | `"workflow-manager:solution-researcher-a"` etc. | Formalized from prose |
 
@@ -108,7 +110,7 @@ After migration, WFM no longer depends on `superpowers:code-reviewer` for any di
 
 ### 2. Agent Inventory
 
-#### REVIEW Phase (6 agents)
+#### REVIEW Phase (5 agents)
 
 **`code-quality-reviewer.md`**
 ```markdown
@@ -1396,11 +1398,11 @@ Before invoking a skill, read the skill registry:
 
 | Session | Scope | Agent Files | Deliverables |
 |---|---|---|---|
-| 1 | REVIEW phase agents | 6 | code-quality-reviewer, security-reviewer, architecture-reviewer, governance-reviewer (new), review-verifier; updated review.md |
+| 1 | REVIEW phase agents | 5 | code-quality-reviewer, security-reviewer, architecture-reviewer, governance-reviewer (new), review-verifier; updated review.md |
 | 2a | COMPLETE phase — task agents | 7 | plan-validator, outcome-validator, boundary-tester, devils-advocate, docs-detector, versioning-agent, handover-writer |
 | 2b | COMPLETE phase — review gate agents | 5 | results-reviewer, docs-reviewer, commit-reviewer, tech-debt-reviewer, handover-reviewer; updated complete.md |
 | 3 | DEFINE + DISCUSS agents | 10 | domain-researcher, context-gatherer, assumption-challenger, outcome-structurer, scope-boundary-checker, solution-researcher-a, solution-researcher-b, prior-art-scanner, codebase-analyst, risk-assessor; updated define.md and discuss.md |
 | 4 | Skill registry | — | plugin/config/ directory, skill-registry.json, skill-overrides.json.example, command file updates for registry reads |
 | 5 | `/proposals` stub + docs | — | proposals.md, architecture.md update, commands.md update, version bump |
 
-**Total: 28 agent files across 6 sessions.**
+**Total: 27 agent files across 5 sessions (session 2 split into 2a/2b for scope management).**
