@@ -1,7 +1,7 @@
 Transition the workflow to DEFINE phase. Run this command:
 
 ```bash
-WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh" && "$WF" set_phase "define" && "$WF" set_active_skill "" && echo "Phase set to DEFINE — code edits are blocked. Define the problem and outcomes first."
+.claude/hooks/workflow-cmd.sh set_phase "define" && .claude/hooks/workflow-cmd.sh set_active_skill "" && echo "Phase set to DEFINE — code edits are blocked. Define the problem and outcomes first."
 ```
 
 Then confirm to the user that the phase has changed and code edits are blocked.
@@ -16,7 +16,7 @@ Before proceeding:
 Use `superpowers:brainstorming` with **problem-discovery context**. Focus on understanding the problem, not solving it. Update the skill tracker:
 
 ```bash
-WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh" && "$WF" set_active_skill "brainstorming"
+.claude/hooks/workflow-cmd.sh set_active_skill "brainstorming"
 ```
 
 ### Diverge Phase
@@ -73,7 +73,7 @@ Only the structured, converged version is written to the decision record (raw di
 Register the decision record path:
 
 ```bash
-WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh" && "$WF" set_decision_record "docs/plans/YYYY-MM-DD-<topic>-decisions.md"
+.claude/hooks/workflow-cmd.sh set_decision_record "docs/plans/YYYY-MM-DD-<topic>-decisions.md"
 ```
 
 Confirm to the user: "Problem and outcomes saved to the decision record. Use `/discuss` to proceed to solution design."

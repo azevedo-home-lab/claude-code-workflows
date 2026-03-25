@@ -23,7 +23,7 @@ case "$LEVEL" in
     2) LEVEL="ask" ;;
     3) LEVEL="auto" ;;
 esac
-WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh" && "$WF" set_autonomy_level "$LEVEL" && echo "Autonomy level set to $LEVEL"
+.claude/hooks/workflow-cmd.sh set_autonomy_level "$LEVEL" && echo "Autonomy level set to $LEVEL"
 ```
 
 Then apply the corresponding behavior:

@@ -1,8 +1,7 @@
 Transition the workflow to REVIEW phase. First check for soft gate warnings:
 
 ```bash
-WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh"
-WARN=$("$WF" check_soft_gate "review")
+WARN=$(.claude/hooks/workflow-cmd.sh check_soft_gate "review")
 if [ -n "$WARN" ]; then
     echo "WARNING: $WARN"
 fi
@@ -11,7 +10,7 @@ fi
 If a warning was shown, ask the user: "Proceed anyway? (yes/no)". If they say no, stop. If yes or no warning, continue:
 
 ```bash
-WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh" && "$WF" set_phase "review" && "$WF" reset_review_status && "$WF" set_active_skill "review-pipeline" && echo "Phase set to REVIEW — running review pipeline."
+.claude/hooks/workflow-cmd.sh set_phase "review" && .claude/hooks/workflow-cmd.sh reset_review_status && .claude/hooks/workflow-cmd.sh set_active_skill "review-pipeline" && echo "Phase set to REVIEW — running review pipeline."
 ```
 
 Then confirm the phase change and execute the review pipeline below.
@@ -39,8 +38,7 @@ If tests found, run them and capture the output.
 
 Update state after this step:
 ```bash
-WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh"
-"$WF" set_review_field "verification_complete" "true"
+.claude/hooks/workflow-cmd.sh set_review_field "verification_complete" "true"
 ```
 
 ### Step 2: Detect Changed Files
@@ -111,15 +109,13 @@ Would you like to:
 
 Update state:
 ```bash
-WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh"
-"$WF" set_review_field "agents_dispatched" "true"
-"$WF" set_review_field "findings_presented" "true"
+.claude/hooks/workflow-cmd.sh set_review_field "agents_dispatched" "true"
+.claude/hooks/workflow-cmd.sh set_review_field "findings_presented" "true"
 ```
 
 Wait for the user's response. If they choose option 2 (acknowledge):
 ```bash
-WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh"
-"$WF" set_review_field "findings_acknowledged" "true"
+.claude/hooks/workflow-cmd.sh set_review_field "findings_acknowledged" "true"
 ```
 
 **Auto-transition:** If autonomy is auto: fix ALL findings — critical, warnings, and suggestions. Only stop if there are critical findings or decisions that require user judgment. Do not acknowledge findings without fixing them unless the user has explicitly accepted them. After all findings are fixed, invoke `/complete` now. Do not wait for the user.

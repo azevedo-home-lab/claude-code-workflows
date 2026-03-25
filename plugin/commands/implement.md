@@ -1,8 +1,7 @@
 Transition the workflow to IMPLEMENT phase. First check for soft gate warnings:
 
 ```bash
-WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh"
-WARN=$("$WF" check_soft_gate "implement")
+WARN=$(.claude/hooks/workflow-cmd.sh check_soft_gate "implement")
 if [ -n "$WARN" ]; then
     echo "WARNING: $WARN"
 fi
@@ -11,7 +10,7 @@ fi
 If a warning was shown, ask the user: "Proceed anyway? (yes/no)". If they say no, stop. If yes or no warning, continue:
 
 ```bash
-WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh" && "$WF" set_phase "implement" && "$WF" reset_implement_status && "$WF" set_active_skill "" && echo "Phase set to IMPLEMENT — code edits are now allowed."
+.claude/hooks/workflow-cmd.sh set_phase "implement" && .claude/hooks/workflow-cmd.sh reset_implement_status && .claude/hooks/workflow-cmd.sh set_active_skill "" && echo "Phase set to IMPLEMENT — code edits are now allowed."
 ```
 
 Then confirm to the user that the phase has changed and they can now proceed with implementation.
@@ -26,13 +25,13 @@ Then confirm to the user that the phase has changed and they can now proceed wit
 Follow this workflow:
 1. Read the plan file and mark milestone:
 ```bash
-WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh" && "$WF" set_implement_field "plan_read" "true"
+.claude/hooks/workflow-cmd.sh set_implement_field "plan_read" "true"
 ```
 2. Use `superpowers:executing-plans` or `superpowers:subagent-driven-development` to implement the approved plan
 3. Use `superpowers:test-driven-development` — write tests before implementation code
 4. When all plan tasks are implemented, mark milestone:
 ```bash
-WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh" && "$WF" set_implement_field "all_tasks_complete" "true"
+.claude/hooks/workflow-cmd.sh set_implement_field "all_tasks_complete" "true"
 ```
 4b. **Version bump** (after all tasks complete, before final test run):
 
@@ -70,7 +69,7 @@ Run `scripts/check-version-sync.sh` to validate all 3 files match. This is not a
 
 5. Run the full test suite and verify all pass. Then mark milestone:
 ```bash
-WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh" && "$WF" set_implement_field "tests_passing" "true"
+.claude/hooks/workflow-cmd.sh set_implement_field "tests_passing" "true"
 ```
 6. Proceed to `/review` (auto) or wait for the user to run `/review` (off/ask)
 
@@ -80,7 +79,7 @@ WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh" && "$WF" set
 
 **Important:** When you invoke a superpowers skill, update the active skill tracker:
 ```bash
-WF="$(git rev-parse --show-toplevel)/.claude/hooks/workflow-cmd.sh" && "$WF" set_active_skill "SKILL_NAME"
+.claude/hooks/workflow-cmd.sh set_active_skill "SKILL_NAME"
 ```
 Replace SKILL_NAME with the skill being used (e.g., "executing-plans", "test-driven-development").
 
