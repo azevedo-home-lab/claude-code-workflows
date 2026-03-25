@@ -97,36 +97,35 @@ _phase_ordinal() {
     esac
 }
 
-# Check for a valid one-time phase token. Consumes the token on success.
+# Check for a valid phase intent file. Consumes the intent on success.
 # Returns 0 if authorized, 1 if blocked.
-# No TTL — tokens are consumed immediately when the slash command executes.
-_check_phase_token() {
+# Intent files are written by user-phase-gate.sh (UserPromptSubmit hook).
+_check_phase_intent() {
     local target_phase="$1"
-    local token_dir="${CLAUDE_PLUGIN_DATA:-${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/.claude/plugin-data}/.phase-tokens"
-    [ -d "$token_dir" ] || return 1
-    for token_file in "$token_dir"/*; do
-        [ -f "$token_file" ] || continue
-        # Read target first — only consume tokens that match.
-        # Non-matching tokens (e.g., autonomy token when checking phase) are left intact.
-        local target
-        target=$(jq -r '.target // ""' "$token_file" 2>/dev/null) || continue
-        if [ "$target" = "$target_phase" ]; then
-            # Atomic consume: mv to prevent double-use. If mv fails, another process won the race.
-            local consumed="${token_dir}/.consumed.$$"
-            if mv "$token_file" "$consumed" 2>/dev/null; then
-                rm -f "$consumed"
-                return 0
-            fi
-        fi
-    done
+    local intent_file="$STATE_DIR/phase-intent.json"
+    [ -s "$intent_file" ] || return 1
+    local intent
+    intent=$(jq -r '.intent // ""' "$intent_file" 2>/dev/null) || return 1
+    if [ "$intent" = "$target_phase" ]; then
+        rm -f "$intent_file"
+        return 0
+    fi
     return 1
 }
 
-# Check for a valid one-time autonomy token. Consumes the token on success.
+# Check for a valid autonomy intent file. Consumes the intent on success.
 # Returns 0 if authorized, 1 if blocked.
-_check_autonomy_token() {
+_check_autonomy_intent() {
     local level="$1"
-    _check_phase_token "autonomy:$level"
+    local intent_file="$STATE_DIR/autonomy-intent.json"
+    [ -s "$intent_file" ] || return 1
+    local intent
+    intent=$(jq -r '.intent // ""' "$intent_file" 2>/dev/null) || return 1
+    if [ "$intent" = "autonomy:$level" ]; then
+        rm -f "$intent_file"
+        return 0
+    fi
+    return 1
 }
 
 get_phase() {
@@ -170,7 +169,7 @@ set_autonomy_level() {
     # Authorization: require token from UserPromptSubmit hook
     # WF_SKIP_AUTH is test-only — never set in production
     if [ "${WF_SKIP_AUTH:-}" != "1" ]; then
-        if ! _check_autonomy_token "$level"; then
+        if ! _check_autonomy_intent "$level"; then
             echo "BLOCKED: Autonomy level change requires user authorization. Use /autonomy $level." >&2
             return 1
         fi
@@ -330,8 +329,8 @@ set_phase() {
     if [ "${WF_SKIP_AUTH:-}" != "1" ]; then
         local authorized=false
 
-        # Check 1: Valid one-time token
-        if _check_phase_token "$new_phase"; then
+        # Check 1: Valid phase intent file from UserPromptSubmit hook
+        if _check_phase_intent "$new_phase"; then
             authorized=true
         fi
 

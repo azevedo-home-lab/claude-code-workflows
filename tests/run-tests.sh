@@ -118,7 +118,7 @@ setup_test_project() {
     cp "$HOOKS_DIR/bash-write-guard.sh" "$TEST_DIR/.claude/hooks/"
     # Set CLAUDE_PROJECT_DIR for hooks
     export CLAUDE_PROJECT_DIR="$TEST_DIR"
-    # Skip token auth for existing tests (BUG-3 tests explicitly unset this via run_with_auth)
+    # Skip intent auth for existing tests (BUG-3 tests explicitly unset this via run_with_auth)
     export WF_SKIP_AUTH=1
 }
 
@@ -127,7 +127,7 @@ setup_test_project() {
 # Usage: run_with_auth set_phase "review"
 #        run_with_auth set_autonomy_level "auto"
 run_with_auth() {
-    (unset WF_SKIP_AUTH; export CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA:-$TEST_DIR/.claude/plugin-data}"; source "$TEST_DIR/.claude/hooks/workflow-state.sh" && "$@")
+    (unset WF_SKIP_AUTH; source "$TEST_DIR/.claude/hooks/workflow-state.sh" && "$@")
 }
 
 # ============================================================
@@ -702,10 +702,10 @@ rm -f "$TEST_DIR/.claude/state/workflow.json"
 OUTPUT=$(run_bash_guard "echo hello > file.txt")
 assert_not_contains "$OUTPUT" "deny" "allows Bash writes when no state file (first run)"
 
-# Test: allows writes to .claude/state/ in DISCUSS phase (whitelist)
+# Test: allows writes to .claude/state/ in DISCUSS phase (whitelist) — but not workflow.json
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-OUTPUT=$(run_bash_guard "echo test > .claude/state/workflow.json")
+OUTPUT=$(run_bash_guard "echo test > .claude/state/some-other-file.json")
 assert_not_contains "$OUTPUT" "deny" "allows Bash write to .claude/state/ in DISCUSS (whitelist)"
 
 # Test: allows writes to docs/superpowers/specs/ in DISCUSS phase (whitelist)
@@ -726,8 +726,8 @@ assert_contains "$OUTPUT" "deny" "blocks 'echo hello > file.txt' in DEFINE"
 OUTPUT=$(run_bash_guard "cat file.txt")
 assert_not_contains "$OUTPUT" "deny" "allows 'cat file.txt' in DEFINE"
 
-# Test: allows writes to whitelisted paths in DEFINE
-OUTPUT=$(run_bash_guard "echo test > .claude/state/workflow.json")
+# Test: allows writes to whitelisted paths in DEFINE — but not workflow.json
+OUTPUT=$(run_bash_guard "echo test > .claude/state/some-other-file.json")
 assert_not_contains "$OUTPUT" "deny" "allows Bash write to .claude/state/ in DEFINE (whitelist)"
 
 OUTPUT=$(run_bash_guard "echo 'plan' > docs/plans/decisions.md")
@@ -2267,72 +2267,56 @@ assert_eq "2.0.0" "$VERSION" "version detection: highest version picked from mul
 rm -rf "$MOCK_CACHE"
 
 # ============================================================
-# TEST SUITE: BUG-3 — Phase token authorization
+# TEST SUITE: BUG-3 — Phase intent file authorization
 # ============================================================
 echo ""
-echo "=== BUG-3: Phase token authorization ==="
+echo "=== BUG-3: Phase intent file authorization ==="
 
-# Test: set_phase blocked without token (when WF_SKIP_AUTH is unset)
+# Helper: create a phase intent file for testing
+create_phase_intent() {
+    local target="$1"
+    printf '{"intent":"%s"}\n' "$target" > "$TEST_DIR/.claude/state/phase-intent.json"
+}
+
+# Helper: create an autonomy intent file for testing
+create_autonomy_intent() {
+    local target="$1"
+    printf '{"intent":"%s"}\n' "$target" > "$TEST_DIR/.claude/state/autonomy-intent.json"
+}
+
+# Test: set_phase blocked without intent file
 setup_test_project
-# First create state via authorized path
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-# Now try to change phase with auth enforced
 OUTPUT=$(run_with_auth set_phase "review" 2>&1) || true
-assert_contains "$OUTPUT" "BLOCKED" "set_phase blocked without token when auth enforced"
-# Phase should not have changed
+assert_contains "$OUTPUT" "BLOCKED" "set_phase blocked without intent file"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
 assert_eq "implement" "$RESULT" "phase unchanged after blocked set_phase"
 
-# Test: set_phase allowed with valid token
+# Test: set_phase allowed with valid intent file
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-# Create a valid token (no timestamp — redesign)
-TOKEN_DIR="$TEST_DIR/.claude/plugin-data/.phase-tokens"
-mkdir -p "$TOKEN_DIR"
-NONCE="test-token-123"
-jq -n --arg target "review" --arg nonce "$NONCE" \
-    '{"target": $target, "nonce": $nonce}' > "$TOKEN_DIR/$NONCE"
-export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
+create_phase_intent "review"
 run_with_auth set_phase "review"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
-assert_eq "review" "$RESULT" "set_phase allowed with valid token"
-# Token should be consumed
-assert_file_not_exists "$TOKEN_DIR/$NONCE" "token consumed after use"
+assert_eq "review" "$RESULT" "set_phase allowed with valid intent file"
 
-# Test: second set_phase blocked after token consumed
+# Test: intent file deleted after consumption
+assert_file_not_exists "$TEST_DIR/.claude/state/phase-intent.json" "intent file deleted after consumption"
+
+# Test: second set_phase blocked after intent consumed
 OUTPUT=$(run_with_auth set_phase "review" 2>&1) || true
-assert_contains "$OUTPUT" "BLOCKED" "second set_phase blocked after token consumed"
+assert_contains "$OUTPUT" "BLOCKED" "second set_phase blocked after intent consumed"
 
-# Test: set_phase blocked with wrong target token — and token survives
+# Test: wrong intent target rejected
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-TOKEN_DIR="$TEST_DIR/.claude/plugin-data/.phase-tokens"
-mkdir -p "$TOKEN_DIR"
-jq -n --arg target "define" --arg nonce "wrong-target" \
-    '{"target": $target, "nonce": $nonce}' > "$TOKEN_DIR/wrong-target"
-export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
+create_phase_intent "define"
 OUTPUT=$(run_with_auth set_phase "review" 2>&1) || true
-assert_contains "$OUTPUT" "BLOCKED" "set_phase blocked with wrong target token"
-assert_file_exists "$TOKEN_DIR/wrong-target" "non-matching token survives after rejection"
+assert_contains "$OUTPUT" "BLOCKED" "set_phase blocked with wrong intent target"
+# Intent file should survive (not consumed on mismatch)
+assert_file_exists "$TEST_DIR/.claude/state/phase-intent.json" "non-matching intent file survives"
 
-# Test: two tokens coexist — consuming one does not destroy the other
-setup_test_project
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-TOKEN_DIR="$TEST_DIR/.claude/plugin-data/.phase-tokens"
-mkdir -p "$TOKEN_DIR"
-jq -n --arg target "review" --arg nonce "phase-tok" \
-    '{"target": $target, "nonce": $nonce}' > "$TOKEN_DIR/phase-tok"
-jq -n --arg target "autonomy:auto" --arg nonce "auto-tok" \
-    '{"target": $target, "nonce": $nonce}' > "$TOKEN_DIR/auto-tok"
-export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
-# Consume the phase token
-run_with_auth set_phase "review"
-RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
-assert_eq "review" "$RESULT" "phase token consumed successfully"
-# Autonomy token should still exist
-assert_file_exists "$TOKEN_DIR/auto-tok" "autonomy token survives when phase token consumed"
-
-# Test: forward auto-transition allowed without token when autonomy=auto
+# Test: forward auto-transition allowed without intent when autonomy=auto
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level "auto"
@@ -2354,193 +2338,159 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level "auto"
 OUTPUT=$(run_with_auth set_phase "off" 2>&1) || true
 assert_contains "$OUTPUT" "BLOCKED" "transition to OFF blocked in auto mode"
 
-# Test: set_autonomy_level blocked without token (when WF_SKIP_AUTH is unset)
+# Test: set_autonomy_level blocked without intent
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level "ask"
 OUTPUT=$(run_with_auth set_autonomy_level "auto" 2>&1) || true
-assert_contains "$OUTPUT" "BLOCKED" "set_autonomy_level blocked without token"
+assert_contains "$OUTPUT" "BLOCKED" "set_autonomy_level blocked without intent"
 
-# Test: set_autonomy_level allowed with valid autonomy token
+# Test: set_autonomy_level allowed with valid autonomy intent
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-TOKEN_DIR="$TEST_DIR/.claude/plugin-data/.phase-tokens"
-mkdir -p "$TOKEN_DIR"
-jq -n --arg target "autonomy:auto" --arg nonce "auto-token" \
-    '{"target": $target, "nonce": $nonce}' > "$TOKEN_DIR/auto-token"
-export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
+create_autonomy_intent "autonomy:auto"
 run_with_auth set_autonomy_level "auto"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
-assert_eq "auto" "$RESULT" "set_autonomy_level allowed with valid autonomy token"
-assert_file_not_exists "$TOKEN_DIR/auto-token" "autonomy token consumed after use"
+assert_eq "auto" "$RESULT" "set_autonomy_level allowed with valid autonomy intent"
+assert_file_not_exists "$TEST_DIR/.claude/state/autonomy-intent.json" "autonomy intent consumed after use"
 
-# Test: token consumed after use — second call with same target fails
+# Test: phase + autonomy intents coexist (independent files, independent consumption)
 setup_test_project
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "define"
-TOKEN_DIR="$TEST_DIR/.claude/plugin-data/.phase-tokens"
-mkdir -p "$TOKEN_DIR"
-jq -n --arg target "discuss" --arg nonce "once-only" \
-    '{"target": $target, "nonce": $nonce}' > "$TOKEN_DIR/once-only"
-export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
-run_with_auth set_phase "discuss"
-RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
-assert_eq "discuss" "$RESULT" "first set_phase with token succeeds"
-# Second call with same target should fail (token consumed)
-OUTPUT=$(run_with_auth set_phase "discuss" 2>&1) || true
-assert_contains "$OUTPUT" "BLOCKED" "second set_phase blocked after token consumed (same target)"
-
-# ============================================================
-# TEST SUITE: BUG-3 — Integration: token hook + state functions
-# ============================================================
-echo ""
-echo "=== BUG-3: Integration — token hook + state ==="
-
-# Helper: count files in a directory (pipefail-safe)
-count_tokens() {
-    local dir="$1"
-    if [ -d "$dir" ]; then
-        local count=0
-        for f in "$dir"/*; do
-            [ -f "$f" ] && count=$((count + 1))
-        done
-        echo "$count"
-    else
-        echo "0"
-    fi
-}
-
-# Helper: get first token file path (pipefail-safe)
-first_token() {
-    local dir="$1"
-    for f in "$dir"/*; do
-        [ -f "$f" ] && echo "$f" && return
-    done
-}
-
-# Test: user-phase-token.sh generates token for /review prompt
-setup_test_project
-export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
-echo '{"prompt": "/review"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
-TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-assert_eq "1" "$TOKEN_COUNT" "hook generates exactly 1 token for /review"
-# Check token content
-TOKEN_FILE=$(first_token "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-TOKEN_TARGET=$(jq -r '.target' "$TOKEN_FILE")
-assert_eq "review" "$TOKEN_TARGET" "token target is 'review'"
-
-# Test: user-phase-token.sh generates token for /autonomy auto prompt
-rm -rf "$TEST_DIR/.claude/plugin-data/.phase-tokens"
-echo '{"prompt": "/autonomy auto"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
-TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-assert_eq "1" "$TOKEN_COUNT" "hook generates exactly 1 token for /autonomy auto"
-TOKEN_FILE=$(first_token "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-TOKEN_TARGET=$(jq -r '.target' "$TOKEN_FILE")
-assert_eq "autonomy:auto" "$TOKEN_TARGET" "token target is 'autonomy:auto'"
-
-# Test: user-phase-token.sh generates no token for non-phase prompt
-rm -rf "$TEST_DIR/.claude/plugin-data/.phase-tokens"
-echo '{"prompt": "help me write a function"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
-TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-assert_eq "0" "$TOKEN_COUNT" "hook generates no token for non-phase prompt"
-
-# Test: user-phase-token.sh generates token for /off prompt
-rm -rf "$TEST_DIR/.claude/plugin-data/.phase-tokens"
-echo '{"prompt": "/off"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
-TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-assert_eq "1" "$TOKEN_COUNT" "hook generates exactly 1 token for /off"
-TOKEN_FILE=$(first_token "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-TOKEN_TARGET=$(jq -r '.target' "$TOKEN_FILE")
-assert_eq "off" "$TOKEN_TARGET" "token target is 'off'"
-
-# Test: bare set_phase in user message generates NO token (false-positive regression)
-rm -rf "$TEST_DIR/.claude/plugin-data/.phase-tokens"
-echo '{"prompt": "now call set_phase review to transition"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
-TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-assert_eq "0" "$TOKEN_COUNT" "bare set_phase in text generates no token (false-positive regression)"
-
-# Test: bare set_autonomy_level in user message generates NO token
-rm -rf "$TEST_DIR/.claude/plugin-data/.phase-tokens"
-echo '{"prompt": "set_autonomy_level auto"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
-TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-assert_eq "0" "$TOKEN_COUNT" "bare set_autonomy_level in text generates no token"
-
-# Test: token has no timestamp field (redesign — no TTL)
-rm -rf "$TEST_DIR/.claude/plugin-data/.phase-tokens"
-echo '{"prompt": "/review"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
-TOKEN_FILE=$(first_token "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-HAS_TS=$(jq 'has("ts")' "$TOKEN_FILE")
-assert_eq "false" "$HAS_TS" "token has no timestamp field (no TTL redesign)"
-
-# Test: malformed JSON input produces no token and exits cleanly
-rm -rf "$TEST_DIR/.claude/plugin-data/.phase-tokens"
-echo "not json at all" | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
-TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-assert_eq "0" "$TOKEN_COUNT" "malformed JSON input produces no token"
-
-# Test: Full flow — hook generates token, set_phase consumes it
-setup_test_project
-export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-# Generate token via hook
-echo '{"prompt": "/review"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
-# Use token via set_phase (with auth enabled)
+create_phase_intent "review"
+create_autonomy_intent "autonomy:auto"
+# Consume phase intent
 run_with_auth set_phase "review"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
-assert_eq "review" "$RESULT" "full flow: hook token allows set_phase"
+assert_eq "review" "$RESULT" "phase intent consumed"
+# Autonomy intent should still exist
+assert_file_exists "$TEST_DIR/.claude/state/autonomy-intent.json" "autonomy intent survives when phase intent consumed"
 
-# Test: Full flow — autonomy token
+# Test: escalation attack — forward-transition defense holds without autonomy escalation
 setup_test_project
-export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-echo '{"prompt": "/autonomy auto"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
-run_with_auth set_autonomy_level "auto"
-RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
-assert_eq "auto" "$RESULT" "full flow: hook token allows set_autonomy_level"
-
-# Test: escalation attack — cannot set autonomy to auto without token, so forward-transition defense holds
-setup_test_project
-export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-# Attacker tries to escalate autonomy without token
+# No autonomy intent — escalation blocked
 run_with_auth set_autonomy_level "auto" 2>/dev/null || true
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
-assert_eq "ask" "$RESULT" "escalation attack: autonomy stays at ask without token"
-# Forward transition should also be blocked (still in ask mode, no token)
+assert_eq "ask" "$RESULT" "escalation attack: autonomy stays at ask without intent"
 OUTPUT=$(run_with_auth set_phase "review" 2>&1) || true
 assert_contains "$OUTPUT" "BLOCKED" "escalation attack: forward transition blocked when autonomy escalation failed"
 
-# Test: user-phase-token.sh handles /discuss with arguments
-setup_test_project
-export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
-echo '{"prompt": "/discuss we need to fix these bugs"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
-TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-assert_eq "1" "$TOKEN_COUNT" "hook generates token for /discuss with arguments"
-TOKEN_FILE=$(first_token "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-TOKEN_TARGET=$(jq -r '.target' "$TOKEN_FILE")
-assert_eq "discuss" "$TOKEN_TARGET" "token target is 'discuss' even with arguments"
+# ============================================================
+# TEST SUITE: BUG-3 — Integration: intent hook + state functions
+# ============================================================
+echo ""
+echo "=== BUG-3: Integration — intent hook + state ==="
 
-# Test: /complete generates only 1 token (no pre-generated "off" — user must /off separately)
+# Test: hook generates valid phase intent for /review
 setup_test_project
-export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
-echo '{"prompt": "/complete"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
-TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-assert_eq "1" "$TOKEN_COUNT" "hook generates 1 token for /complete (no pre-generated off)"
-TOKEN_FILE=$(first_token "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-TOKEN_TARGET=$(jq -r '.target' "$TOKEN_FILE")
-assert_eq "complete" "$TOKEN_TARGET" "/complete token target is 'complete' (not off)"
+export CLAUDE_PROJECT_DIR="$TEST_DIR"
+echo '{"prompt": "/review"}' | bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh"
+assert_file_exists "$TEST_DIR/.claude/state/phase-intent.json" "hook creates phase-intent.json for /review"
+INTENT=$(jq -r '.intent' "$TEST_DIR/.claude/state/phase-intent.json")
+assert_eq "review" "$INTENT" "hook writes correct intent for /review"
 
-# Test: .phase-tokens in Bash command triggers deny from bash-write-guard (defense-in-depth)
+# Test: hook generates valid autonomy intent for /autonomy auto
+rm -f "$TEST_DIR/.claude/state/phase-intent.json" "$TEST_DIR/.claude/state/autonomy-intent.json"
+echo '{"prompt": "/autonomy auto"}' | bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh"
+assert_file_exists "$TEST_DIR/.claude/state/autonomy-intent.json" "hook creates autonomy-intent.json for /autonomy auto"
+INTENT=$(jq -r '.intent' "$TEST_DIR/.claude/state/autonomy-intent.json")
+assert_eq "autonomy:auto" "$INTENT" "hook writes correct intent for /autonomy auto"
+
+# Test: hook generates no intent for non-phase prompt
+rm -f "$TEST_DIR/.claude/state/phase-intent.json" "$TEST_DIR/.claude/state/autonomy-intent.json"
+echo '{"prompt": "help me write a function"}' | bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh"
+assert_file_not_exists "$TEST_DIR/.claude/state/phase-intent.json" "hook generates no intent for non-phase prompt"
+
+# Test: hook generates intent for /off
+rm -f "$TEST_DIR/.claude/state/phase-intent.json"
+echo '{"prompt": "/off"}' | bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh"
+INTENT=$(jq -r '.intent' "$TEST_DIR/.claude/state/phase-intent.json")
+assert_eq "off" "$INTENT" "hook writes correct intent for /off"
+
+# Test: bare set_phase in text generates NO intent (false-positive regression)
+rm -f "$TEST_DIR/.claude/state/phase-intent.json"
+echo '{"prompt": "now call set_phase review to transition"}' | bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh"
+assert_file_not_exists "$TEST_DIR/.claude/state/phase-intent.json" "bare set_phase in text generates no intent (false-positive regression)"
+
+# Test: bare set_autonomy_level in text generates NO intent
+rm -f "$TEST_DIR/.claude/state/autonomy-intent.json"
+echo '{"prompt": "set_autonomy_level auto"}' | bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh"
+assert_file_not_exists "$TEST_DIR/.claude/state/autonomy-intent.json" "bare set_autonomy_level in text generates no intent"
+
+# Test: malformed JSON input produces no intent and exits cleanly
+rm -f "$TEST_DIR/.claude/state/phase-intent.json"
+echo "not json at all" | bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh"
+assert_file_not_exists "$TEST_DIR/.claude/state/phase-intent.json" "malformed JSON input produces no intent"
+
+# Test: /discuss with arguments generates correct intent
+rm -f "$TEST_DIR/.claude/state/phase-intent.json"
+echo '{"prompt": "/discuss we need to fix these bugs"}' | bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh"
+INTENT=$(jq -r '.intent' "$TEST_DIR/.claude/state/phase-intent.json")
+assert_eq "discuss" "$INTENT" "hook writes correct intent for /discuss with arguments"
+
+# Test: /complete generates only phase intent (no autonomy or off intent)
+rm -f "$TEST_DIR/.claude/state/phase-intent.json" "$TEST_DIR/.claude/state/autonomy-intent.json"
+echo '{"prompt": "/complete"}' | bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh"
+INTENT=$(jq -r '.intent' "$TEST_DIR/.claude/state/phase-intent.json")
+assert_eq "complete" "$INTENT" "/complete generates phase intent with target 'complete'"
+assert_file_not_exists "$TEST_DIR/.claude/state/autonomy-intent.json" "/complete does not generate autonomy intent"
+
+# Test: Full flow — hook generates intent, set_phase consumes it
+setup_test_project
+export CLAUDE_PROJECT_DIR="$TEST_DIR"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+echo '{"prompt": "/review"}' | bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh"
+run_with_auth set_phase "review"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "review" "$RESULT" "full flow: hook intent allows set_phase"
+assert_file_not_exists "$TEST_DIR/.claude/state/phase-intent.json" "full flow: intent file consumed"
+
+# Test: Full flow — autonomy intent
+setup_test_project
+export CLAUDE_PROJECT_DIR="$TEST_DIR"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+echo '{"prompt": "/autonomy auto"}' | bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh"
+run_with_auth set_autonomy_level "auto"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
+assert_eq "auto" "$RESULT" "full flow: hook intent allows set_autonomy_level"
+
+# Test: intent file guard in bash-write-guard
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-OUTPUT=$(run_bash_guard 'echo x > .phase-tokens/fake-token')
-assert_contains "$OUTPUT" "deny" "bash-write-guard blocks .phase-tokens write in IMPLEMENT (defense-in-depth)"
-assert_contains "$OUTPUT" "phase token" "bash-write-guard deny mentions phase tokens"
+OUTPUT=$(run_bash_guard 'echo x > .claude/state/phase-intent.json')
+assert_contains "$OUTPUT" "deny" "bash-write-guard blocks phase-intent.json write (defense-in-depth)"
 
-# Test: .phase-tokens guard also fires in DISCUSS phase (not just implement/review)
+# Test: workflow.json guard in bash-write-guard
+OUTPUT=$(run_bash_guard 'echo x > .claude/state/workflow.json')
+assert_contains "$OUTPUT" "deny" "bash-write-guard blocks workflow.json write (defense-in-depth)"
+
+# Test: intent guard also fires in DISCUSS phase
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
-OUTPUT=$(run_bash_guard 'echo x > .phase-tokens/fake-token')
-assert_contains "$OUTPUT" "deny" "bash-write-guard blocks .phase-tokens write in DISCUSS (defense-in-depth)"
+OUTPUT=$(run_bash_guard 'echo x > .claude/state/phase-intent.json')
+assert_contains "$OUTPUT" "deny" "bash-write-guard blocks intent write in DISCUSS (defense-in-depth)"
+
+# Test: hook self-validates write (unwritable state dir → exits 0, no intent file)
+setup_test_project
+SAVE_DIR="$TEST_DIR/.claude/state"
+chmod 444 "$SAVE_DIR"
+OUTPUT=$(echo '{"prompt": "/review"}' | CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh" 2>&1) || true
+EXIT_CODE=$?
+chmod 755 "$SAVE_DIR"
+assert_eq "0" "$EXIT_CODE" "hook exits 0 on write failure (does not block prompt)"
+assert_file_not_exists "$TEST_DIR/.claude/state/phase-intent.json" "no intent file when write fails"
+
+# Test: stale intent file cleanup in setup.sh
+setup_test_project
+printf '{"intent":"stale"}\n' > "$TEST_DIR/.claude/state/phase-intent.json"
+printf '{"intent":"autonomy:stale"}\n' > "$TEST_DIR/.claude/state/autonomy-intent.json"
+export CLAUDE_PROJECT_DIR="$TEST_DIR"
+FAKE_HOME=$(mktemp -d)
+HOME="$FAKE_HOME" bash "$REPO_DIR/plugin/scripts/setup.sh"
+rm -rf "$FAKE_HOME"
+assert_file_not_exists "$TEST_DIR/.claude/state/phase-intent.json" "setup.sh cleans stale phase intent"
+assert_file_not_exists "$TEST_DIR/.claude/state/autonomy-intent.json" "setup.sh cleans stale autonomy intent"
 
 # ============================================================
 # RESULTS
