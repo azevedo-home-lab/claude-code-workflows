@@ -2286,13 +2286,12 @@ assert_eq "implement" "$RESULT" "phase unchanged after blocked set_phase"
 # Test: set_phase allowed with valid token
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-# Create a valid token
+# Create a valid token (no timestamp — redesign)
 TOKEN_DIR="$TEST_DIR/.claude/plugin-data/.phase-tokens"
 mkdir -p "$TOKEN_DIR"
-NOW=$(date +%s)
 NONCE="test-token-123"
-jq -n --arg target "review" --argjson ts "$NOW" --arg nonce "$NONCE" \
-    '{"target": $target, "ts": $ts, "nonce": $nonce}' > "$TOKEN_DIR/$NONCE"
+jq -n --arg target "review" --arg nonce "$NONCE" \
+    '{"target": $target, "nonce": $nonce}' > "$TOKEN_DIR/$NONCE"
 export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
 run_with_auth set_phase "review"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
@@ -2304,17 +2303,34 @@ assert_file_not_exists "$TOKEN_DIR/$NONCE" "token consumed after use"
 OUTPUT=$(run_with_auth set_phase "review" 2>&1) || true
 assert_contains "$OUTPUT" "BLOCKED" "second set_phase blocked after token consumed"
 
-# Test: set_phase blocked with expired token (>60s)
+# Test: set_phase blocked with wrong target token — and token survives
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 TOKEN_DIR="$TEST_DIR/.claude/plugin-data/.phase-tokens"
 mkdir -p "$TOKEN_DIR"
-EXPIRED_TS=$(($(date +%s) - 120))
-jq -n --arg target "review" --argjson ts "$EXPIRED_TS" --arg nonce "expired-token" \
-    '{"target": $target, "ts": $ts, "nonce": $nonce}' > "$TOKEN_DIR/expired-token"
+jq -n --arg target "define" --arg nonce "wrong-target" \
+    '{"target": $target, "nonce": $nonce}' > "$TOKEN_DIR/wrong-target"
 export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
 OUTPUT=$(run_with_auth set_phase "review" 2>&1) || true
-assert_contains "$OUTPUT" "BLOCKED" "set_phase blocked with expired token"
+assert_contains "$OUTPUT" "BLOCKED" "set_phase blocked with wrong target token"
+assert_file_exists "$TOKEN_DIR/wrong-target" "non-matching token survives after rejection"
+
+# Test: two tokens coexist — consuming one does not destroy the other
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+TOKEN_DIR="$TEST_DIR/.claude/plugin-data/.phase-tokens"
+mkdir -p "$TOKEN_DIR"
+jq -n --arg target "review" --arg nonce "phase-tok" \
+    '{"target": $target, "nonce": $nonce}' > "$TOKEN_DIR/phase-tok"
+jq -n --arg target "autonomy:auto" --arg nonce "auto-tok" \
+    '{"target": $target, "nonce": $nonce}' > "$TOKEN_DIR/auto-tok"
+export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
+# Consume the phase token
+run_with_auth set_phase "review"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "review" "$RESULT" "phase token consumed successfully"
+# Autonomy token should still exist
+assert_file_exists "$TOKEN_DIR/auto-tok" "autonomy token survives when phase token consumed"
 
 # Test: forward auto-transition allowed without token when autonomy=auto
 setup_test_project
@@ -2350,26 +2366,28 @@ setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 TOKEN_DIR="$TEST_DIR/.claude/plugin-data/.phase-tokens"
 mkdir -p "$TOKEN_DIR"
-NOW=$(date +%s)
-jq -n --arg target "autonomy:auto" --argjson ts "$NOW" --arg nonce "auto-token" \
-    '{"target": $target, "ts": $ts, "nonce": $nonce}' > "$TOKEN_DIR/auto-token"
+jq -n --arg target "autonomy:auto" --arg nonce "auto-token" \
+    '{"target": $target, "nonce": $nonce}' > "$TOKEN_DIR/auto-token"
 export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
 run_with_auth set_autonomy_level "auto"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
 assert_eq "auto" "$RESULT" "set_autonomy_level allowed with valid autonomy token"
 assert_file_not_exists "$TOKEN_DIR/auto-token" "autonomy token consumed after use"
 
-# Test: set_phase blocked with future-timestamp token (security: prevents forgery)
+# Test: token consumed after use — second call with same target fails
 setup_test_project
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "define"
 TOKEN_DIR="$TEST_DIR/.claude/plugin-data/.phase-tokens"
 mkdir -p "$TOKEN_DIR"
-FUTURE_TS=$(($(date +%s) + 9999999))
-jq -n --arg target "review" --argjson ts "$FUTURE_TS" --arg nonce "future-token" \
-    '{"target": $target, "ts": $ts, "nonce": $nonce}' > "$TOKEN_DIR/future-token"
+jq -n --arg target "discuss" --arg nonce "once-only" \
+    '{"target": $target, "nonce": $nonce}' > "$TOKEN_DIR/once-only"
 export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
-OUTPUT=$(run_with_auth set_phase "review" 2>&1) || true
-assert_contains "$OUTPUT" "BLOCKED" "set_phase blocked with future-timestamp token (forgery prevention)"
+run_with_auth set_phase "discuss"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "discuss" "$RESULT" "first set_phase with token succeeds"
+# Second call with same target should fail (token consumed)
+OUTPUT=$(run_with_auth set_phase "discuss" 2>&1) || true
+assert_contains "$OUTPUT" "BLOCKED" "second set_phase blocked after token consumed (same target)"
 
 # ============================================================
 # TEST SUITE: BUG-3 — Integration: token hook + state functions
@@ -2425,13 +2443,39 @@ echo '{"prompt": "help me write a function"}' | bash "$REPO_DIR/plugin/scripts/u
 TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
 assert_eq "0" "$TOKEN_COUNT" "hook generates no token for non-phase prompt"
 
-# Test: user-phase-token.sh cleans up expired tokens
-mkdir -p "$TEST_DIR/.claude/plugin-data/.phase-tokens"
-EXPIRED_TS=$(($(date +%s) - 120))
-jq -n --arg target "old" --argjson ts "$EXPIRED_TS" --arg nonce "old" \
-    '{"target": $target, "ts": $ts, "nonce": $nonce}' > "$TEST_DIR/.claude/plugin-data/.phase-tokens/old-token"
+# Test: user-phase-token.sh generates token for /off prompt
+rm -rf "$TEST_DIR/.claude/plugin-data/.phase-tokens"
+echo '{"prompt": "/off"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
+TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
+assert_eq "1" "$TOKEN_COUNT" "hook generates exactly 1 token for /off"
+TOKEN_FILE=$(first_token "$TEST_DIR/.claude/plugin-data/.phase-tokens")
+TOKEN_TARGET=$(jq -r '.target' "$TOKEN_FILE")
+assert_eq "off" "$TOKEN_TARGET" "token target is 'off'"
+
+# Test: bare set_phase in user message generates NO token (false-positive regression)
+rm -rf "$TEST_DIR/.claude/plugin-data/.phase-tokens"
+echo '{"prompt": "now call set_phase review to transition"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
+TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
+assert_eq "0" "$TOKEN_COUNT" "bare set_phase in text generates no token (false-positive regression)"
+
+# Test: bare set_autonomy_level in user message generates NO token
+rm -rf "$TEST_DIR/.claude/plugin-data/.phase-tokens"
+echo '{"prompt": "set_autonomy_level auto"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
+TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
+assert_eq "0" "$TOKEN_COUNT" "bare set_autonomy_level in text generates no token"
+
+# Test: token has no timestamp field (redesign — no TTL)
+rm -rf "$TEST_DIR/.claude/plugin-data/.phase-tokens"
 echo '{"prompt": "/review"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
-assert_file_not_exists "$TEST_DIR/.claude/plugin-data/.phase-tokens/old-token" "hook cleans up expired tokens"
+TOKEN_FILE=$(first_token "$TEST_DIR/.claude/plugin-data/.phase-tokens")
+HAS_TS=$(jq 'has("ts")' "$TOKEN_FILE")
+assert_eq "false" "$HAS_TS" "token has no timestamp field (no TTL redesign)"
+
+# Test: malformed JSON input produces no token and exits cleanly
+rm -rf "$TEST_DIR/.claude/plugin-data/.phase-tokens"
+echo "not json at all" | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
+TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
+assert_eq "0" "$TOKEN_COUNT" "malformed JSON input produces no token"
 
 # Test: Full flow — hook generates token, set_phase consumes it
 setup_test_project
@@ -2475,12 +2519,28 @@ TOKEN_FILE=$(first_token "$TEST_DIR/.claude/plugin-data/.phase-tokens")
 TOKEN_TARGET=$(jq -r '.target' "$TOKEN_FILE")
 assert_eq "discuss" "$TOKEN_TARGET" "token target is 'discuss' even with arguments"
 
-# Test: user-phase-token.sh generates both "complete" and "off" tokens for /complete
+# Test: /complete generates only 1 token (no pre-generated "off" — user must /off separately)
 setup_test_project
 export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
 echo '{"prompt": "/complete"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
 TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
-assert_eq "2" "$TOKEN_COUNT" "hook generates 2 tokens for /complete (complete + off)"
+assert_eq "1" "$TOKEN_COUNT" "hook generates 1 token for /complete (no pre-generated off)"
+TOKEN_FILE=$(first_token "$TEST_DIR/.claude/plugin-data/.phase-tokens")
+TOKEN_TARGET=$(jq -r '.target' "$TOKEN_FILE")
+assert_eq "complete" "$TOKEN_TARGET" "/complete token target is 'complete' (not off)"
+
+# Test: .phase-tokens in Bash command triggers deny from bash-write-guard (defense-in-depth)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+OUTPUT=$(run_bash_guard 'echo x > .phase-tokens/fake-token')
+assert_contains "$OUTPUT" "deny" "bash-write-guard blocks .phase-tokens write in IMPLEMENT (defense-in-depth)"
+assert_contains "$OUTPUT" "phase token" "bash-write-guard deny mentions phase tokens"
+
+# Test: .phase-tokens guard also fires in DISCUSS phase (not just implement/review)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+OUTPUT=$(run_bash_guard 'echo x > .phase-tokens/fake-token')
+assert_contains "$OUTPUT" "deny" "bash-write-guard blocks .phase-tokens write in DISCUSS (defense-in-depth)"
 
 # ============================================================
 # RESULTS

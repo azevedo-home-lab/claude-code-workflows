@@ -24,9 +24,9 @@ Six phases. Code edits are blocked until you discuss and approve a plan.
 | **REVIEW** | Allowed | 3 parallel review agents + verification |
 | **COMPLETE** | Blocked | Validate outcomes, docs, handover |
 
-Commands: `/define` `/discuss` `/implement` `/review` `/complete`
+Commands: `/define` `/discuss` `/implement` `/review` `/complete` `/off`
 
-Any command can jump to any phase. Soft gates warn when skipping steps.
+Any command can jump to any phase. `/off` closes the workflow. Soft gates warn when skipping steps.
 
 ### Autonomy Levels
 

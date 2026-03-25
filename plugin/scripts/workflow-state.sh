@@ -99,22 +99,22 @@ _phase_ordinal() {
 
 # Check for a valid one-time phase token. Consumes the token on success.
 # Returns 0 if authorized, 1 if blocked.
+# No TTL — tokens are consumed immediately when the slash command executes.
 _check_phase_token() {
     local target_phase="$1"
     local token_dir="${CLAUDE_PLUGIN_DATA:-${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/.claude/plugin-data}/.phase-tokens"
     [ -d "$token_dir" ] || return 1
-    local now
-    now=$(date +%s)
     for token_file in "$token_dir"/*; do
         [ -f "$token_file" ] || continue
-        # Atomic consume: mv first, then validate. If mv fails, another process won the race.
-        local consumed="${token_dir}/.consumed.$$"
-        if mv "$token_file" "$consumed" 2>/dev/null; then
-            local target ts
-            target=$(jq -r '.target // ""' "$consumed" 2>/dev/null) || { rm -f "$consumed"; continue; }
-            ts=$(jq -r '.ts // 0' "$consumed" 2>/dev/null) || { rm -f "$consumed"; continue; }
-            rm -f "$consumed"
-            if [ "$target" = "$target_phase" ] && [ "$ts" -le "$now" ] && [ $((now - ts)) -lt 60 ]; then
+        # Read target first — only consume tokens that match.
+        # Non-matching tokens (e.g., autonomy token when checking phase) are left intact.
+        local target
+        target=$(jq -r '.target // ""' "$token_file" 2>/dev/null) || continue
+        if [ "$target" = "$target_phase" ]; then
+            # Atomic consume: mv to prevent double-use. If mv fails, another process won the race.
+            local consumed="${token_dir}/.consumed.$$"
+            if mv "$token_file" "$consumed" 2>/dev/null; then
+                rm -f "$consumed"
                 return 0
             fi
         fi
