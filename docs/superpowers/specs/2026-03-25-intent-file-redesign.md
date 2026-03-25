@@ -121,7 +121,9 @@ For autonomy commands:
 4. Resolve STATE_DIR (same logic as workflow-state.sh)
 5. Write intent file using printf:
      printf '{"intent":"%s"}\n' "$TARGET" > "$STATE_DIR/phase-intent.json"
-6. Validate write: [ -s "$STATE_DIR/phase-intent.json" ] or exit 1 with stderr error
+6. Validate write: [ -s "$STATE_DIR/phase-intent.json" ] or log error to stderr and exit 0
+     (exit 0, not exit 1 — UserPromptSubmit exit 1 may prevent the prompt from processing;
+      exit 0 lets the prompt through, and set_phase() produces the diagnostic about the missing intent)
 7. If autonomy command also detected, write second intent:
      printf '{"intent":"%s"}\n' "$AUTONOMY_TARGET" > "$STATE_DIR/autonomy-intent.json"
 ```
@@ -152,8 +154,8 @@ For autonomy commands:
 _check_phase_intent(target_phase):
   1. INTENT_FILE="$STATE_DIR/phase-intent.json"
   2. If file doesn't exist or is empty → return 1
-  3. Read intent field: grep + sed (no jq dependency for reading simple JSON)
-     Or: use jq if available, printf-parsed fallback if not
+  3. Read intent field using jq: jq -r '.intent // ""' "$INTENT_FILE"
+     (jq is already a hard dependency of workflow-state.sh — no new dependency)
   4. If intent matches target_phase:
      a. Delete intent file (consumed)
      b. Return 0 (authorized)
@@ -184,7 +186,8 @@ _check_autonomy_intent(level):
 
 ```bash
 # Defense-in-depth: block direct writes to phase intent and workflow state files
-if echo "$COMMAND" | grep -qE 'phase-intent\.json|autonomy-intent\.json|workflow\.json'; then
+# Uses path-qualified patterns to avoid false positives (e.g., reading workflow.json or grepping for its name)
+if echo "$COMMAND" | grep -qE '\.claude/(state/workflow\.json|state/phase-intent\.json|state/autonomy-intent\.json)'; then
     emit_deny "BLOCKED: Direct writes to workflow state files are not allowed."
     exit 0
 fi
@@ -193,6 +196,8 @@ fi
 **Same placement** — before the implement/review early-exit. Same speed-bump caveat.
 
 **Also guards `workflow.json`** — the state file itself. Previously unguarded because tokens were the authorization mechanism. With the simpler model, guarding the state file directly is belt-and-suspenders.
+
+**Path-qualified patterns:** The guard matches `.claude/state/workflow.json` rather than bare `workflow.json` to avoid false positives on read-only commands that mention the filename (e.g., `cat .claude/state/workflow.json` for debugging, or `grep workflow.json` in docs). The trade-off: an attacker could use a relative path without `.claude/` — but this is a speed bump, not a wall.
 
 ### Section 4: hooks.json Update
 
@@ -218,7 +223,7 @@ Only the script name changes. Timeout stays at 5s (actual execution <100ms with 
 
 All 6 command files (`define.md`, `discuss.md`, `implement.md`, `review.md`, `complete.md`, `off.md`) keep calling `set_phase` through `workflow-cmd.sh` — the interface is unchanged. The difference is internal: `set_phase()` now checks an intent file instead of iterating token files.
 
-No command file changes needed for the token→intent migration.
+No command file changes needed for the token→intent migration. This includes `autonomy.md` — it calls `set_autonomy_level` through `workflow-cmd.sh`, and the interface is unchanged. Only the internal authorization check changes (from `_check_autonomy_token` to `_check_autonomy_intent`).
 
 ### Section 6: Version Bump Fix (#3907)
 
@@ -235,6 +240,8 @@ Add a new step between step 4 (all_tasks_complete) and step 5 (tests_passing):
     This runs during IMPLEMENT where all writes are allowed.
 ```
 
+**Not an IMPLEMENT exit gate milestone.** The version bump is not added to `_check_phase_gates()` or `reset_implement_status`. Rationale: COMPLETE Step 5 verifies the bump was done and loops back to `/implement` if not. Adding a gate milestone would prevent moving to `/review` without a version bump, but the bump logically belongs after review (you want to review the code before deciding version). The IMPLEMENT→COMPLETE flow is: implement → review → implement (bump) → complete (verify).
+
 **`complete.md` Step 5 changes:**
 Replace the versioning agent dispatch (lines 226-258) with verification only:
 
@@ -250,10 +257,19 @@ Replace the versioning agent dispatch (lines 226-258) with verification only:
 **Delete:**
 - `plugin/scripts/user-phase-token.sh` — replaced by `user-phase-gate.sh`
 - `.claude/plugin-data/.phase-tokens/` directory — no longer used
-- Adversarial test scripts from `docs/superpowers/specs/`: `adversarial-test-runner.sh`, `adversarial-followup.sh`
 
 **Create:**
 - `plugin/scripts/user-phase-gate.sh` — new intent file hook
+
+**Stale intent file cleanup (`plugin/scripts/setup.sh`):**
+Add to setup.sh (SessionStart hook) — delete any leftover intent files from previous sessions. A stale intent file could authorize an unintended transition if the user starts a new session and the old intent matches a command they type.
+
+```bash
+# Clean up stale intent files from previous sessions
+rm -f "$STATE_DIR/phase-intent.json" "$STATE_DIR/autonomy-intent.json"
+```
+
+This runs on every session start, before any user input. Since intent files are consumed immediately by `set_phase()`, any file that survives to the next session is stale by definition.
 
 ### Section 8: Test Changes (`tests/run-tests.sh`)
 
@@ -280,7 +296,8 @@ Replace the versioning agent dispatch (lines 226-258) with verification only:
 | intent file guard in bash-write-guard | `phase-intent.json` in command → BLOCKED |
 | workflow.json guard in bash-write-guard | `workflow.json` in command → BLOCKED |
 | hook writes valid intent (integration) | Simulate hook → check file content |
-| hook self-validates write | Zero-byte file → hook exits 1 |
+| hook self-validates write | Zero-byte file → hook exits 0 with stderr error |
+| stale intent file cleaned on setup | setup.sh removes leftover intent files |
 
 **Unchanged:**
 - `WF_SKIP_AUTH=1` bypass for non-auth tests
@@ -299,9 +316,8 @@ Replace the versioning agent dispatch (lines 226-258) with verification only:
 | `plugin/hooks/hooks.json` | Update UserPromptSubmit script path | 1 changed |
 | `plugin/commands/implement.md` | Add version bump step | ~15 added |
 | `plugin/commands/complete.md` | Replace version bump with verification | ~20 changed |
+| `plugin/scripts/setup.sh` | Add stale intent file cleanup | ~2 added |
 | `tests/run-tests.sh` | Replace BUG-3 token tests with intent tests | ~80 changed |
-| `docs/superpowers/specs/adversarial-test-runner.sh` | **DELETE** | cleanup |
-| `docs/superpowers/specs/adversarial-followup.sh` | **DELETE** | cleanup |
 
 ## Non-Goals
 
