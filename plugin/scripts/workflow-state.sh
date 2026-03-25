@@ -84,6 +84,47 @@ emit_deny() {
 # Phase management
 # ---------------------------------------------------------------------------
 
+# Phase ordinal for forward-only auto-transition enforcement
+_phase_ordinal() {
+    case "$1" in
+        off)       echo 0 ;;
+        define)    echo 1 ;;
+        discuss)   echo 2 ;;
+        implement) echo 3 ;;
+        review)    echo 4 ;;
+        complete)  echo 5 ;;
+        *)         echo 0 ;;
+    esac
+}
+
+# Check for a valid one-time phase token. Consumes the token on success.
+# Returns 0 if authorized, 1 if blocked.
+_check_phase_token() {
+    local target_phase="$1"
+    local token_dir="${CLAUDE_PLUGIN_DATA:-${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/.claude/plugin-data}/.phase-tokens"
+    [ -d "$token_dir" ] || return 1
+    local now
+    now=$(date +%s)
+    for token_file in "$token_dir"/*; do
+        [ -f "$token_file" ] || continue
+        local target ts
+        target=$(jq -r '.target // ""' "$token_file" 2>/dev/null) || continue
+        ts=$(jq -r '.ts // 0' "$token_file" 2>/dev/null) || continue
+        if [ "$target" = "$target_phase" ] && [ $((now - ts)) -lt 60 ]; then
+            rm -f "$token_file"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Check for a valid one-time autonomy token. Consumes the token on success.
+# Returns 0 if authorized, 1 if blocked.
+_check_autonomy_token() {
+    local level="$1"
+    _check_phase_token "autonomy:$level"
+}
+
 get_phase() {
     if [ ! -f "$STATE_FILE" ]; then
         echo "off"
@@ -122,6 +163,14 @@ set_autonomy_level() {
         off|ask|auto) ;;
         *) echo "ERROR: Invalid autonomy level: $level (valid: off, ask, auto)" >&2; return 1 ;;
     esac
+    # Authorization: require token from UserPromptSubmit hook
+    # WF_SKIP_AUTH is test-only — never set in production
+    if [ "${WF_SKIP_AUTH:-}" != "1" ]; then
+        if ! _check_autonomy_token "$level"; then
+            echo "BLOCKED: Autonomy level change requires user authorization. Use /autonomy $level." >&2
+            return 1
+        fi
+    fi
     if [ ! -f "$STATE_FILE" ]; then
         echo "WARNING: No workflow state file. Start a workflow phase first (e.g., /define)." >&2
         return 1
@@ -271,6 +320,36 @@ set_phase() {
         off|define|discuss|implement|review|complete) ;;
         *) echo "ERROR: Invalid phase: $new_phase (valid: off, define, discuss, implement, review, complete)" >&2; return 1 ;;
     esac
+
+    # Authorization: require token or forward-only auto-transition
+    # WF_SKIP_AUTH is test-only — never set in production
+    if [ "${WF_SKIP_AUTH:-}" != "1" ]; then
+        local authorized=false
+
+        # Check 1: Valid one-time token
+        if _check_phase_token "$new_phase"; then
+            authorized=true
+        fi
+
+        # Check 2: Forward-only auto-transition (no token needed)
+        if [ "$authorized" = false ] && [ -f "$STATE_FILE" ]; then
+            local current_autonomy
+            current_autonomy=$(get_autonomy_level)
+            if [ "$current_autonomy" = "auto" ]; then
+                local current_ordinal new_ordinal
+                current_ordinal=$(_phase_ordinal "$(get_phase)")
+                new_ordinal=$(_phase_ordinal "$new_phase")
+                if [ "$new_ordinal" -gt "$current_ordinal" ] && [ "$new_phase" != "off" ]; then
+                    authorized=true
+                fi
+            fi
+        fi
+
+        if [ "$authorized" = false ]; then
+            echo "BLOCKED: Phase transition to '$new_phase' requires user authorization. Only the user can change the workflow phase." >&2
+            return 1
+        fi
+    fi
 
     mkdir -p "$STATE_DIR"
 

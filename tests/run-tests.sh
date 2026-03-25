@@ -118,6 +118,16 @@ setup_test_project() {
     cp "$HOOKS_DIR/bash-write-guard.sh" "$TEST_DIR/.claude/hooks/"
     # Set CLAUDE_PROJECT_DIR for hooks
     export CLAUDE_PROJECT_DIR="$TEST_DIR"
+    # Skip token auth for existing tests (BUG-3 tests explicitly unset this via run_with_auth)
+    export WF_SKIP_AUTH=1
+}
+
+# Run a workflow-state.sh function with auth enforcement enabled (no WF_SKIP_AUTH bypass).
+# Uses a subshell so the unset doesn't leak into the parent environment.
+# Usage: run_with_auth set_phase "review"
+#        run_with_auth set_autonomy_level "auto"
+run_with_auth() {
+    (unset WF_SKIP_AUTH; export CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA:-$TEST_DIR/.claude/plugin-data}"; source "$TEST_DIR/.claude/hooks/workflow-state.sh" && "$@")
 }
 
 # ============================================================
@@ -2255,6 +2265,99 @@ VERSION=$(_plugin_version "$MOCK_MULTI")
 assert_eq "2.0.0" "$VERSION" "version detection: highest version picked from multiple"
 
 rm -rf "$MOCK_CACHE"
+
+# ============================================================
+# TEST SUITE: BUG-3 — Phase token authorization
+# ============================================================
+echo ""
+echo "=== BUG-3: Phase token authorization ==="
+
+# Test: set_phase blocked without token (when WF_SKIP_AUTH is unset)
+setup_test_project
+# First create state via authorized path
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+# Now try to change phase with auth enforced
+OUTPUT=$(run_with_auth set_phase "review" 2>&1) || true
+assert_contains "$OUTPUT" "BLOCKED" "set_phase blocked without token when auth enforced"
+# Phase should not have changed
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "implement" "$RESULT" "phase unchanged after blocked set_phase"
+
+# Test: set_phase allowed with valid token
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+# Create a valid token
+TOKEN_DIR="$TEST_DIR/.claude/plugin-data/.phase-tokens"
+mkdir -p "$TOKEN_DIR"
+NOW=$(date +%s)
+NONCE="test-token-123"
+jq -n --arg target "review" --argjson ts "$NOW" --arg nonce "$NONCE" \
+    '{"target": $target, "ts": $ts, "nonce": $nonce}' > "$TOKEN_DIR/$NONCE"
+export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
+run_with_auth set_phase "review"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "review" "$RESULT" "set_phase allowed with valid token"
+# Token should be consumed
+assert_file_not_exists "$TOKEN_DIR/$NONCE" "token consumed after use"
+
+# Test: second set_phase blocked after token consumed
+OUTPUT=$(run_with_auth set_phase "review" 2>&1) || true
+assert_contains "$OUTPUT" "BLOCKED" "second set_phase blocked after token consumed"
+
+# Test: set_phase blocked with expired token (>60s)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+TOKEN_DIR="$TEST_DIR/.claude/plugin-data/.phase-tokens"
+mkdir -p "$TOKEN_DIR"
+EXPIRED_TS=$(($(date +%s) - 120))
+jq -n --arg target "review" --argjson ts "$EXPIRED_TS" --arg nonce "expired-token" \
+    '{"target": $target, "ts": $ts, "nonce": $nonce}' > "$TOKEN_DIR/expired-token"
+export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
+OUTPUT=$(run_with_auth set_phase "review" 2>&1) || true
+assert_contains "$OUTPUT" "BLOCKED" "set_phase blocked with expired token"
+
+# Test: forward auto-transition allowed without token when autonomy=auto
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level "auto"
+run_with_auth set_phase "review"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "review" "$RESULT" "forward auto-transition allowed in auto mode"
+
+# Test: backward transition blocked even in auto mode
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level "auto"
+OUTPUT=$(run_with_auth set_phase "implement" 2>&1) || true
+assert_contains "$OUTPUT" "BLOCKED" "backward transition blocked in auto mode"
+
+# Test: transition to OFF blocked even in auto mode
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level "auto"
+OUTPUT=$(run_with_auth set_phase "off" 2>&1) || true
+assert_contains "$OUTPUT" "BLOCKED" "transition to OFF blocked in auto mode"
+
+# Test: set_autonomy_level blocked without token (when WF_SKIP_AUTH is unset)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level "ask"
+OUTPUT=$(run_with_auth set_autonomy_level "auto" 2>&1) || true
+assert_contains "$OUTPUT" "BLOCKED" "set_autonomy_level blocked without token"
+
+# Test: set_autonomy_level allowed with valid autonomy token
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+TOKEN_DIR="$TEST_DIR/.claude/plugin-data/.phase-tokens"
+mkdir -p "$TOKEN_DIR"
+NOW=$(date +%s)
+jq -n --arg target "autonomy:auto" --argjson ts "$NOW" --arg nonce "auto-token" \
+    '{"target": $target, "ts": $ts, "nonce": $nonce}' > "$TOKEN_DIR/auto-token"
+export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
+run_with_auth set_autonomy_level "auto"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
+assert_eq "auto" "$RESULT" "set_autonomy_level allowed with valid autonomy token"
+assert_file_not_exists "$TOKEN_DIR/auto-token" "autonomy token consumed after use"
 
 # ============================================================
 # RESULTS
