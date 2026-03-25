@@ -1,20 +1,31 @@
 {
   "permissions": {
     "allow": [
+      "Agent",
       "Bash",
+      "Glob",
+      "Grep",
+      "Read",
       "WebFetch",
       "WebSearch",
-      "mcp__plugin_claude-mem_mcp-search__save_observation",
       "mcp__plugin_claude-mem_mcp-search__get_observations",
+      "mcp__plugin_claude-mem_mcp-search__save_observation",
       "mcp__plugin_claude-mem_mcp-search__search",
-      "mcp__plugin_claude-mem_mcp-search__timeline",
-      "Read",
-      "Agent",
-      "Glob",
-      "Grep"
+      "mcp__plugin_claude-mem_mcp-search__timeline"
     ]
   },
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/user-phase-gate.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Write|Edit|MultiEdit|NotebookEdit",

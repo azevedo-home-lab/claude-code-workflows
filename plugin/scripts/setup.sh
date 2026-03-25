@@ -6,10 +6,12 @@
 # See LICENSE for details.
 
 # Setup hook — runs on first plugin activation (Setup hook in hooks.json).
-# Three responsibilities:
+# Responsibilities:
 #   A. Project state initialization (workflow.json + .gitignore)
-#   B. Global statusline installation (~/.claude/statusline.sh + settings.json)
-#   C. Project permissions (ensure tools needed for unattended operation are allowed)
+#   B. Plugin cache version sync
+#   C. Global statusline installation (~/.claude/statusline.sh + settings.json)
+#   D. Project hooks (symlinks + settings.json registration)
+#   E. Project permissions (ensure tools needed for unattended operation are allowed)
 
 set -euo pipefail
 
@@ -130,13 +132,55 @@ if [ -f "$STATUSLINE_SRC" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# C. Project permissions — ensure tools needed for workflow pipeline are allowed
+# D. Project hooks — ensure all plugin hooks are registered in settings.json
+# ─────────────────────────────────────────────────────────────────────────────
+# Claude Code reads hooks from .claude/settings.json, NOT from plugin/hooks/hooks.json.
+# This section creates symlinks and registers hooks so the plugin's hook scripts fire.
+
+HOOKS_DIR="$PROJECT_DIR/.claude/hooks"
+mkdir -p "$HOOKS_DIR"
+
+# Create symlinks for all plugin hook scripts (idempotent)
+for script in user-phase-gate.sh workflow-gate.sh bash-write-guard.sh post-tool-navigator.sh workflow-state.sh workflow-cmd.sh; do
+  if [ -f "$PLUGIN_ROOT/scripts/$script" ] && [ ! -e "$HOOKS_DIR/$script" ]; then
+    ln -s "../../plugin/scripts/$script" "$HOOKS_DIR/$script"
+  fi
+done
+
+# Register hooks in settings.json via jq (idempotent — only adds missing hooks)
+PROJECT_SETTINGS="$PROJECT_DIR/.claude/settings.json"
+if [ -f "$PROJECT_SETTINGS" ]; then
+  # Ensure UserPromptSubmit hook exists
+  HAS_UPS=$(jq 'has("hooks") and (.hooks | has("UserPromptSubmit"))' "$PROJECT_SETTINGS" 2>/dev/null)
+  if [ "$HAS_UPS" != "true" ]; then
+    jq '.hooks.UserPromptSubmit = [{"hooks": [{"type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/user-phase-gate.sh", "timeout": 5}]}]' \
+      "$PROJECT_SETTINGS" > "$PROJECT_SETTINGS.tmp" && mv "$PROJECT_SETTINGS.tmp" "$PROJECT_SETTINGS" || true
+  fi
+
+  # Ensure PreToolUse hooks exist
+  HAS_PTU=$(jq 'has("hooks") and (.hooks | has("PreToolUse"))' "$PROJECT_SETTINGS" 2>/dev/null)
+  if [ "$HAS_PTU" != "true" ]; then
+    jq '.hooks.PreToolUse = [
+      {"matcher": "Write|Edit|MultiEdit|NotebookEdit", "hooks": [{"type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-gate.sh"}]},
+      {"matcher": "Bash", "hooks": [{"type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/bash-write-guard.sh"}]}
+    ]' "$PROJECT_SETTINGS" > "$PROJECT_SETTINGS.tmp" && mv "$PROJECT_SETTINGS.tmp" "$PROJECT_SETTINGS" || true
+  fi
+
+  # Ensure PostToolUse hook exists
+  HAS_POST=$(jq 'has("hooks") and (.hooks | has("PostToolUse"))' "$PROJECT_SETTINGS" 2>/dev/null)
+  if [ "$HAS_POST" != "true" ]; then
+    jq '.hooks.PostToolUse = [{"hooks": [{"type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-navigator.sh"}]}]' \
+      "$PROJECT_SETTINGS" > "$PROJECT_SETTINGS.tmp" && mv "$PROJECT_SETTINGS.tmp" "$PROJECT_SETTINGS" || true
+  fi
+fi || true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# E. Project permissions — ensure tools needed for workflow pipeline are allowed
 # ─────────────────────────────────────────────────────────────────────────────
 
 # The workflow pipeline (hooks, coaching, COMPLETE agents) needs these tools
 # to operate without permission prompts. Without them, autonomy level 3
 # (unattended) is broken by constant approval dialogs.
-PROJECT_SETTINGS="$PROJECT_DIR/.claude/settings.json"
 if [ -f "$PROJECT_SETTINGS" ]; then
   jq '.permissions.allow = ((.permissions.allow // []) + ["Read", "Agent", "Glob", "Grep"] | unique)' \
     "$PROJECT_SETTINGS" > "$PROJECT_SETTINGS.tmp" && mv "$PROJECT_SETTINGS.tmp" "$PROJECT_SETTINGS" || true
