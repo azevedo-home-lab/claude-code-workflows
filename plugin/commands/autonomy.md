@@ -13,10 +13,9 @@ Set the Workflow Manager autonomy level. This controls how much independence Cla
 
 ## Execution
 
-Run this to set the level:
+Run this **exactly as written** — do not modify the path or add fallbacks:
 
 ```bash
-# Normalize legacy numeric values
 LEVEL="$ARGUMENTS"
 case "$LEVEL" in
     1) LEVEL="off" ;;
