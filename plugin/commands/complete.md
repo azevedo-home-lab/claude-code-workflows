@@ -223,39 +223,20 @@ Stage all changed files relevant to the task and commit:
 
 1. Run `git status` and `git diff --stat`
 2. Stage the relevant files (prefer specific files over `git add -A`)
-2b. **Version bump:** Dispatch a **Versioning agent** to determine the bump type:
+2b. **Version verification:** Verify the version bump was done during IMPLEMENT.
 
-Prompt: "Determine the semantic version bump for this release.
-1. Read the decision record at [DECISION_RECORD_PATH] for phase history
-2. Read `git log --oneline main...HEAD` for commit history
-3. Read current version from `.claude-plugin/marketplace.json`
-4. Apply these rules:
-   - **Major** (X.0.0): Breaking changes to public API — hook contract changes, state schema changes that break existing state files, command interface changes
-   - **Minor** (x.Y.0): New features — session went through DEFINE/DISCUSS phases (new capability), new commands added, new state fields
-   - **Patch** (x.y.Z): Bug fixes, refactors, tech debt cleanup, doc updates — changes are internal only
-5. Return: current version, bump type (major/minor/patch), new version, one-line reasoning"
-
-Apply the version bump to all 3 files:
+Run `scripts/check-version-sync.sh` to validate all 3 version files match.
+Then verify the version is greater than the last release tag:
 ```bash
-WF_ROOT="${CLAUDE_PLUGIN_ROOT}"
-# The versioning agent provides NEW_VERSION
-python3 -c "
-import json, sys
-new_version = sys.argv[1]
-for path in ['.claude-plugin/marketplace.json', '.claude-plugin/plugin.json', 'plugin/.claude-plugin/plugin.json']:
-    with open(path) as f:
-        data = json.load(f)
-    if 'plugins' in data:
-        data['plugins'][0]['version'] = new_version
-    else:
-        data['version'] = new_version
-    with open(path, 'w') as f:
-        json.dump(data, f, indent=2)
-        f.write('\n')
-" "<NEW_VERSION>"
+CURRENT=$(jq -r '.plugins[0].version // .version' .claude-plugin/marketplace.json)
+LAST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -1 | sed 's/^v//')
+echo "Current: $CURRENT, Last tag: ${LAST_TAG:-none}"
 ```
 
-Run `scripts/check-version-sync.sh` to validate all 3 files match. Include version files in the commit staging.
+If version bump was not done (version matches or is less than last tag), flag as validation failure:
+> "Version bump missing — loop back to `/implement` and run the versioning step."
+
+Include version files in the commit staging if they were modified.
 3. Draft a concise conventional commit message explaining why
 4. Commit:
    ```bash
