@@ -342,13 +342,26 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 OUTPUT=$(run_bash_guard 'echo x > .claude/state/phase-intent.json')
 assert_contains "$OUTPUT" "deny" "bash-write-guard blocks intent write in DISCUSS (defense-in-depth)"
 
+# Test: hook self-validates write (unwritable state dir → exits 0, no intent file)
+setup_test_project
+SAVE_DIR="$TEST_DIR/.claude/state"
+chmod 444 "$SAVE_DIR"
+OUTPUT=$(echo '{"prompt": "/review"}' | CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh" 2>&1) || true
+EXIT_CODE=$?
+chmod 755 "$SAVE_DIR"
+# Hook should exit 0 (not block the prompt) and log error to stderr
+assert_eq "0" "$EXIT_CODE" "hook exits 0 on write failure (does not block prompt)"
+assert_file_not_exists "$TEST_DIR/.claude/state/phase-intent.json" "no intent file when write fails"
+
 # Test: stale intent file cleanup in setup.sh
 setup_test_project
 printf '{"intent":"stale"}\n' > "$TEST_DIR/.claude/state/phase-intent.json"
 printf '{"intent":"autonomy:stale"}\n' > "$TEST_DIR/.claude/state/autonomy-intent.json"
-# Run setup.sh (simulated — source it with required vars)
+# Run setup.sh in isolated HOME to avoid modifying real ~/.claude/
 export CLAUDE_PROJECT_DIR="$TEST_DIR"
-bash "$REPO_DIR/plugin/scripts/setup.sh"
+FAKE_HOME=$(mktemp -d)
+HOME="$FAKE_HOME" bash "$REPO_DIR/plugin/scripts/setup.sh"
+rm -rf "$FAKE_HOME"
 assert_file_not_exists "$TEST_DIR/.claude/state/phase-intent.json" "setup.sh cleans stale phase intent"
 assert_file_not_exists "$TEST_DIR/.claude/state/autonomy-intent.json" "setup.sh cleans stale autonomy intent"
 ```
@@ -417,7 +430,7 @@ with:
         if ! _check_autonomy_intent "$level"; then
 ```
 
-- [ ] **Step 6: Update `run_with_auth` test helper**
+- [ ] **Step 6: Update `run_with_auth` test helper and `setup_test_project` comment**
 
 The `run_with_auth` helper currently exports `CLAUDE_PLUGIN_DATA`. Intent files use `STATE_DIR` (which is `CLAUDE_PROJECT_DIR/.claude/state`), so ensure `CLAUDE_PROJECT_DIR` is set. The current helper already exports `CLAUDE_PROJECT_DIR` via `setup_test_project`, so this should work. But remove the `CLAUDE_PLUGIN_DATA` export since it's no longer needed:
 
@@ -426,6 +439,15 @@ In `tests/run-tests.sh`, replace the `run_with_auth` function:
 run_with_auth() {
     (unset WF_SKIP_AUTH; source "$TEST_DIR/.claude/hooks/workflow-state.sh" && "$@")
 }
+```
+
+Also update the `setup_test_project` comment (line 121) from:
+```bash
+    # Skip token auth for existing tests (BUG-3 tests explicitly unset this via run_with_auth)
+```
+to:
+```bash
+    # Skip intent auth for existing tests (BUG-3 tests explicitly unset this via run_with_auth)
 ```
 
 - [ ] **Step 7: Run tests**
@@ -553,7 +575,7 @@ Expected: All tests pass, including the setup.sh stale intent cleanup test.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add plugin/scripts/user-phase-token.sh plugin/scripts/setup.sh
+git add plugin/scripts/setup.sh
 git commit -m "chore: delete token infrastructure, add intent file cleanup
 
 Remove user-phase-token.sh (replaced by user-phase-gate.sh).
