@@ -8,13 +8,15 @@
 #
 # Security model: Only explicit slash commands generate intent files.
 # No bare set_phase/set_autonomy_level matching — prevents false positives.
-# Uses printf (shell builtin) — no jq, no openssl, no PATH dependencies.
+# Uses printf (shell builtin) for writes — no openssl, no PATH-dependent binaries.
+# jq is used for JSON parsing (setup.sh gates on jq availability).
 
-set -euo pipefail
+set -uo pipefail
+# NOTE: no set -e — write failures must be caught and handled (exit 0), not crash the hook.
 
-# Read stdin JSON — extract prompt using shell builtins + grep/sed
+# Read stdin JSON — extract prompt using jq
 INPUT=$(cat)
-PROMPT=$(echo "$INPUT" | grep -o '"prompt"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"prompt"[[:space:]]*:[[:space:]]*"//;s/"$//' 2>/dev/null) || PROMPT=""
+PROMPT=$(echo "$INPUT" | jq -r '.prompt // ""' 2>/dev/null) || PROMPT=""
 [ -z "$PROMPT" ] && exit 0
 
 # Resolve STATE_DIR (same logic as workflow-state.sh)
@@ -53,19 +55,17 @@ fi
 
 # Write phase intent file
 if [ -n "$TARGET" ]; then
-    printf '{"intent":"%s"}\n' "$TARGET" > "$STATE_DIR/phase-intent.json"
-    if [ ! -s "$STATE_DIR/phase-intent.json" ]; then
+    if ! printf '{"intent":"%s"}\n' "$TARGET" > "$STATE_DIR/phase-intent.json" 2>/dev/null; then
         echo "ERROR: Failed to write phase intent file to $STATE_DIR/phase-intent.json" >&2
-        # exit 0, not exit 1 — let the prompt through, set_phase() will produce diagnostics
     fi
 fi
 
 # Write autonomy intent file (separate file — prevents overwrite when both in same prompt)
 if [ -n "$AUTONOMY_TARGET" ]; then
-    printf '{"intent":"%s"}\n' "$AUTONOMY_TARGET" > "$STATE_DIR/autonomy-intent.json"
-    if [ ! -s "$STATE_DIR/autonomy-intent.json" ]; then
+    if ! printf '{"intent":"%s"}\n' "$AUTONOMY_TARGET" > "$STATE_DIR/autonomy-intent.json" 2>/dev/null; then
         echo "ERROR: Failed to write autonomy intent file to $STATE_DIR/autonomy-intent.json" >&2
     fi
 fi
 
+# Always exit 0 — let the prompt through. set_phase() will produce diagnostics if intent is missing.
 exit 0

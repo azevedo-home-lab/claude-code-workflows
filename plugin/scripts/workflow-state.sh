@@ -166,7 +166,7 @@ set_autonomy_level() {
         off|ask|auto) ;;
         *) echo "ERROR: Invalid autonomy level: $level (valid: off, ask, auto)" >&2; return 1 ;;
     esac
-    # Authorization: require token from UserPromptSubmit hook
+    # Authorization: require intent file from UserPromptSubmit hook
     # WF_SKIP_AUTH is test-only — never set in production
     if [ "${WF_SKIP_AUTH:-}" != "1" ]; then
         if ! _check_autonomy_intent "$level"; then
@@ -324,7 +324,7 @@ set_phase() {
         *) echo "ERROR: Invalid phase: $new_phase (valid: off, define, discuss, implement, review, complete)" >&2; return 1 ;;
     esac
 
-    # Authorization: require token or forward-only auto-transition
+    # Authorization: require intent file or forward-only auto-transition
     # WF_SKIP_AUTH is test-only — never set in production
     if [ "${WF_SKIP_AUTH:-}" != "1" ]; then
         local authorized=false

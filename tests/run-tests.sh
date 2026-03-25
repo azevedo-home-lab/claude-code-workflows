@@ -2471,12 +2471,22 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 OUTPUT=$(run_bash_guard 'echo x > .claude/state/phase-intent.json')
 assert_contains "$OUTPUT" "deny" "bash-write-guard blocks intent write in DISCUSS (defense-in-depth)"
 
+# Test: /autonomy with invalid level generates no intent
+rm -f "$TEST_DIR/.claude/state/autonomy-intent.json"
+echo '{"prompt": "/autonomy banana"}' | CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh"
+assert_file_not_exists "$TEST_DIR/.claude/state/autonomy-intent.json" "invalid autonomy level generates no intent"
+
+# Test: empty prompt field generates no intent
+rm -f "$TEST_DIR/.claude/state/phase-intent.json"
+echo '{"prompt": ""}' | CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh"
+assert_file_not_exists "$TEST_DIR/.claude/state/phase-intent.json" "empty prompt generates no intent"
+
 # Test: hook self-validates write (unwritable state dir → exits 0, no intent file)
 setup_test_project
 SAVE_DIR="$TEST_DIR/.claude/state"
 chmod 444 "$SAVE_DIR"
-OUTPUT=$(echo '{"prompt": "/review"}' | CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh" 2>&1) || true
-EXIT_CODE=$?
+EXIT_CODE=0
+OUTPUT=$(echo '{"prompt": "/review"}' | CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh" 2>&1) || EXIT_CODE=$?
 chmod 755 "$SAVE_DIR"
 assert_eq "0" "$EXIT_CODE" "hook exits 0 on write failure (does not block prompt)"
 assert_file_not_exists "$TEST_DIR/.claude/state/phase-intent.json" "no intent file when write fails"
