@@ -112,6 +112,12 @@ get_autonomy_level() {
 
 set_autonomy_level() {
     local level="$1"
+    # Backward-compat: map legacy numeric values
+    case "$level" in
+        1) level="off" ;;
+        2) level="ask" ;;
+        3) level="auto" ;;
+    esac
     case "$level" in
         off|ask|auto) ;;
         *) echo "ERROR: Invalid autonomy level: $level (valid: off, ask, auto)" >&2; return 1 ;;

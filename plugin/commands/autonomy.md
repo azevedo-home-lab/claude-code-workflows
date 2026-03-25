@@ -16,8 +16,14 @@ Set the Workflow Manager autonomy level. This controls how much independence Cla
 Run this to set the level:
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_autonomy_level "$ARGUMENTS"
-echo "Autonomy level set to $ARGUMENTS"
+# Normalize legacy numeric values
+LEVEL="$ARGUMENTS"
+case "$LEVEL" in
+    1) LEVEL="off" ;;
+    2) LEVEL="ask" ;;
+    3) LEVEL="auto" ;;
+esac
+WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_autonomy_level "$LEVEL" && echo "Autonomy level set to $LEVEL"
 ```
 
 Then apply the corresponding behavior:

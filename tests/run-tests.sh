@@ -308,6 +308,32 @@ OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_leve
 assert_contains "$OUTPUT" "WARNING" "set_autonomy_level warns when no state file"
 assert_file_not_exists "$TEST_DIR/.claude/state/workflow.json" "set_autonomy_level does not create state file"
 
+# --- BUG-1: Backward-compat numeric autonomy values ---
+
+# Test: set_autonomy_level maps numeric 1 to off
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 1
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
+assert_eq "off" "$RESULT" "set_autonomy_level maps 1 to off"
+
+# Test: set_autonomy_level maps numeric 2 to ask
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 2
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
+assert_eq "ask" "$RESULT" "set_autonomy_level maps 2 to ask"
+
+# Test: set_autonomy_level maps numeric 3 to auto
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 3
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
+assert_eq "auto" "$RESULT" "set_autonomy_level maps 3 to auto"
+
+# Test: set_autonomy_level still rejects truly invalid values
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level 4 2>&1 || true)
+assert_contains "$OUTPUT" "ERROR" "set_autonomy_level still rejects 4 after backward-compat"
+
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level abc 2>&1 || true)
+assert_contains "$OUTPUT" "ERROR" "set_autonomy_level still rejects abc after backward-compat"
+
 # --- BUG-2: Echo chaining verification ---
 
 # Test: echo suppressed when set_phase fails (hard gate)
