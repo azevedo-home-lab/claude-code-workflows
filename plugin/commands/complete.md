@@ -11,8 +11,7 @@ fi
 If a warning was shown, ask the user: "Review hasn't been run. The workflow should be followed for best results. Proceed anyway?" If they say no, stop. If yes or no warning, continue:
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "complete" && "$WF" reset_completion_status && "$WF" set_active_skill "completion-pipeline"
-echo "Phase set to COMPLETE — running completion pipeline. Code edits blocked, doc updates allowed."
+WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "complete" && "$WF" reset_completion_status && "$WF" set_active_skill "completion-pipeline" && echo "Phase set to COMPLETE — running completion pipeline. Code edits blocked, doc updates allowed."
 ```
 
 Then confirm the phase change and execute the completion pipeline below.

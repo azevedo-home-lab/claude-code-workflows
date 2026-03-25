@@ -1,8 +1,7 @@
 Transition the workflow to DEFINE phase. Run this command:
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "define" && "$WF" set_active_skill ""
-echo "Phase set to DEFINE — code edits are blocked. Define the problem and outcomes first."
+WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "define" && "$WF" set_active_skill "" && echo "Phase set to DEFINE — code edits are blocked. Define the problem and outcomes first."
 ```
 
 Then confirm to the user that the phase has changed and code edits are blocked.

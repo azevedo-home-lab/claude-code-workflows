@@ -1,8 +1,7 @@
 Transition the workflow to DISCUSS phase. Run this command:
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "discuss" && "$WF" set_active_skill ""
-echo "Phase set to DISCUSS — code edits are now blocked until plan is ready."
+WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "discuss" && "$WF" set_active_skill "" && echo "Phase set to DISCUSS — code edits are now blocked until plan is ready."
 ```
 
 Then confirm to the user that the phase has changed and code edits are blocked.

@@ -11,8 +11,7 @@ fi
 If a warning was shown, ask the user: "Proceed anyway? (yes/no)". If they say no, stop. If yes or no warning, continue:
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "review" && "$WF" reset_review_status && "$WF" set_active_skill "review-pipeline"
-echo "Phase set to REVIEW — running review pipeline."
+WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "review" && "$WF" reset_review_status && "$WF" set_active_skill "review-pipeline" && echo "Phase set to REVIEW — running review pipeline."
 ```
 
 Then confirm the phase change and execute the review pipeline below.

@@ -308,6 +308,23 @@ OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_leve
 assert_contains "$OUTPUT" "WARNING" "set_autonomy_level warns when no state file"
 assert_file_not_exists "$TEST_DIR/.claude/state/workflow.json" "set_autonomy_level does not create state file"
 
+# --- BUG-2: Echo chaining verification ---
+
+# Test: echo suppressed when set_phase fails (hard gate)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_implement_status
+# set_phase should fail (hard gate: implement milestones incomplete), && echo should NOT fire
+WF="$TEST_DIR/.claude/hooks/workflow-cmd.sh"
+OUTPUT=$("$WF" set_phase "review" && echo "Phase set to REVIEW" 2>&1 || true)
+assert_not_contains "$OUTPUT" "Phase set to REVIEW" "BUG-2: echo suppressed when set_phase fails (hard gate)"
+
+# Test: echo fires when set_phase succeeds
+setup_test_project
+WF="$TEST_DIR/.claude/hooks/workflow-cmd.sh"
+OUTPUT=$("$WF" set_phase "implement" && echo "Phase set to IMPLEMENT" 2>&1)
+assert_contains "$OUTPUT" "Phase set to IMPLEMENT" "BUG-2: echo fires when set_phase succeeds"
+
 # --- Last observation ID tracking ---
 
 # Test: get_last_observation_id returns empty when no state file

@@ -11,8 +11,7 @@ fi
 If a warning was shown, ask the user: "Proceed anyway? (yes/no)". If they say no, stop. If yes or no warning, continue:
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "implement" && "$WF" reset_implement_status && "$WF" set_active_skill ""
-echo "Phase set to IMPLEMENT — code edits are now allowed."
+WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "implement" && "$WF" reset_implement_status && "$WF" set_active_skill "" && echo "Phase set to IMPLEMENT — code edits are now allowed."
 ```
 
 Then confirm to the user that the phase has changed and they can now proceed with implementation.
