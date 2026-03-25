@@ -31,8 +31,8 @@ elif echo "$PROMPT" | grep -qE '^\s*/review(\s|$)'; then
     TARGET="review"
 elif echo "$PROMPT" | grep -qE '^\s*/complete(\s|$)'; then
     TARGET="complete"
-elif echo "$PROMPT" | grep -qE 'set_phase\s+"?(off|define|discuss|implement|review|complete)"?'; then
-    TARGET=$(echo "$PROMPT" | grep -oE 'set_phase\s+"?(off|define|discuss|implement|review|complete)"?' | head -1 | sed 's/set_phase[[:space:]]*//' | tr -d '"')
+elif echo "$PROMPT" | grep -qE "set_phase\s+[\"']?(off|define|discuss|implement|review|complete)[\"']?"; then
+    TARGET=$(echo "$PROMPT" | grep -oE "set_phase\s+[\"']?(off|define|discuss|implement|review|complete)[\"']?" | head -1 | sed 's/set_phase[[:space:]]*//' | tr -d "\"'")
 fi
 
 # Detect autonomy commands: /autonomy <level>

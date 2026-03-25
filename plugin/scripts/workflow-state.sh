@@ -114,7 +114,7 @@ _check_phase_token() {
             target=$(jq -r '.target // ""' "$consumed" 2>/dev/null) || { rm -f "$consumed"; continue; }
             ts=$(jq -r '.ts // 0' "$consumed" 2>/dev/null) || { rm -f "$consumed"; continue; }
             rm -f "$consumed"
-            if [ "$target" = "$target_phase" ] && [ $((now - ts)) -lt 60 ]; then
+            if [ "$target" = "$target_phase" ] && [ "$ts" -le "$now" ] && [ $((now - ts)) -lt 60 ]; then
                 return 0
             fi
         fi

@@ -2359,6 +2359,18 @@ RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_leve
 assert_eq "auto" "$RESULT" "set_autonomy_level allowed with valid autonomy token"
 assert_file_not_exists "$TOKEN_DIR/auto-token" "autonomy token consumed after use"
 
+# Test: set_phase blocked with future-timestamp token (security: prevents forgery)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+TOKEN_DIR="$TEST_DIR/.claude/plugin-data/.phase-tokens"
+mkdir -p "$TOKEN_DIR"
+FUTURE_TS=$(($(date +%s) + 9999999))
+jq -n --arg target "review" --argjson ts "$FUTURE_TS" --arg nonce "future-token" \
+    '{"target": $target, "ts": $ts, "nonce": $nonce}' > "$TOKEN_DIR/future-token"
+export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
+OUTPUT=$(run_with_auth set_phase "review" 2>&1) || true
+assert_contains "$OUTPUT" "BLOCKED" "set_phase blocked with future-timestamp token (forgery prevention)"
+
 # ============================================================
 # TEST SUITE: BUG-3 — Integration: token hook + state functions
 # ============================================================
