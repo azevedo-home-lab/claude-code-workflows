@@ -116,14 +116,17 @@ fi
 
 # ---------------------------------------------------------------------------
 # Defense-in-depth: block writes to workflow state and intent files in ALL active phases
-# Uses path-qualified patterns to avoid false positives on read commands.
+# Only triggers when a write operation targets these files (not on reads like cat/jq).
 # Fires before the implement/review early-exit to catch forgery attempts.
 # NOTE: PreToolUse blocking is unreliable — this is a speed bump, not a wall.
 # ---------------------------------------------------------------------------
 
-if echo "$COMMAND" | grep -qE '\.claude/(state/workflow\.json|state/phase-intent\.json|state/autonomy-intent\.json)'; then
-    emit_deny "BLOCKED: Direct writes to workflow state files are not allowed."
-    exit 0
+STATE_FILE_PATTERN='\.claude/(state/workflow\.json|state/phase-intent\.json|state/autonomy-intent\.json)'
+if echo "$COMMAND" | grep -qE "$STATE_FILE_PATTERN"; then
+    if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ]; then
+        emit_deny "BLOCKED: Direct writes to workflow state files are not allowed."
+        exit 0
+    fi
 fi
 
 # ---------------------------------------------------------------------------
