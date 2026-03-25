@@ -23,7 +23,7 @@ case "$LEVEL" in
     2) LEVEL="ask" ;;
     3) LEVEL="auto" ;;
 esac
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_autonomy_level "$LEVEL" && echo "Autonomy level set to $LEVEL"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh" && "$WF" set_autonomy_level "$LEVEL" && echo "Autonomy level set to $LEVEL"
 ```
 
 Then apply the corresponding behavior:

@@ -1,7 +1,7 @@
 Transition the workflow to COMPLETE phase. First check for soft gate warnings:
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh"
 WARN=$("$WF" check_soft_gate "complete")
 if [ -n "$WARN" ]; then
     echo "WARNING: $WARN"
@@ -11,7 +11,7 @@ fi
 If a warning was shown, ask the user: "Review hasn't been run. The workflow should be followed for best results. Proceed anyway?" If they say no, stop. If yes or no warning, continue:
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "complete" && "$WF" reset_completion_status && "$WF" set_active_skill "completion-pipeline" && echo "Phase set to COMPLETE — running completion pipeline. Code edits blocked, doc updates allowed."
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh" && "$WF" set_phase "complete" && "$WF" reset_completion_status && "$WF" set_active_skill "completion-pipeline" && echo "Phase set to COMPLETE — running completion pipeline. Code edits blocked, doc updates allowed."
 ```
 
 Then confirm the phase change and execute the completion pipeline below.
@@ -19,7 +19,7 @@ Then confirm the phase change and execute the completion pipeline below.
 **Loop-back detection:** Check if returning from an IMPLEMENT excursion:
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh"
 if [ "$("$WF" has_completion_snapshot)" = "true" ]; then
     "$WF" restore_completion_snapshot
     echo "Resuming completion pipeline from IMPLEMENT excursion — milestones restored."
@@ -30,7 +30,7 @@ fi
 If a snapshot was restored, re-run Steps 1-3 (validation) to verify the fix, then skip to the first incomplete milestone in Steps 4-8.
 
 Before proceeding:
-1. Read `${CLAUDE_PLUGIN_ROOT}/docs/reference/professional-standards.md` — apply the Universal Standards and COMPLETE Phase Standards throughout this phase.
+1. Read `$CLAUDE_PROJECT_DIR/plugin/docs/reference/professional-standards.md` — apply the Universal Standards and COMPLETE Phase Standards throughout this phase.
 
 ---
 
@@ -48,7 +48,7 @@ Before proceeding:
 
 Read the decision record path:
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh"
 echo "Decision record: $("$WF" get_decision_record)"
 ```
 
@@ -65,7 +65,7 @@ Dispatch a **Plan validator agent** to:
 
 Mark milestone:
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_completion_field "plan_validated" "true"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh" && "$WF" set_completion_field "plan_validated" "true"
 ```
 
 ### Step 2: Outcome Validation
@@ -119,7 +119,7 @@ The devil's advocate's results are presented in Step 3 as a **Devil's Advocate**
 
 Mark milestone:
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_completion_field "outcomes_validated" "true"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh" && "$WF" set_completion_field "outcomes_validated" "true"
 ```
 
 ### Step 3: Present Validation Results
@@ -174,7 +174,7 @@ Then enrich the decision record with the **Outcome Verification** section:
 - User decides: fix (jump to `/implement`), re-review, or acknowledge
 - If the user chooses `/implement` to fix: save a completion snapshot first:
   ```bash
-  WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" save_completion_snapshot
+  WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh" && "$WF" save_completion_snapshot
   ```
   Then proceed to `/implement`. When the user returns to `/complete`, the snapshot will be detected and milestones restored.
 
@@ -189,7 +189,7 @@ If REDO: fix the issues and re-dispatch the reviewer. Max 3 iterations, then sur
 
 Mark milestone:
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_completion_field "results_presented" "true"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh" && "$WF" set_completion_field "results_presented" "true"
 ```
 
 ### Step 4: Smart Documentation Detection
@@ -214,7 +214,7 @@ If REDO: fix and re-dispatch. Max 3 iterations, then surface to user.
 
 Mark milestone:
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_completion_field "docs_checked" "true"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh" && "$WF" set_completion_field "docs_checked" "true"
 ```
 
 ### Step 5: Commit & Push
@@ -266,7 +266,7 @@ If step was skipped (nothing to commit): skip this gate.
 
 Mark milestone (also mark if skipped — clean tree means committed is N/A):
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_completion_field "committed" "true"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh" && "$WF" set_completion_field "committed" "true"
 ```
 
 ### Step 6: Branch Integration & Worktree Cleanup
@@ -314,7 +314,7 @@ If **no**: note that worktree is still active
 **First, review tracked observations from prior sessions:**
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh"
 TRACKED=$("$WF" get_tracked_observations)
 echo "Tracked observations: ${TRACKED:-none}"
 ```
@@ -348,7 +348,7 @@ If REDO: fix and re-dispatch. Max 3 iterations, then surface to user.
 
 Mark milestone:
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_completion_field "tech_debt_audited" "true"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh" && "$WF" set_completion_field "tech_debt_audited" "true"
 ```
 
 ### Step 8: Handover (Claude-Mem Observation)
@@ -381,14 +381,14 @@ After saving the handover observation, build the final tracked observations list
 4. Write the complete list in a single call:
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_tracked_observations "<KEEP_IDS>,<HANDOVER_ID>,<NEW_TECH_DEBT_IDS>"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh" && "$WF" set_tracked_observations "<KEEP_IDS>,<HANDOVER_ID>,<NEW_TECH_DEBT_IDS>"
 ```
 
 This atomic replace ensures crash safety — if the session dies before this line, the previous tracked list is fully intact.
 
 Mark milestone:
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_completion_field "handover_saved" "true"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh" && "$WF" set_completion_field "handover_saved" "true"
 ```
 
 ### Step 9: Phase Transition

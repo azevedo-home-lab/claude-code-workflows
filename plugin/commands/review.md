@@ -1,7 +1,7 @@
 Transition the workflow to REVIEW phase. First check for soft gate warnings:
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh"
 WARN=$("$WF" check_soft_gate "review")
 if [ -n "$WARN" ]; then
     echo "WARNING: $WARN"
@@ -11,13 +11,13 @@ fi
 If a warning was shown, ask the user: "Proceed anyway? (yes/no)". If they say no, stop. If yes or no warning, continue:
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "review" && "$WF" reset_review_status && "$WF" set_active_skill "review-pipeline" && echo "Phase set to REVIEW — running review pipeline."
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh" && "$WF" set_phase "review" && "$WF" reset_review_status && "$WF" set_active_skill "review-pipeline" && echo "Phase set to REVIEW — running review pipeline."
 ```
 
 Then confirm the phase change and execute the review pipeline below.
 
 Before proceeding:
-1. Read `${CLAUDE_PLUGIN_ROOT}/docs/reference/professional-standards.md` — apply the Universal Standards and REVIEW Phase Standards throughout this phase.
+1. Read `$CLAUDE_PROJECT_DIR/plugin/docs/reference/professional-standards.md` — apply the Universal Standards and REVIEW Phase Standards throughout this phase.
 
 ---
 
@@ -39,7 +39,7 @@ If tests found, run them and capture the output.
 
 Update state after this step:
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh"
 "$WF" set_review_field "verification_complete" "true"
 ```
 
@@ -111,14 +111,14 @@ Would you like to:
 
 Update state:
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh"
 "$WF" set_review_field "agents_dispatched" "true"
 "$WF" set_review_field "findings_presented" "true"
 ```
 
 Wait for the user's response. If they choose option 2 (acknowledge):
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh"
 "$WF" set_review_field "findings_acknowledged" "true"
 ```
 

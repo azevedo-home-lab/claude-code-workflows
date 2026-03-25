@@ -182,6 +182,15 @@ fi || true
 # to operate without permission prompts. Without them, autonomy level 3
 # (unattended) is broken by constant approval dialogs.
 if [ -f "$PROJECT_SETTINGS" ]; then
-  jq '.permissions.allow = ((.permissions.allow // []) + ["Read", "Agent", "Glob", "Grep"] | unique)' \
-    "$PROJECT_SETTINGS" > "$PROJECT_SETTINGS.tmp" && mv "$PROJECT_SETTINGS.tmp" "$PROJECT_SETTINGS" || true
+  NEEDS_PERMS=false
+  for perm in Read Agent Glob Grep; do
+    if ! jq -e ".permissions.allow // [] | index(\"$perm\")" "$PROJECT_SETTINGS" &>/dev/null; then
+      NEEDS_PERMS=true
+      break
+    fi
+  done
+  if [ "$NEEDS_PERMS" = "true" ]; then
+    jq '.permissions.allow = ((.permissions.allow // []) + ["Read", "Agent", "Glob", "Grep"] | unique)' \
+      "$PROJECT_SETTINGS" > "$PROJECT_SETTINGS.tmp" && mv "$PROJECT_SETTINGS.tmp" "$PROJECT_SETTINGS" || true
+  fi
 fi

@@ -1,7 +1,7 @@
 Transition the workflow to DEFINE phase. Run this command:
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "define" && "$WF" set_active_skill "" && echo "Phase set to DEFINE — code edits are blocked. Define the problem and outcomes first."
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh" && "$WF" set_phase "define" && "$WF" set_active_skill "" && echo "Phase set to DEFINE — code edits are blocked. Define the problem and outcomes first."
 ```
 
 Then confirm to the user that the phase has changed and code edits are blocked.
@@ -9,14 +9,14 @@ Then confirm to the user that the phase has changed and code edits are blocked.
 **You are now in DEFINE phase (Diamond 1 — Problem Space).**
 
 Before proceeding:
-1. Read `${CLAUDE_PLUGIN_ROOT}/docs/reference/professional-standards.md` — apply the Universal Standards and DEFINE Phase Standards throughout this phase.
+1. Read `$CLAUDE_PROJECT_DIR/plugin/docs/reference/professional-standards.md` — apply the Universal Standards and DEFINE Phase Standards throughout this phase.
 
 ## Workflow
 
 Use `superpowers:brainstorming` with **problem-discovery context**. Focus on understanding the problem, not solving it. Update the skill tracker:
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_active_skill "brainstorming"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh" && "$WF" set_active_skill "brainstorming"
 ```
 
 ### Diverge Phase
@@ -73,7 +73,7 @@ Only the structured, converged version is written to the decision record (raw di
 Register the decision record path:
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_decision_record "docs/plans/YYYY-MM-DD-<topic>-decisions.md"
+WF="$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-cmd.sh" && "$WF" set_decision_record "docs/plans/YYYY-MM-DD-<topic>-decisions.md"
 ```
 
 Confirm to the user: "Problem and outcomes saved to the decision record. Use `/discuss` to proceed to solution design."
