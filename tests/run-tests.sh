@@ -2360,6 +2360,110 @@ assert_eq "auto" "$RESULT" "set_autonomy_level allowed with valid autonomy token
 assert_file_not_exists "$TOKEN_DIR/auto-token" "autonomy token consumed after use"
 
 # ============================================================
+# TEST SUITE: BUG-3 — Integration: token hook + state functions
+# ============================================================
+echo ""
+echo "=== BUG-3: Integration — token hook + state ==="
+
+# Helper: count files in a directory (pipefail-safe)
+count_tokens() {
+    local dir="$1"
+    if [ -d "$dir" ]; then
+        local count=0
+        for f in "$dir"/*; do
+            [ -f "$f" ] && count=$((count + 1))
+        done
+        echo "$count"
+    else
+        echo "0"
+    fi
+}
+
+# Helper: get first token file path (pipefail-safe)
+first_token() {
+    local dir="$1"
+    for f in "$dir"/*; do
+        [ -f "$f" ] && echo "$f" && return
+    done
+}
+
+# Test: user-phase-token.sh generates token for /review prompt
+setup_test_project
+export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
+echo '{"prompt": "/review"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
+TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
+assert_eq "1" "$TOKEN_COUNT" "hook generates exactly 1 token for /review"
+# Check token content
+TOKEN_FILE=$(first_token "$TEST_DIR/.claude/plugin-data/.phase-tokens")
+TOKEN_TARGET=$(jq -r '.target' "$TOKEN_FILE")
+assert_eq "review" "$TOKEN_TARGET" "token target is 'review'"
+
+# Test: user-phase-token.sh generates token for /autonomy auto prompt
+rm -rf "$TEST_DIR/.claude/plugin-data/.phase-tokens"
+echo '{"prompt": "/autonomy auto"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
+TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
+assert_eq "1" "$TOKEN_COUNT" "hook generates exactly 1 token for /autonomy auto"
+TOKEN_FILE=$(first_token "$TEST_DIR/.claude/plugin-data/.phase-tokens")
+TOKEN_TARGET=$(jq -r '.target' "$TOKEN_FILE")
+assert_eq "autonomy:auto" "$TOKEN_TARGET" "token target is 'autonomy:auto'"
+
+# Test: user-phase-token.sh generates no token for non-phase prompt
+rm -rf "$TEST_DIR/.claude/plugin-data/.phase-tokens"
+echo '{"prompt": "help me write a function"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
+TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
+assert_eq "0" "$TOKEN_COUNT" "hook generates no token for non-phase prompt"
+
+# Test: user-phase-token.sh cleans up expired tokens
+mkdir -p "$TEST_DIR/.claude/plugin-data/.phase-tokens"
+EXPIRED_TS=$(($(date +%s) - 120))
+jq -n --arg target "old" --argjson ts "$EXPIRED_TS" --arg nonce "old" \
+    '{"target": $target, "ts": $ts, "nonce": $nonce}' > "$TEST_DIR/.claude/plugin-data/.phase-tokens/old-token"
+echo '{"prompt": "/review"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
+assert_file_not_exists "$TEST_DIR/.claude/plugin-data/.phase-tokens/old-token" "hook cleans up expired tokens"
+
+# Test: Full flow — hook generates token, set_phase consumes it
+setup_test_project
+export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+# Generate token via hook
+echo '{"prompt": "/review"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
+# Use token via set_phase (with auth enabled)
+run_with_auth set_phase "review"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "review" "$RESULT" "full flow: hook token allows set_phase"
+
+# Test: Full flow — autonomy token
+setup_test_project
+export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+echo '{"prompt": "/autonomy auto"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
+run_with_auth set_autonomy_level "auto"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
+assert_eq "auto" "$RESULT" "full flow: hook token allows set_autonomy_level"
+
+# Test: escalation attack — cannot set autonomy to auto without token, so forward-transition defense holds
+setup_test_project
+export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+# Attacker tries to escalate autonomy without token
+run_with_auth set_autonomy_level "auto" 2>/dev/null || true
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
+assert_eq "ask" "$RESULT" "escalation attack: autonomy stays at ask without token"
+# Forward transition should also be blocked (still in ask mode, no token)
+OUTPUT=$(run_with_auth set_phase "review" 2>&1) || true
+assert_contains "$OUTPUT" "BLOCKED" "escalation attack: forward transition blocked when autonomy escalation failed"
+
+# Test: user-phase-token.sh handles /discuss with arguments
+setup_test_project
+export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
+echo '{"prompt": "/discuss we need to fix these bugs"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
+TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
+assert_eq "1" "$TOKEN_COUNT" "hook generates token for /discuss with arguments"
+TOKEN_FILE=$(first_token "$TEST_DIR/.claude/plugin-data/.phase-tokens")
+TOKEN_TARGET=$(jq -r '.target' "$TOKEN_FILE")
+assert_eq "discuss" "$TOKEN_TARGET" "token target is 'discuss' even with arguments"
+
+# ============================================================
 # RESULTS
 # ============================================================
 echo ""
