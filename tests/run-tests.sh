@@ -2463,6 +2463,13 @@ TOKEN_FILE=$(first_token "$TEST_DIR/.claude/plugin-data/.phase-tokens")
 TOKEN_TARGET=$(jq -r '.target' "$TOKEN_FILE")
 assert_eq "discuss" "$TOKEN_TARGET" "token target is 'discuss' even with arguments"
 
+# Test: user-phase-token.sh generates both "complete" and "off" tokens for /complete
+setup_test_project
+export CLAUDE_PLUGIN_DATA="$TEST_DIR/.claude/plugin-data"
+echo '{"prompt": "/complete"}' | bash "$REPO_DIR/plugin/scripts/user-phase-token.sh"
+TOKEN_COUNT=$(count_tokens "$TEST_DIR/.claude/plugin-data/.phase-tokens")
+assert_eq "2" "$TOKEN_COUNT" "hook generates 2 tokens for /complete (complete + off)"
+
 # ============================================================
 # RESULTS
 # ============================================================

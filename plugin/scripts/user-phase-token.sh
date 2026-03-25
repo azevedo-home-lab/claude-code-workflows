@@ -79,6 +79,13 @@ if [ -n "$TARGET" ]; then
         '{"target": $target, "ts": $ts, "nonce": $nonce}' > "$TOKEN_DIR/$NONCE"
 fi
 
+# /complete also needs an "off" token for Step 9 (set_phase "off" at pipeline end)
+if [ "$TARGET" = "complete" ]; then
+    OFF_NONCE=$(openssl rand -hex 16 2>/dev/null || head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
+    jq -n --arg target "off" --argjson ts "$NOW" --arg nonce "$OFF_NONCE" \
+        '{"target": $target, "ts": $ts, "nonce": $nonce}' > "$TOKEN_DIR/$OFF_NONCE"
+fi
+
 # Write autonomy token (separate nonce)
 if [ -n "$AUTONOMY_TARGET" ]; then
     ANONCE=$(openssl rand -hex 16 2>/dev/null || head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')

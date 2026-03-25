@@ -415,8 +415,7 @@ WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_completion_field
 **HARD GATE: `set_phase("off")` will refuse if any completion milestone is incomplete. All 7 milestones must be marked true before the workflow can close.**
 
 ```bash
-WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "off"
-echo "Task complete. Phase set to OFF — workflow enforcement disabled."
+WF="${CLAUDE_PLUGIN_ROOT}/scripts/workflow-cmd.sh" && "$WF" set_phase "off" && echo "Task complete. Phase set to OFF — workflow enforcement disabled."
 ```
 
 After the phase transition succeeds, output a **handover summary** for the user and for the next Claude Code session:

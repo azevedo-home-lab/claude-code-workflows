@@ -107,12 +107,16 @@ _check_phase_token() {
     now=$(date +%s)
     for token_file in "$token_dir"/*; do
         [ -f "$token_file" ] || continue
-        local target ts
-        target=$(jq -r '.target // ""' "$token_file" 2>/dev/null) || continue
-        ts=$(jq -r '.ts // 0' "$token_file" 2>/dev/null) || continue
-        if [ "$target" = "$target_phase" ] && [ $((now - ts)) -lt 60 ]; then
-            rm -f "$token_file"
-            return 0
+        # Atomic consume: mv first, then validate. If mv fails, another process won the race.
+        local consumed="${token_dir}/.consumed.$$"
+        if mv "$token_file" "$consumed" 2>/dev/null; then
+            local target ts
+            target=$(jq -r '.target // ""' "$consumed" 2>/dev/null) || { rm -f "$consumed"; continue; }
+            ts=$(jq -r '.ts // 0' "$consumed" 2>/dev/null) || { rm -f "$consumed"; continue; }
+            rm -f "$consumed"
+            if [ "$target" = "$target_phase" ] && [ $((now - ts)) -lt 60 ]; then
+                return 0
+            fi
         fi
     done
     return 1
@@ -486,7 +490,7 @@ check_soft_gate() {
         implement)
             # Check if any plan file exists
             local plan_files
-            plan_files=$(ls "$project_root"/docs/superpowers/plans/*.md "$project_root"/docs/plans/*.md 2>/dev/null)
+            plan_files=$(find "$project_root/docs/superpowers/plans" "$project_root/docs/plans" -maxdepth 1 -name '*.md' 2>/dev/null | head -1)
             if [ -z "$plan_files" ]; then
                 echo "No plan exists. The workflow recommends /discuss first. Proceed without a plan?"
                 return
