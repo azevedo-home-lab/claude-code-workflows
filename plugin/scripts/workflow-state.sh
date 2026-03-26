@@ -655,7 +655,7 @@ set_review_field() { _set_section_field "review" "$1" "$2"; }
 # ---------------------------------------------------------------------------
 # Completion status (public API)
 # ---------------------------------------------------------------------------
-reset_completion_status() { _reset_section "completion" "plan_validated" "outcomes_validated" "results_presented" "docs_checked" "committed" "tech_debt_audited" "handover_saved"; }
+reset_completion_status() { _reset_section "completion" "plan_validated" "outcomes_validated" "results_presented" "docs_checked" "committed" "pushed" "tech_debt_audited" "handover_saved"; }
 get_completion_field() { _get_section_field "completion" "$1"; }
 set_completion_field() { _set_section_field "completion" "$1" "$2"; }
 

@@ -95,14 +95,14 @@ OUTPUT+="  ${DIM}│${RESET}  "
 # Context bar
 OUTPUT+="${BAR_COLOR}${BAR}${RESET} ${USED_PCT}%${TOKEN_INFO}"
 
+# Sanitize worktree/branch inputs before use
+WORKTREE_NAME="${WORKTREE_NAME//\\/\\\\}"
+BRANCH="${BRANCH//\\/\\\\}"
+
 # Branch
 if [ -n "$BRANCH" ]; then
   OUTPUT+="  ${DIM}│${RESET}  ${CYAN} ${BRANCH}${RESET}"
 fi
-
-# Sanitize worktree/branch inputs
-WORKTREE_NAME="${WORKTREE_NAME//\\/\\\\}"
-BRANCH="${BRANCH//\\/\\\\}"
 
 # Worktree indicator
 if [ -n "$WORKTREE_NAME" ]; then
@@ -217,7 +217,8 @@ if [ -d "$CM_PLUGIN_DIR" ]; then
       for OBS_ID in $CM_TRACKED_IDS; do
         [ -n "$LINKS" ] && LINKS+=","
         ISSUE_URL=$(jq -r --arg id "$OBS_ID" '.issue_mappings[$id] // ""' "$WM_STATE_FILE" 2>/dev/null)
-        if [ -n "$ISSUE_URL" ]; then
+        ISSUE_URL="${ISSUE_URL//\\/\\\\}"
+        if [ -n "$ISSUE_URL" ] && [[ "$ISSUE_URL" =~ ^https:// ]]; then
           # OSC 8 hyperlink: \e]8;;URL\a VISIBLE \e]8;;\a
           LINKS+="\033]8;;${ISSUE_URL}\a#${OBS_ID}\033]8;;\a"
         else

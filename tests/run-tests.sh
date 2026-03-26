@@ -1808,13 +1808,11 @@ assert_not_contains "$OUTPUT" "150" "statusline does not show unclamped 150%"
 OUTPUT=$(run_statusline '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":-5,"context_window_size":200000,"current_usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/test"}')
 assert_contains "$OUTPUT" "0%" "statusline clamps used_percentage <0 to 0"
 
-# Test: CWD with backslash does not cause injection
-SL_BS_DIR=$(mktemp -d)
-OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_BS_DIR\"}")
-# Output should not contain unexpected newlines from printf '%b' injection
+# Test: CWD with backslash-n does not cause newline injection
+OUTPUT=$(run_statusline '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":10,"context_window_size":200000,"current_usage":{"input_tokens":20000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/test\\nINJECTED"}')
+# Output should be exactly 2 lines (line 1 + line 2), not 3 (injected newline)
 LINE_COUNT=$(echo "$OUTPUT" | wc -l | tr -d ' ')
-assert_eq "2" "$LINE_COUNT" "statusline output is exactly 2 lines (no injection)"
-rm -rf "$SL_BS_DIR"
+assert_eq "2" "$LINE_COUNT" "statusline sanitizes backslash-n in CWD (no injection)"
 
 # Test: tracked observations with issue mapping produce OSC 8 links
 SL_LINK_DIR=$(mktemp -d)
