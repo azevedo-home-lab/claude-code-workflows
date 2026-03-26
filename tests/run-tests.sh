@@ -617,19 +617,12 @@ assert_contains "$OUTPUT" "deny" "blocks path traversal via ../ in normalized pa
 
 # --- Autonomy level enforcement ---
 
-# Test: Level 1 blocks Write in IMPLEMENT phase (normally allowed)
+# Test: Level 1 allows Write in IMPLEMENT phase (same as ask — supervised, not read-only)
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level off
 OUTPUT=$(run_gate "/project/src/main.py")
-assert_contains "$OUTPUT" "deny" "Level 1 blocks Write in IMPLEMENT phase"
-
-# Test: Level 1 denial message mentions /autonomy
-setup_test_project
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level off
-OUTPUT=$(run_gate "/project/src/main.py")
-assert_contains "$OUTPUT" "/autonomy" "Level 1 deny message mentions /autonomy command"
+assert_not_contains "$OUTPUT" "deny" "Level 1 allows Write in IMPLEMENT (supervised, not read-only)"
 
 # Test: Level 1 does NOT block writes when phase is OFF
 setup_test_project
@@ -665,6 +658,13 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level auto
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_contains "$OUTPUT" "deny" "Level 3 blocks writes in DISCUSS (phase gate)"
+
+# Test: Level 1 blocks Write in DISCUSS (phase gate preserved, same as ask)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level off
+OUTPUT=$(run_gate "/project/src/main.py")
+assert_contains "$OUTPUT" "deny" "Level 1 blocks Write in DISCUSS (phase gate, same as ask)"
 
 # ============================================================
 # TEST SUITE: bash-write-guard.sh
