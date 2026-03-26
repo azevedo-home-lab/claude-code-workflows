@@ -32,9 +32,9 @@ Use `superpowers:brainstorming` with **solution-design context**. Focus on how t
 
 Once the problem statement is confirmed (from DEFINE's decision record or from brainstorming's natural discovery), **dispatch background research agents** (unless the solution is obvious — if so, state explicitly: "The solution approach is straightforward — skipping broad research. If you want alternatives explored, say so."):
 
-1. **Solution researcher A** — Web search for technical approaches, libraries, frameworks, implementation patterns. Tools: WebSearch, WebFetch.
-2. **Solution researcher B** — Web search for case studies, how others solved similar problems, lessons learned. Tools: WebSearch, WebFetch.
-3. **Prior art scanner** — Search project history and codebase for previous related implementations or decisions. Tools: claude-mem search, git log, Grep, Read. **Always pass `project` parameter to claude-mem tools.** Derive repo name: `git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`
+1. **Solution researcher A** (subagent_type: `workflow-manager:solution-researcher-a`) — Context: "Problem to solve: [PROBLEM_STATEMENT]. Research technical approaches."
+2. **Solution researcher B** (subagent_type: `workflow-manager:solution-researcher-b`) — Context: "Problem to solve: [PROBLEM_STATEMENT]. Research case studies and lessons learned."
+3. **Prior art scanner** (subagent_type: `workflow-manager:prior-art-scanner`) — Context: "Problem: [PROBLEM_STATEMENT]. Project: [PROJECT_NAME from git remote]. Search for previous related implementations." **Always pass `project` parameter to claude-mem tools.** Derive repo name: `git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`
 
 Present findings to user. Every approach must have stated downsides. Unsourced claims are opinions, not research.
 
@@ -42,8 +42,8 @@ Present findings to user. Every approach must have stated downsides. Unsourced c
 
 After the user narrows to 2-3 candidate approaches, **dispatch converge agents**:
 
-1. **Codebase analyst** — Explore current architecture, integration points, dependency graph. Answer "which approaches fit what we have?" Tools: Read, Grep, Glob, git commands.
-2. **Risk assessor** — For each shortlisted approach: breaking changes, security implications, performance concerns, tech debt implications. Tools: Read, Grep, WebSearch.
+1. **Codebase analyst** (subagent_type: `workflow-manager:codebase-analyst`) — Context: "Shortlisted approaches: [APPROACH_LIST]. Analyze which fit the current architecture."
+2. **Risk assessor** (subagent_type: `workflow-manager:risk-assessor`) — Context: "Shortlisted approaches: [APPROACH_LIST]. Assess risks for each."
 
 Present 2-3 viable approaches (discovered possibilities filtered through codebase reality) with your recommendation. Include trade-offs and tech debt implications for each.
 

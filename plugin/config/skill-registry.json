@@ -1,0 +1,113 @@
+{
+  "version": "1.0",
+  "description": "Maps WFM operations to available skills from Superpowers and ECC",
+  "operations": {
+    "brainstorming": {
+      "phase": ["define", "discuss"],
+      "process_skill": "superpowers:brainstorming",
+      "reference_skills": [],
+      "description": "Problem/solution discovery through structured Q&A"
+    },
+    "writing-plans": {
+      "phase": ["discuss"],
+      "process_skill": "superpowers:writing-plans",
+      "reference_skills": [],
+      "description": "Step-by-step implementation plan generation"
+    },
+    "tdd": {
+      "phase": ["implement"],
+      "process_skill": "superpowers:test-driven-development",
+      "reference_skills": ["ecc:tdd-workflow"],
+      "description": "Test-driven development discipline + framework patterns"
+    },
+    "execution": {
+      "phase": ["implement"],
+      "process_skill": "superpowers:subagent-driven-development",
+      "alternatives": ["superpowers:executing-plans"],
+      "reference_skills": [],
+      "description": "Plan execution with quality gates"
+    },
+    "code-review": {
+      "phase": ["review"],
+      "process_skill": "superpowers:requesting-code-review",
+      "reference_skills": [],
+      "description": "Code review request and dispatch"
+    },
+    "security-review": {
+      "phase": ["review"],
+      "process_skill": null,
+      "reference_skills": ["ecc:security-review"],
+      "description": "OWASP Top 10 and secret detection patterns"
+    },
+    "governance-review": {
+      "phase": ["review"],
+      "process_skill": null,
+      "reference_skills": [],
+      "description": "Production readiness and compliance posture"
+    },
+    "verification": {
+      "phase": ["complete"],
+      "process_skill": "superpowers:verification-before-completion",
+      "reference_skills": ["ecc:verification-loop"],
+      "description": "Evidence-based verification before completion"
+    },
+    "e2e-testing": {
+      "phase": ["implement"],
+      "process_skill": null,
+      "reference_skills": ["ecc:e2e-testing"],
+      "description": "Playwright, Page Object Model, E2E patterns"
+    },
+    "language-patterns": {
+      "phase": ["implement"],
+      "process_skill": null,
+      "reference_skills": [],
+      "description": "Language-specific patterns — user configures which languages",
+      "available": [
+        "ecc:golang-patterns", "ecc:python-patterns",
+        "ecc:frontend-patterns", "ecc:rust-patterns",
+        "ecc:cpp-coding-standards", "ecc:java-coding-standards"
+      ]
+    },
+    "framework-stacks": {
+      "phase": ["implement"],
+      "process_skill": null,
+      "reference_skills": [],
+      "description": "Framework-specific patterns — user configures which framework",
+      "available": [
+        "ecc:django-patterns", "ecc:django-security",
+        "ecc:springboot-patterns", "ecc:springboot-security",
+        "ecc:laravel-patterns", "ecc:laravel-security"
+      ]
+    },
+    "deployment": {
+      "phase": ["complete"],
+      "process_skill": null,
+      "reference_skills": ["ecc:deployment-patterns"],
+      "description": "Rolling/blue-green/canary deployment patterns"
+    },
+    "db-migrations": {
+      "phase": ["implement"],
+      "process_skill": null,
+      "reference_skills": ["ecc:database-migrations"],
+      "description": "Zero-downtime database migration patterns"
+    },
+    "branch-finishing": {
+      "phase": ["complete"],
+      "process_skill": "superpowers:finishing-a-development-branch",
+      "reference_skills": [],
+      "description": "Branch integration options (merge, PR, keep, discard)"
+    },
+    "skill-writing": {
+      "phase": ["any"],
+      "process_skill": "superpowers:writing-skills",
+      "reference_skills": [],
+      "description": "Creating new skills with TDD-applied-to-docs"
+    },
+    "git-worktrees": {
+      "phase": ["implement"],
+      "process_skill": "superpowers:using-git-worktrees",
+      "reference_skills": [],
+      "description": "Isolated feature work in git worktrees"
+    }
+  }
+}

@@ -30,12 +30,9 @@ echo "Decision record: $(.claude/hooks/workflow-cmd.sh get_decision_record)"
 
 **If a plan file exists** (check `docs/superpowers/plans/`, `docs/plans/`, or any plan referenced in the decision record):
 
-Dispatch a **Plan validator agent** to:
-1. Read the plan file
-2. Extract every deliverable, acceptance criterion, and expected outcome
-3. Classify each as structural (file exists) or behavioral (must demonstrate)
-4. For behavioral deliverables: exercise and show output, don't just grep. **Exception: do NOT re-run the full test suite.** The IMPLEMENT phase already ran it as an exit gate. Instead, verify test *coverage* by reading the test file — check that tests exist for each deliverable and reference the IMPLEMENT result (tests_passing=true) as evidence.
-5. Return a checklist with PASS/FAIL and evidence for each
+Dispatch a **Plan validator agent** (subagent_type: `workflow-manager:plan-validator`):
+
+Context: "Plan file: [PLAN_PATH]. Exception: do NOT re-run the full test suite. The IMPLEMENT phase already ran it as an exit gate. Instead, verify test *coverage* by reading the test file — check that tests exist for each deliverable and reference the IMPLEMENT result (tests_passing=true) as evidence."
 
 **If no plan file exists**: report "No plan file found — skipping plan validation" and mark as done.
 
@@ -53,41 +50,19 @@ Mark milestone:
 
 Use the first source found. If the workflow started at `/discuss` (no decision record), the spec and plan still define what success looks like.
 
-Dispatch an **Outcome validator agent** to:
-1. Read the outcome source document
-2. Extract every outcome, success metric, and acceptance criterion
-3. For each outcome, require behavioral evidence — demonstrate, don't just grep. **Exception: do NOT re-run the full test suite.** Reference the IMPLEMENT result (tests_passing=true) and verify test *coverage* by reading the test file instead.
-4. For each success metric: verify if immediately testable, flag as "TO MONITOR" if long-term
-5. **Flag manual steps** — if the spec defines steps that require user action (key generation, service registration, hardware setup), list them as outcomes that need E2E verification. Guide the user through verification rather than skipping.
-6. Return an outcome checklist with PASS/FAIL/MANUAL and evidence
+Dispatch an **Outcome validator agent** (subagent_type: `workflow-manager:outcome-validator`):
 
-Also dispatch a **Boundary tester agent** alongside the outcome validator:
+Context: "Outcome source: [OUTCOME_SOURCE_PATH]. Exception: do NOT re-run the full test suite. Reference the IMPLEMENT result (tests_passing=true) and verify test *coverage* by reading the test file instead. Flag manual steps that require user action."
 
-Prompt: "You are a boundary tester for the implementation just completed. Read the changed files from `git diff --name-only main...HEAD` and the plan/spec at [PLAN_OR_SPEC_PATH]. Your job is to find edge cases the plan didn't specify. For each changed component:
-1. Try different invocation paths (full paths, relative paths, symlinks)
-2. Try unusual inputs (empty strings, very long strings, special characters, unicode)
-3. Try boundary values (zero, negative, max values, off-by-one)
-4. Try unexpected types or missing fields
-For each edge case, run the actual test and report PASS/FAIL with evidence. Return a table:
+Also dispatch a **Boundary tester agent** alongside the outcome validator (subagent_type: `workflow-manager:boundary-tester`):
 
-| # | Component | Edge Case | Expected | Actual | Status |
-|---|-----------|-----------|----------|--------|--------|"
+Context: "Changed files: [LIST from git diff --name-only main...HEAD]. Plan/spec: [PLAN_OR_SPEC_PATH]."
 
 The boundary tester's results are presented in Step 3 as a **Boundary Tests** table alongside Plan Deliverables and Outcomes.
 
-Finally, dispatch a **Devil's advocate agent** (runs after boundary tester, reads code not spec):
+Finally, dispatch a **Devil's advocate agent** (runs after boundary tester, reads code not spec) (subagent_type: `workflow-manager:devils-advocate`):
 
-Prompt: "You are an adversarial tester. Read the actual implementation files that changed (use `git diff main...HEAD` to see the code). Your job is to break this implementation. Generate attacks:
-1. Malformed data — corrupt JSON, truncated input, wrong encoding
-2. Race conditions — concurrent access to shared state files
-3. Path traversal — ../../../etc/passwd in file path fields
-4. Injection — shell metacharacters in string fields that get interpolated
-5. Missing dependencies — what if python3/jq/git isn't available?
-6. Partial state — what if the state file is half-written or empty?
-For each attack, attempt it and report the result. Return a table:
-
-| # | Attack Vector | Target | Result | Severity |
-|---|--------------|--------|--------|----------|"
+Context: "Implementation files from git diff main...HEAD. Your job is to break this implementation."
 
 The devil's advocate's results are presented in Step 3 as a **Devil's Advocate** table.
 
@@ -156,9 +131,9 @@ Then enrich the decision record with the **Outcome Verification** section:
 
 #### Step 3 Review Gate
 
-After presenting validation results, dispatch a **review agent** (subagent_type: `superpowers:code-reviewer`) to verify presentation quality:
+After presenting validation results, dispatch a **review agent** (subagent_type: `workflow-manager:results-reviewer`) to verify presentation quality:
 
-Prompt: "Review the validation results just presented to the user. Read the decision record at [DECISION_RECORD_PATH]. Quality criteria: (1) Every plan deliverable is listed in a table with columns: Task, Deliverable, Status, Evidence. No deliverables are summarized as just 'N/N PASS' without individual rows. (2) Every outcome is listed in a table with columns: #, Outcome, Status, Evidence. Each row has specific evidence (file:line, test name, command output) — not vague claims. (3) The Outcome Verification section in the decision record matches what was presented. Return: PASS if all criteria met, or REDO with specific issues to fix."
+Context: "Review the validation results. Decision record: [DECISION_RECORD_PATH]."
 
 If REDO: fix the issues and re-dispatch the reviewer. Max 3 iterations, then surface to user.
 **After the gate passes (or on each iteration):** present a summary to the user: "Step 3 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
@@ -170,10 +145,9 @@ Mark milestone:
 
 ### Step 4: Smart Documentation Detection
 
-Dispatch a **Docs detector agent** to:
-- Analyze `git diff --name-only main...HEAD` plus unstaged/untracked files
-- Recommend which docs/README need updating based on what changed
-- Return specific recommendations
+Dispatch a **Docs detector agent** (subagent_type: `workflow-manager:docs-detector`):
+
+Context: "Changed files: [LIST from git diff --name-only main...HEAD plus unstaged/untracked]."
 
 Present recommendations and ask: "Update these now? (yes / no / skip)"
 - If **yes** → make the documentation updates
@@ -181,9 +155,9 @@ Present recommendations and ask: "Update these now? (yes / no / skip)"
 
 #### Step 4 Review Gate
 
-After presenting doc recommendations (whether updates were made or skipped), dispatch a **review agent** (subagent_type: `superpowers:code-reviewer`) to verify completeness:
+After presenting doc recommendations (whether updates were made or skipped), dispatch a **review agent** (subagent_type: `workflow-manager:docs-reviewer`) to verify completeness:
 
-Prompt: "Review the documentation detection results. Changed files: [LIST FROM git diff]. Recommendations made: [LIST]. Quality criteria: (1) Every changed code file that introduces new user-facing behavior, commands, or configuration was checked for doc impact. (2) If updates were made, verify the updates match what actually changed (no stale or inaccurate doc claims). (3) If updates were skipped, the user was told what they're skipping. Return: PASS if complete, or REDO with specific gaps."
+Context: "Changed files: [LIST FROM git diff]. Recommendations made: [LIST]."
 
 If REDO: fix and re-dispatch. Max 3 iterations, then surface to user.
 **After the gate passes (or on each iteration):** present a summary to the user: "Step 4 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
@@ -232,9 +206,9 @@ If clean working tree: skip and note "Nothing to commit."
 
 #### Step 5 Review Gate
 
-After committing (or skipping), dispatch a **review agent** (subagent_type: `superpowers:code-reviewer`) to verify commit quality:
+After committing (or skipping), dispatch a **review agent** (subagent_type: `workflow-manager:commit-reviewer`) to verify commit quality:
 
-Prompt: "Review the most recent git commit. Run `git log -1 --format='%s%n%n%b'` and `git diff HEAD~1 --stat`. Quality criteria: (1) Commit message explains WHY, not just WHAT — it should describe the motivation, not just list changed files. (2) All files relevant to the task are included — check `git status` for leftover unstaged/untracked files that should be committed. (3) No sensitive files (.env, credentials, secrets) are committed. Return: PASS if all criteria met, or REDO with specific issues."
+Context: "Review the most recent commit."
 
 If REDO: fix (amend commit or create new commit) and re-dispatch. Max 3 iterations, then surface to user.
 **After the gate passes (or on each iteration):** present a summary to the user: "Step 5 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
@@ -314,9 +288,9 @@ Present the table and ask: "Want to create tickets/issues for any of these, or n
 
 #### Step 7 Review Gate
 
-After presenting the tech debt table, dispatch a **review agent** (subagent_type: `superpowers:code-reviewer`) to verify proposal quality:
+After presenting the tech debt table, dispatch a **review agent** (subagent_type: `workflow-manager:tech-debt-reviewer`) to verify proposal quality:
 
-Prompt: "Review the tech debt audit just presented. Read the decision record at [DECISION_RECORD_PATH] for trade-offs and tech debt entries. Quality criteria: (1) Every trade-off or tech debt entry from the decision record is addressed — none are silently dropped. (2) Each item has a concrete proposed fix (not just 'should be fixed later'). (3) Each item has an effort estimate (S/M/L) and priority (high/medium/low). (4) Impact column describes what could go wrong if not addressed, not just restating the debt. Return: PASS if all criteria met, or REDO with specific issues."
+Context: "Decision record: [DECISION_RECORD_PATH]. Tech debt table: [TABLE]."
 
 If REDO: fix and re-dispatch. Max 3 iterations, then surface to user.
 **After the gate passes (or on each iteration):** present a summary to the user: "Step 7 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
@@ -328,22 +302,17 @@ Mark milestone:
 
 ### Step 8: Handover (Claude-Mem Observation)
 
-Dispatch a **Handover writer agent** to prepare a claude-mem observation. The handover must be useful to a stranger — include:
-- What was built or changed
-- Commit hash (from `git rev-parse --short HEAD`)
-- Verification results (tests, deliverables, outcomes)
-- Key decisions made
-- Gotchas or learnings for future sessions
-- Files modified (key files, not exhaustive)
-- Tech debt and unresolved items
+Dispatch a **Handover writer agent** (subagent_type: `workflow-manager:handover-writer`):
+
+Context: "Prepare a claude-mem handover observation. Project name: [derived from git remote get-url origin]. Decision record: [DECISION_RECORD_PATH]. Include commit hash, verification results, key decisions, gotchas, files modified, tech debt."
 
 Save via the `save_observation` MCP tool. **Set `project` to the GitHub repo name.** Derive it: `git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`
 
 #### Step 8 Review Gate
 
-After saving the handover observation, dispatch a **review agent** (subagent_type: `superpowers:code-reviewer`) to verify handover quality:
+After saving the handover observation, dispatch a **review agent** (subagent_type: `workflow-manager:handover-reviewer`) to verify handover quality:
 
-Prompt: "Review the handover observation just saved. Quality criteria: (1) A stranger who knows nothing about this session can understand: what was built, why these choices, what's left to do. (2) Includes: commit hash, test results, key decisions, gotchas/learnings, files modified, tech debt items. (3) Minimum 500 characters (a useful handover cannot be shorter). (4) Does not contain vague claims like 'fixed the thing' or 'all tests pass' without specifying what tests and how many. Return: PASS if all criteria met, or REDO with specific issues."
+Context: "Review the handover observation just saved."
 
 If REDO: fix and re-save the observation, then re-dispatch. Max 3 iterations, then surface to user.
 **After the gate passes (or on each iteration):** present a summary to the user: "Step 8 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."

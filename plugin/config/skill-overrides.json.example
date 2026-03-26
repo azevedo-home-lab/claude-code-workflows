@@ -1,0 +1,18 @@
+{
+  "_comment": "Copy this file to skill-overrides.json and customize. Overrides merge on top of skill-registry.json defaults.",
+  "overrides": {
+    "tdd": {
+      "process_skill": "ecc:tdd-workflow",
+      "comment": "Prefer ECC's lighter TDD for this project"
+    },
+    "language-patterns": {
+      "reference_skills": ["ecc:golang-patterns", "ecc:golang-testing"],
+      "comment": "This is a Go project"
+    },
+    "framework-stacks": {
+      "reference_skills": ["ecc:django-patterns", "ecc:django-security", "ecc:django-tdd"],
+      "comment": "Django backend"
+    }
+  },
+  "disabled": ["deployment"]
+}

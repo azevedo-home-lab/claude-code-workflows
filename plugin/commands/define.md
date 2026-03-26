@@ -25,9 +25,9 @@ Guide the user through problem discovery — one question per message, prefer mu
 
 After 2-3 exchanges when an initial problem framing emerges, **dispatch background research agents** (unless the problem is trivial — if so, state explicitly: "This problem is well-defined — skipping background research. If you want broader exploration, say so."):
 
-1. **Domain researcher** — Web search for the problem domain: similar pain points, industry context, standards, user research patterns. Tools: WebSearch, WebFetch.
-2. **Context gatherer** — Search project history for prior discussions, related decisions, failed attempts. Tools: claude-mem search, git log, Grep. **Always pass `project` parameter to claude-mem tools.** Derive repo name: `git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`
-3. **Assumption challenger** — Takes the emerging problem statement, looks for counterevidence, edge cases, overlooked stakeholders. Tools: WebSearch, Grep, Read.
+1. **Domain researcher** (subagent_type: `workflow-manager:domain-researcher`) — Context: "Problem domain: [PROBLEM_STATEMENT]. Research the problem space."
+2. **Context gatherer** (subagent_type: `workflow-manager:context-gatherer`) — Context: "Problem: [PROBLEM_STATEMENT]. Project: [PROJECT_NAME from git remote]. Search project history and claude-mem for prior related work." **Always pass `project` parameter to claude-mem tools.** Derive repo name: `git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`
+3. **Assumption challenger** (subagent_type: `workflow-manager:assumption-challenger`) — Context: "Current problem framing: [PROBLEM_STATEMENT]. Challenge these assumptions."
 
 When agents return, synthesize findings into the conversation. Challenge the first framing — is this the real problem, or a symptom?
 
@@ -37,8 +37,8 @@ Once the user and you agree on the problem framing, synthesize into a crisp prob
 
 Then dispatch **converge agents**:
 
-1. **Outcome structurer** — Structure measurable outcomes with verification methods, acceptance criteria, success metrics. Reads the conversation context so far.
-2. **Scope boundary checker** — Identify in/out scope, hidden dependencies, unstated constraints, regulatory considerations. Tools: WebSearch, Read, Grep.
+1. **Outcome structurer** (subagent_type: `workflow-manager:outcome-structurer`) — Context: "Agreed problem statement: [PROBLEM_STATEMENT]. Constraints: [CONSTRAINTS]. Structure measurable outcomes."
+2. **Scope boundary checker** (subagent_type: `workflow-manager:scope-boundary-checker`) — Context: "Problem: [PROBLEM_STATEMENT]. Proposed outcomes: [OUTCOMES_SUMMARY]. Identify scope boundaries and hidden dependencies."
 
 Present structured outcomes to user for review. Each outcome must have:
 - **Description** — what should be true when done
