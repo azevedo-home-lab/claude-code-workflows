@@ -1389,7 +1389,54 @@ cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 jq '.message_shown = false' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/project/src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_contains "$OUTPUT" "Unattended" "auto coaching mentions Unattended in phase entry"
-assert_contains "$OUTPUT" "proceed" "auto coaching includes auto-transition guidance"
+assert_contains "$OUTPUT" "MUST invoke /review" "auto coaching includes specific auto-transition guidance for IMPLEMENT"
+
+# Test: stall detection fires when IMPLEMENT milestones complete + auto autonomy
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level auto
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "plan_read" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "tests_passing" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "all_tasks_complete" "true"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git status"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "MUST transition to /review NOW" "stall detection fires in IMPLEMENT when all milestones complete + auto"
+
+# Test: stall detection does NOT fire in ask autonomy
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level ask
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "plan_read" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "tests_passing" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "all_tasks_complete" "true"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git status"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_not_contains "$OUTPUT" "MUST transition" "stall detection does NOT fire in ask autonomy"
+
+# Test: stall detection does NOT fire when milestones incomplete
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level auto
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "plan_read" "true"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git status"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_not_contains "$OUTPUT" "MUST transition" "stall detection does NOT fire when milestones incomplete"
+
+# Test: stall detection fires when REVIEW milestones complete + auto autonomy
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level auto
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_review_field "verification_complete" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_review_field "agents_dispatched" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_review_field "findings_presented" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_review_field "findings_acknowledged" "true"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git status"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "MUST transition to /complete NOW" "stall detection fires in REVIEW when all milestones complete + auto"
 
 # Test: ask coaching does NOT include auto-transition guidance
 setup_test_project

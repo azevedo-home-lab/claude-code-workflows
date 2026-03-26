@@ -116,8 +116,24 @@ Done when: Validation results in decision record, README checked, claude-mem obs
         # Append auto-transition guidance if autonomy is "auto"
         AUTONOMY_LEVEL=$(get_autonomy_level)
         if [ "$AUTONOMY_LEVEL" = "auto" ] && [ -n "$MESSAGES" ]; then
-            MESSAGES="$MESSAGES
-▶▶▶ Unattended (auto) — when this phase's work is complete, proceed to the next phase without waiting for user confirmation. Exceptions: stop for user input in DISCUSS/DEFINE, stop before git push, stop if review finds blocking issues."
+            case "$PHASE" in
+                implement)
+                    MESSAGES="$MESSAGES
+▶▶▶ Unattended (auto) — when all milestones are complete (plan_read, tests_passing, all_tasks_complete), you MUST invoke /review immediately. Do NOT commit, push, or do other work after milestones are done."
+                    ;;
+                review)
+                    MESSAGES="$MESSAGES
+▶▶▶ Unattended (auto) — when all review milestones are complete, you MUST invoke /complete immediately. Do NOT wait for user."
+                    ;;
+                complete)
+                    MESSAGES="$MESSAGES
+▶▶▶ Unattended (auto) — run the full completion pipeline. Stop only before git push (always requires confirmation)."
+                    ;;
+                *)
+                    MESSAGES="$MESSAGES
+▶▶▶ Unattended (auto) — when this phase's work is complete, proceed to the next phase without waiting for user confirmation."
+                    ;;
+            esac
         fi
 
         set_message_shown
@@ -425,6 +441,37 @@ $VERIFY_MSG"
         BASH_CMD=$(extract_bash_command)
         if echo "$BASH_CMD" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'; then
             set_pending_verify 0
+        fi
+    fi
+fi
+
+# Check 8: Stalled auto-transition — milestones complete but Claude hasn't moved to next phase
+# Fires on every tool call when auto + milestones done, so Claude can't ignore it
+AUTONOMY_LEVEL=$(get_autonomy_level 2>/dev/null) || AUTONOMY_LEVEL=""
+if [ "$AUTONOMY_LEVEL" = "auto" ]; then
+    STALL_MSG=""
+    if [ "$PHASE" = "implement" ]; then
+        IMPL_MISSING=$(_check_milestones "implement" "plan_read" "tests_passing" "all_tasks_complete" 2>/dev/null) || IMPL_MISSING="skip"
+        if [ -z "$IMPL_MISSING" ]; then
+            STALL_MSG="[Workflow Coach — IMPLEMENT] ⚠ ALL MILESTONES COMPLETE. You MUST transition to /review NOW. Do not commit, push, or do other work — invoke /review immediately. Auto autonomy requires completing the full pipeline: IMPLEMENT → REVIEW → COMPLETE."
+        fi
+    elif [ "$PHASE" = "review" ]; then
+        REVIEW_DONE=true
+        for field in verification_complete agents_dispatched findings_presented findings_acknowledged; do
+            VAL=$(get_review_field "$field" 2>/dev/null) || VAL=""
+            [ "$VAL" != "true" ] && REVIEW_DONE=false && break
+        done
+        if [ "$REVIEW_DONE" = "true" ]; then
+            STALL_MSG="[Workflow Coach — REVIEW] ⚠ ALL REVIEW MILESTONES COMPLETE. You MUST transition to /complete NOW. Auto autonomy requires completing the full pipeline: REVIEW → COMPLETE."
+        fi
+    fi
+    if [ -n "$STALL_MSG" ]; then
+        if [ -n "$L3_MSG" ]; then
+            L3_MSG="$L3_MSG
+
+$STALL_MSG"
+        else
+            L3_MSG="$STALL_MSG"
         fi
     fi
 fi
