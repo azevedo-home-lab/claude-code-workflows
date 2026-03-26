@@ -181,7 +181,23 @@ if [ -f "$PROJECT_SETTINGS" ]; then
 fi || true
 
 # ─────────────────────────────────────────────────────────────────────────────
-# E. Project permissions — ensure tools needed for workflow pipeline are allowed
+# E. Project commands — symlink plugin commands to .claude/commands/
+# ─────────────────────────────────────────────────────────────────────────────
+
+COMMANDS_DIR="$PROJECT_DIR/.claude/commands"
+mkdir -p "$COMMANDS_DIR"
+
+# Install all plugin command files as symlinks (idempotent)
+for cmd_file in "$PLUGIN_ROOT/commands/"*.md; do
+  [ -f "$cmd_file" ] || continue
+  cmd_name=$(basename "$cmd_file")
+  if [ ! -e "$COMMANDS_DIR/$cmd_name" ]; then
+    ln -s "../../plugin/commands/$cmd_name" "$COMMANDS_DIR/$cmd_name"
+  fi
+done
+
+# ─────────────────────────────────────────────────────────────────────────────
+# F. Project permissions — ensure tools needed for workflow pipeline are allowed
 # ─────────────────────────────────────────────────────────────────────────────
 
 # The workflow pipeline (hooks, coaching, COMPLETE agents) needs these tools
