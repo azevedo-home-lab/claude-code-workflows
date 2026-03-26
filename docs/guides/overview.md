@@ -8,9 +8,9 @@ Claude Code is a powerful AI coding assistant, but left to its defaults it behav
 
 Over long sessions, this gets worse. The context window fills up, older decisions get compressed or forgotten, and the model starts hallucinating — confidently referencing functions that were renamed three steps ago, or implementing a solution that contradicts an earlier design choice.
 
-This project started as **cc-sessions** — a cross-session memory layer to fight context rot. We quickly found that memory alone wasn't enough. Claude also needed guardrails (hard edit gates that prevent coding before planning), structure (coaching and skills that guide each development phase), and accountability (decision records and multi-agent review pipelines).
+Inspired by [cc-sessions](https://github.com/chronologos/cc-sessions) (a CLI for listing and resuming Claude Code sessions across projects), this project builds an opinionated workflow enforcement system that goes further. Session management alone wasn't enough — Claude also needed guardrails (hard edit gates that prevent coding before planning), structure (coaching and skills that guide each development phase), and accountability (decision records and multi-agent review pipelines).
 
-The result is a workflow enforcement system that makes Claude Code behave like a disciplined senior engineer: think first, plan second, code third, review before shipping.
+The result makes Claude Code behave like a disciplined senior engineer: think first, plan second, code third, review before shipping.
 
 ## How does it work?
 
@@ -75,8 +75,11 @@ See the [Getting Started guide](getting-started.md) for a walkthrough of your fi
 
 ## Sources
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — Anthropic's AI coding assistant
+- [cc-sessions](https://github.com/chronologos/cc-sessions) — CLI for listing and resuming Claude Code sessions across projects
 - [claude-mem](https://github.com/thedotmack/claude-mem) — cross-session memory MCP server
+- [Superpowers](https://github.com/obra/superpowers) — agentic skills framework and development methodology for Claude Code
+- [everything-claude-code](https://github.com/affaan-m/everything-claude-code) — agent harness performance optimization, skills, instincts, memory
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — Anthropic's AI coding assistant
 - [Context Engineering for AI Agents](https://docs.claude-mem.ai/context-engineering) — context rot, progressive disclosure, agentic memory
 - [Reduce Hallucinations](https://docs.anthropic.com/en/docs/test-and-evaluate/strengthen-guardrails/reduce-hallucinations) — grounding, citations, uncertainty
 - [Claude Code Best Practices](https://code.claude.com/docs/en/best-practices) — agentic coding patterns
