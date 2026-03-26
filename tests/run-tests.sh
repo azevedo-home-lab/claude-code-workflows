@@ -1606,7 +1606,7 @@ assert_contains "$OUTPUT" "25%" "statusline shows context percentage"
 assert_contains "$OUTPUT" "50k/200k" "statusline shows token counts (Xk/Yk)"
 
 # Test: green bar color for <30%
-assert_contains "$OUTPUT" '\[92m' "statusline uses green for <30% usage"
+assert_contains "$OUTPUT" '\[38;5;64m' "statusline uses green for <30% usage"
 
 # Test: blue bar for 30-60%
 OUTPUT=$(run_statusline '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":45,"context_window_size":200000,"current_usage":{"input_tokens":90000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/test"}')
