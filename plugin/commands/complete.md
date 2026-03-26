@@ -340,6 +340,26 @@ Don't just list debt — recommend what to do about it. The user should leave th
 
 Present the table and ask: "Want to create tickets/issues for any of these, or note them for the next session?"
 
+#### GitHub Issue Creation (opt-in)
+
+After presenting the tech debt table, offer to create GitHub issues:
+
+- **auto (▶▶▶):** Create issues for all High/Medium priority items automatically. Skip Low priority.
+- **ask (▶▶):** Present each item and ask "Create GitHub issue? (y/n)"
+- **off (▶):** Present each item individually, wait for explicit yes/no.
+
+For each issue to create:
+1. Check `gh` is available and authenticated. If not, skip gracefully: "Skipping GitHub issue creation — gh CLI not available/authenticated."
+2. Run: `gh issue create --title "[Tech Debt] <item title>" --body "<details from table including impact, proposed fix, effort, priority>" --label "tech-debt"`
+3. Capture the issue URL from output (format: `https://github.com/owner/repo/issues/NNN`)
+4. If the tech debt item has a corresponding observation ID, store the mapping:
+   ```bash
+   .claude/hooks/workflow-cmd.sh set_issue_mapping "<obs_id>" "<issue_url>"
+   ```
+5. Report: "Created issue: <url>"
+
+The issue mapping makes observation IDs clickable in the status line (links to GitHub issues).
+
 #### Step 7 Review Gate
 
 After presenting the tech debt table, dispatch a **review agent** — read `plugin/agents/tech-debt-reviewer.md`, then dispatch as `general-purpose` — to verify proposal quality:
