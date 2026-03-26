@@ -9,10 +9,10 @@ Two PreToolUse hooks and a PostToolUse coaching system enforce a plan-before-cod
 ```
 Layer 1: PreToolUse Hooks (Deterministic)       Layer 2: Superpowers Skills (Behavioral)
 ┌──────────────────────────────────────┐        ┌──────────────────────────────────┐
-│ workflow-gate.sh                     │        │ /superpowers:brainstorm          │
-│   Blocks Write/Edit in DEFINE,       │        │ /superpowers:write-plan          │
+│ workflow-gate.sh                     │        │ /superpowers:brainstorming       │
+│   Blocks Write/Edit in DEFINE,       │        │ /superpowers:writing-plans       │
 │   DISCUSS, and COMPLETE              │
-│                                      │        │ /superpowers:execute-plan        │
+│                                      │        │ /superpowers:executing-plans     │
 │ bash-write-guard.sh                  │        │ /superpowers:tdd                 │
 │   Blocks Bash write ops in DEFINE,   │        │ /superpowers:verify              │
 │   DISCUSS, and COMPLETE              │        │ /superpowers:code-review         │
@@ -189,11 +189,11 @@ Autonomy level is an orthogonal dimension to phase — phase controls **what** i
 
 | Symbol | Level | Name | Behavior |
 |--------|-------|------|----------|
-| `▶` | 1 | Supervised | Read-only. All writes blocked regardless of phase. Local research only. |
-| `▶▶` | 2 | Semi-Auto | Writes follow phase rules. Stops at phase transitions for user approval. **Default.** |
-| `▶▶▶` | 3 | Unattended | Auto-transitions between phases. Auto-commits. Stops only for user input and push. |
+| `▶` | off | Supervised | All writes blocked regardless of phase. Claude can only read files and research. |
+| `▶▶` | ask | Semi-Auto | Writes follow phase rules (blocked in define/discuss/complete, allowed in implement/review). Stops at phase transitions for user approval. **Default.** |
+| `▶▶▶` | auto | Unattended | Full autonomy within phase rules. Auto-transitions between phases, auto-commits. Stops only when user input is needed or before git push. |
 
-Set the level with `/autonomy 1`, `/autonomy 2`, or `/autonomy 3`. Only the user can change it.
+Set the level with `/autonomy off`, `/autonomy ask`, or `/autonomy auto`. Only the user can change it.
 
 ### Check Order
 
@@ -202,12 +202,12 @@ Both `workflow-gate.sh` and `bash-write-guard.sh` apply checks in this order:
 ```
 1. No state file → allow (fails open)
 2. Workflow OFF → allow
-3. Autonomy Level 1 → deny all writes (regardless of phase)
+3. Autonomy off → deny all writes (regardless of phase)
 4. Implement/Review phase check (phase gate)
 5. Phase-specific whitelist check (specs/plans, docs)
 ```
 
-Level 1 blocks all writes before the phase gate is even evaluated. Levels 2 and 3 fall through to the existing phase-based logic. The hooks are the single source of truth; Claude Code permission modes (`plan`/`default`/`acceptEdits`) are best-effort convenience only.
+Autonomy `off` blocks all writes before the phase gate is even evaluated. Levels `ask` and `auto` fall through to the existing phase-based logic. The hooks are the single source of truth; Claude Code permission modes (`plan`/`default`/`acceptEdits`) are best-effort convenience only.
 
 ## Known Limitations
 

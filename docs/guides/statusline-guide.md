@@ -113,13 +113,13 @@ When the Workflow Manager is active, the status line displays a symbol indicatin
 
 | Symbol | Level | Name | Behavior |
 |--------|-------|------|----------|
-| `▶` | 1 | Supervised | Read-only; all writes blocked |
-| `▶▶` | 2 | Semi-Auto | Writes follow phase rules; stops at transitions |
-| `▶▶▶` | 3 | Unattended | Auto-transitions, auto-commits |
+| `▶` | off | Supervised | All writes blocked regardless of phase. Claude can only read files and research. |
+| `▶▶` | ask | Semi-Auto | Writes follow phase rules. Stops at phase transitions for user approval. |
+| `▶▶▶` | auto | Unattended | Full autonomy within phase rules. Auto-transitions, auto-commits. |
 
 No symbol is shown when the workflow is OFF or when the autonomy field is absent from state.
 
-Set the level with `/autonomy 1`, `/autonomy 2`, or `/autonomy 3`. Only the user can change it.
+Set the level with `/autonomy off`, `/autonomy ask`, or `/autonomy auto`. Only the user can change it.
 
 ## Files
 

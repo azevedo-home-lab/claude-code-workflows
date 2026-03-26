@@ -4,6 +4,23 @@
 
 Structured development with Claude Code. Think before coding, review before shipping.
 
+## Why
+
+Claude Code is powerful but undisciplined. Left to its defaults, it:
+- Jumps straight to writing code before understanding the problem
+- Loses context over long sessions — early decisions get forgotten, hallucinations increase
+- Doesn't naturally follow think → plan → build → review → ship
+- Produces no auditable record of what was decided and why
+
+This project started as **cc-sessions** — a cross-session memory layer to fight context rot.
+We quickly found that memory alone wasn't enough. Claude also needed:
+- **Guardrails** to prevent coding before planning (hard edit gates)
+- **Structure** to guide each phase of development (coaching + skills)
+- **Accountability** through decision records and review pipelines
+
+The result is a workflow enforcement system that makes Claude Code behave like a
+disciplined senior engineer: think first, plan second, code third, review before shipping.
+
 Four tools that work together:
 
 - **Workflow Manager** — Phase-based workflow enforcement with coaching and edit gates
@@ -30,11 +47,11 @@ Any command can jump to any phase. `/off` closes the workflow. Soft gates warn w
 
 ### Autonomy Levels
 
-Orthogonal to phase, the autonomy level controls how independently Claude operates. Set with `/autonomy 1|2|3` (default: Level 2):
+Orthogonal to phase, the autonomy level controls how independently Claude operates. Set with `/autonomy off|ask|auto` (default: ask):
 
-- `▶` **Level 1 — Supervised**: Read-only. All writes blocked regardless of phase.
-- `▶▶` **Level 2 — Semi-Auto**: Writes follow phase rules. Stops at phase transitions for approval.
-- `▶▶▶` **Level 3 — Unattended**: Auto-transitions, auto-commits. Stops only for user input and push.
+- `▶` **Supervised (off)**: All writes blocked regardless of phase. Claude can only read files and research.
+- `▶▶` **Semi-Auto (ask)**: Writes follow phase rules (blocked in define/discuss/complete, allowed in implement/review). Stops at phase transitions for user approval.
+- `▶▶▶` **Unattended (auto)**: Full autonomy within phase rules. Auto-transitions between phases, auto-commits. Stops only when user input is needed or before git push.
 
 See the [Status Line guide](docs/guides/statusline-guide.md) for symbol display details.
 
@@ -60,6 +77,7 @@ Installed separately with `--iterm` or `--yubikey` flags:
 
 ## Docs
 
+- [Overview](docs/guides/overview.md) — what this is, why it exists, how it works
 - [Getting Started](docs/guides/getting-started.md) — installation and first workflow
 - [Architecture](docs/reference/architecture.md) — how the pieces fit together
 - [Command Reference](docs/quick-reference/commands.md) — all commands

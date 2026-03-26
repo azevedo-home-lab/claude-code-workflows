@@ -14,9 +14,9 @@
 
 | Command | Phase | What It Does |
 |---------|-------|-------------|
-| `/superpowers:brainstorm` | Requirements | Structured Q&A to refine requirements |
-| `/superpowers:write-plan` | Planning | Generate numbered implementation plan |
-| `/superpowers:execute-plan` | Implementation | Batch execution with review checkpoints |
+| `/superpowers:brainstorming` | Requirements | Structured Q&A to refine requirements |
+| `/superpowers:writing-plans` | Planning | Generate numbered implementation plan |
+| `/superpowers:executing-plans` | Implementation | Batch execution with review checkpoints |
 | `/superpowers:verification-before-completion` | Verification | Verify before claiming done |
 
 ## Auto-Activated Skills
@@ -42,10 +42,10 @@
 ```
 /define                          → Define problem + outcomes (optional)
 /discuss                         → Enter discussion
-/superpowers:brainstorm          → Clarify requirements
-/superpowers:write-plan          → Generate plan
+/superpowers:brainstorming          → Clarify requirements
+/superpowers:writing-plans          → Generate plan
 /implement                       → Unlock code edits
-/superpowers:execute-plan        → Implement with checkpoints
+/superpowers:executing-plans        → Implement with checkpoints
 /superpowers:verification-before-completion → Verify
 /complete                        → Validate outcomes + commit
 ```

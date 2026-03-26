@@ -10,9 +10,9 @@ Provides structured techniques that auto-activate contextually.
 
 | Command | When | Output |
 |---------|------|--------|
-| `/superpowers:brainstorm` | Before any feature work | Structured Q&A, refined requirements |
-| `/superpowers:write-plan` | After requirements are clear | Numbered implementation plan with testing steps |
-| `/superpowers:execute-plan` | When plan is approved | Batch execution with review checkpoints |
+| `/superpowers:brainstorming` | Before any feature work | Structured Q&A, refined requirements |
+| `/superpowers:writing-plans` | After requirements are clear | Numbered implementation plan with testing steps |
+| `/superpowers:executing-plans` | When plan is approved | Batch execution with review checkpoints |
 
 ### Auto-Activated Skills (Context-Driven)
 
@@ -30,16 +30,16 @@ Provides structured techniques that auto-activate contextually.
 Describe what you want to build
     │
     ▼
-/superpowers:brainstorm          # Clarify requirements
+/superpowers:brainstorming          # Clarify requirements
     │
     ▼
-/superpowers:write-plan          # Generate plan
+/superpowers:writing-plans          # Generate plan
     │
     ▼
 Review and approve the plan
     │
     ▼
-/superpowers:execute-plan        # Implement with checkpoints
+/superpowers:executing-plans        # Implement with checkpoints
     │  (auto-skills: TDD, debugging, etc.)
     ▼
 /superpowers:verification-before-completion

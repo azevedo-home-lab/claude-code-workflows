@@ -91,11 +91,13 @@ flowchart LR
         direction TB
         R1["Run Test Suite\n<b>skill: verification-before-completion</b>"]
         R2["Detect Changed Files"]
-        subgraph R3 ["3 Parallel Review Agents"]
+        subgraph R3 ["5 Parallel Review Agents"]
             direction LR
             R3A["Code Quality\nDRY, SOLID, YAGNI\ncomplexity, naming\n<b>skill: requesting-code-review</b>"]
             R3B["Security\ninjection, credentials\nunsafe operations\n<b>skill: requesting-code-review</b>"]
             R3C["Architecture\nplan compliance\npatterns, boundaries\n<b>skill: requesting-code-review</b>"]
+            R3D["Governance\nproduction readiness\n<b>skill: requesting-code-review</b>"]
+            R3E["Codebase Hygiene\ndead code, orphans\n<b>skill: requesting-code-review</b>"]
         end
         R4["Verification Agent\nfilter false positives"]
         R5["Consolidated Report\nfindings by severity"]
@@ -152,6 +154,8 @@ flowchart LR
     style R3A fill:#e0f2fe,stroke:#0ea5e9,color:#0c4a6e
     style R3B fill:#e0f2fe,stroke:#0ea5e9,color:#0c4a6e
     style R3C fill:#e0f2fe,stroke:#0ea5e9,color:#0c4a6e
+    style R3D fill:#e0f2fe,stroke:#0ea5e9,color:#0c4a6e
+    style R3E fill:#e0f2fe,stroke:#0ea5e9,color:#0c4a6e
     style R4 fill:#cffafe,stroke:#06b6d4,color:#155e75
     style R5 fill:#cffafe,stroke:#06b6d4,color:#155e75
     style R6 fill:#cffafe,stroke:#06b6d4,color:#155e75
@@ -173,13 +177,13 @@ Phase and autonomy are two orthogonal dimensions of control:
 
 | Symbol | Level | Name | Description |
 |--------|-------|------|-------------|
-| `▶` | 1 | Supervised | Read-only. Writes blocked regardless of phase. Local research only. |
-| `▶▶` | 2 | Semi-Auto | Writes follow phase rules. Stops at phase transitions. **Default.** |
-| `▶▶▶` | 3 | Unattended | Auto-transitions, auto-commits. Stops for user input and push. |
+| `▶` | off | Supervised | All writes blocked regardless of phase. Claude can only read files and research. |
+| `▶▶` | ask | Semi-Auto | Writes follow phase rules (blocked in define/discuss/complete, allowed in implement/review). Stops at phase transitions for user approval. **Default.** |
+| `▶▶▶` | auto | Unattended | Full autonomy within phase rules. Auto-transitions between phases, auto-commits. Stops only when user input is needed or before git push. |
 
 **Enforcement**: Hooks (`workflow-gate.sh`, `bash-write-guard.sh`) are the single source of truth and apply the autonomy check before the phase gate. Claude Code permission modes (`plan`/`default`/`acceptEdits`) are best-effort convenience that mirror the active autonomy level but are not relied upon for enforcement.
 
-Set via `/autonomy 1|2|3`. Only the user can change it.
+Set via `/autonomy off|ask|auto`. Only the user can change it.
 
 ## Component Responsibilities
 
@@ -192,9 +196,9 @@ Set via `/autonomy 1|2|3`. Only the user can change it.
 
 ### Superpowers — Development Techniques
 
-- `/superpowers:brainstorm` — requirements refinement
-- `/superpowers:write-plan` — plan generation
-- `/superpowers:execute-plan` — batch execution with checkpoints
+- `/superpowers:brainstorming` — requirements refinement
+- `/superpowers:writing-plans` — plan generation
+- `/superpowers:executing-plans` — batch execution with checkpoints
 - Auto-activated skills: TDD, debugging, code review, verification, worktrees
 
 Skills load on-demand when contextually relevant, not preloaded.
@@ -232,7 +236,7 @@ IMPLEMENT PHASE (edits allowed):
 TRANSITION: /review → enter review (soft gate: warns if no changes)
 
 REVIEW PHASE (edits allowed for fixes):
-  3 parallel review agents: code quality, security, architecture
+  5 parallel review agents: code quality, security, architecture, governance, codebase hygiene
   Verification agent filters false positives
   Findings persisted to decision record
   Fix issues or acknowledge
@@ -268,7 +272,10 @@ your-project/
 │   │   ├── discuss.md              # /discuss command
 │   │   ├── implement.md            # /implement command
 │   │   ├── review.md               # /review command
-│   │   └── complete.md             # /complete command
+│   │   ├── complete.md             # /complete command
+│   │   ├── off.md                  # /off command
+│   │   ├── autonomy.md             # /autonomy command
+│   │   └── proposals.md            # /proposals command
 │   ├── state/
 │   │   └── workflow.json           # Consolidated workflow state (gitignored)
 │   └── settings.json               # Hook configuration
