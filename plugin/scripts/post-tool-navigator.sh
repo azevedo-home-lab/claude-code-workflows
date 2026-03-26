@@ -60,6 +60,9 @@ if [ "$PHASE" = "off" ]; then
     exit 0
 fi
 
+# Read debug flag once for all layers
+DEBUG_MODE=$(get_debug)
+
 # Collect messages from all layers — may combine multiple
 MESSAGES=""
 
@@ -127,6 +130,14 @@ case "$TOOL_NAME" in
     Agent|Write|Edit|MultiEdit|NotebookEdit|Bash|AskUserQuestion) ;;
     mcp*save_observation|mcp*get_observations) ;;
     *) # Tool is irrelevant to coaching — output any Layer 1 message and exit
+        if [ "$DEBUG_MODE" = "true" ]; then
+            if [ -n "$MESSAGES" ]; then
+                echo "[WFM DEBUG] PostToolUse ($TOOL_NAME) — Layer 1 only:" >&2
+                echo "$MESSAGES" | sed 's/^/  /' >&2
+            else
+                echo "[WFM DEBUG] PostToolUse: $TOOL_NAME — no coaching (tool not tracked)" >&2
+            fi
+        fi
         if [ -n "$MESSAGES" ]; then
             jq -n --arg msg "$MESSAGES" '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "systemMessage": $msg}}'
         fi
@@ -434,5 +445,13 @@ fi
 # ============================================================
 
 if [ -n "$MESSAGES" ]; then
+    if [ "$DEBUG_MODE" = "true" ]; then
+        echo "[WFM DEBUG] PostToolUse ($TOOL_NAME):" >&2
+        echo "$MESSAGES" | sed 's/^/  /' >&2
+    fi
     jq -n --arg msg "$MESSAGES" '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "systemMessage": $msg}}'
+else
+    if [ "$DEBUG_MODE" = "true" ]; then
+        echo "[WFM DEBUG] PostToolUse: $TOOL_NAME — no coaching triggered" >&2
+    fi
 fi

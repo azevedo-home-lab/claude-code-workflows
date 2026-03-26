@@ -1510,6 +1510,30 @@ RESULT=$(echo '{"tool_name":"AskUserQuestion","tool_input":{"question":"which op
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_contains "$RESULT" "recommend" "coaching L3: warns about options without recommendation"
 
+# --- Debug mode tests ---
+echo ""
+echo "--- Debug mode (post-tool-navigator) ---"
+setup_test_project
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_debug "true"
+
+# Test: debug mode outputs Layer 1 message to stderr
+STDERR_OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/tmp/test.js"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 1>/dev/null || true)
+assert_contains "$STDERR_OUTPUT" "[WFM DEBUG]" "debug mode outputs to stderr with prefix"
+assert_contains "$STDERR_OUTPUT" "IMPLEMENT" "debug mode stderr includes phase name"
+
+# Test: no debug output when debug is off
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_debug "false"
+STDERR_OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/tmp/test.js"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 1>/dev/null || true)
+assert_not_contains "$STDERR_OUTPUT" "[WFM DEBUG]" "no debug output when debug is off"
+
+# Test: debug mode shows no-fire message for irrelevant tools
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_debug "true"
+STDERR_OUTPUT=$(echo '{"tool_name":"Read","tool_input":{"file_path":"/tmp/test.js"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 1>/dev/null || true)
+assert_contains "$STDERR_OUTPUT" "[WFM DEBUG]" "debug mode outputs for irrelevant tools too"
+
 # ============================================================
 # TEST SUITE: statusline.sh
 # ============================================================
