@@ -1504,22 +1504,30 @@ run_statusline() {
 OUTPUT=$(run_statusline '{"model":{"display_name":"Opus 4.6"},"context_window":{"used_percentage":25,"context_window_size":200000,"current_usage":{"input_tokens":50000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/test"}')
 assert_contains "$OUTPUT" "Opus 4.6" "statusline shows model name"
 
+# Test: statusline shows CC version
+OUTPUT=$(run_statusline '{"version":"2.1.83","model":{"display_name":"Opus 4.6"},"context_window":{"used_percentage":25,"context_window_size":200000,"current_usage":{"input_tokens":50000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/test"}')
+assert_contains "$OUTPUT" "CC 2.1.83" "statusline shows CC version"
+
+# Test: statusline handles missing version field gracefully
+OUTPUT=$(run_statusline '{"model":{"display_name":"Opus 4.6"},"context_window":{"used_percentage":25,"context_window_size":200000,"current_usage":{"input_tokens":50000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/test"}')
+assert_contains "$OUTPUT" "CC ?" "statusline shows CC ? when version missing"
+
 # Test: shows percentage
 assert_contains "$OUTPUT" "25%" "statusline shows context percentage"
 
 # Test: shows token counts
 assert_contains "$OUTPUT" "50k/200k" "statusline shows token counts (Xk/Yk)"
 
-# Test: blue bar color for <50%
-assert_contains "$OUTPUT" '\[34m' "statusline uses blue for <50% usage"
+# Test: green bar color for <30%
+assert_contains "$OUTPUT" '\[32m' "statusline uses green for <30% usage"
 
-# Test: yellow bar for 50-80%
+# Test: blue bar for 30-60%
+OUTPUT=$(run_statusline '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":45,"context_window_size":200000,"current_usage":{"input_tokens":90000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/test"}')
+assert_contains "$OUTPUT" '\[34m' "statusline uses blue for 30-60% usage"
+
+# Test: red bar for >=60%
 OUTPUT=$(run_statusline '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":65,"context_window_size":200000,"current_usage":{"input_tokens":130000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/test"}')
-assert_contains "$OUTPUT" '\[33m' "statusline uses yellow for 50-80% usage"
-
-# Test: red bar for >80%
-OUTPUT=$(run_statusline '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":90,"context_window_size":200000,"current_usage":{"input_tokens":180000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/test"}')
-assert_contains "$OUTPUT" '\[31m' "statusline uses red for >80% usage"
+assert_contains "$OUTPUT" '\[31m' "statusline uses red for >=60% usage"
 
 # Test: shows Workflow Manager ✗ when not installed
 OUTPUT=$(run_statusline '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":10,"context_window_size":200000,"current_usage":{"input_tokens":20000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/nonexistent"}')

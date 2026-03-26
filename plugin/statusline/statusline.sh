@@ -11,8 +11,9 @@
 DATA=$(cat)
 
 # Parse fields (single jq call, tab-separated)
-IFS=$'\t' read -r MODEL USED_PCT USED_TOKENS TOTAL_TOKENS CWD WORKTREE_NAME WORKTREE_BRANCH < <(
+IFS=$'\t' read -r CC_VERSION MODEL USED_PCT USED_TOKENS TOTAL_TOKENS CWD WORKTREE_NAME WORKTREE_BRANCH < <(
   echo "$DATA" | jq -r '[
+    (.version // "?"),
     (.model.display_name // "?"),
     ((.context_window.used_percentage // 0) | floor | tostring),
     (((.context_window.current_usage.input_tokens // 0) + (.context_window.current_usage.cache_creation_input_tokens // 0) + (.context_window.current_usage.cache_read_input_tokens // 0)) | tostring),
@@ -34,11 +35,11 @@ BLUE='\033[34m'
 CYAN='\033[36m'
 MAGENTA='\033[35m'
 
-# Context bar color: blue base, yellow >50%, red >80%
-if [ "$USED_PCT" -lt 50 ]; then
+# Context bar color: green <30%, blue 30-60%, red >=60%
+if [ "$USED_PCT" -lt 30 ]; then
+  BAR_COLOR="$GREEN"
+elif [ "$USED_PCT" -lt 60 ]; then
   BAR_COLOR="$BLUE"
-elif [ "$USED_PCT" -lt 80 ]; then
-  BAR_COLOR="$YELLOW"
 else
   BAR_COLOR="$RED"
 fi
@@ -77,6 +78,12 @@ fi
 
 # Assemble output
 OUTPUT=""
+
+# CC Version
+OUTPUT+="${BOLD}CC ${CC_VERSION}${RESET}"
+
+# Separator
+OUTPUT+="  ${DIM}│${RESET}  "
 
 # Model
 OUTPUT+="${BOLD}${MODEL}${RESET}"
