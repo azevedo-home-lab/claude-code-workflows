@@ -21,10 +21,10 @@ Six phases. Code edits are blocked until you discuss and approve a plan.
 | **DEFINE** | Blocked | Frame the problem, define outcomes |
 | **DISCUSS** | Blocked | Research approaches, write plan |
 | **IMPLEMENT** | Allowed | Execute plan with TDD |
-| **REVIEW** | Allowed | 3 parallel review agents + verification |
+| **REVIEW** | Allowed | 5 parallel review agents + verification |
 | **COMPLETE** | Blocked | Validate outcomes, docs, handover |
 
-Commands: `/define` `/discuss` `/implement` `/review` `/complete` `/off`
+Commands: `/define` `/discuss` `/implement` `/review` `/complete` `/off` `/proposals`
 
 Any command can jump to any phase. `/off` closes the workflow. Soft gates warn when skipping steps.
 
