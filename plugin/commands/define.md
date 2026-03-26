@@ -1,10 +1,6 @@
-Transition the workflow to DEFINE phase. Run this command:
+!`WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "define" && .claude/hooks/workflow-cmd.sh set_active_skill "" && echo "Phase set to DEFINE — code edits are blocked."`
 
-```bash
-.claude/hooks/workflow-cmd.sh set_phase "define" && .claude/hooks/workflow-cmd.sh set_active_skill "" && echo "Phase set to DEFINE — code edits are blocked. Define the problem and outcomes first."
-```
-
-Then confirm to the user that the phase has changed and code edits are blocked.
+**You are in DEFINE phase.** Code edits are blocked — define the problem and outcomes first.
 
 **You are now in DEFINE phase (Diamond 1 — Problem Space).**
 

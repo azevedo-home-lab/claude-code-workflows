@@ -1,10 +1,6 @@
-Transition the workflow to DISCUSS phase. Run this command:
+!`WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "discuss" && .claude/hooks/workflow-cmd.sh set_active_skill "" && echo "Phase set to DISCUSS — code edits blocked until plan is ready."`
 
-```bash
-.claude/hooks/workflow-cmd.sh set_phase "discuss" && .claude/hooks/workflow-cmd.sh set_active_skill "" && echo "Phase set to DISCUSS — code edits are now blocked until plan is ready."
-```
-
-Then confirm to the user that the phase has changed and code edits are blocked.
+**You are in DISCUSS phase.** Code edits are blocked — design the solution and write the plan.
 
 **You are now in DISCUSS phase (Diamond 2 — Solution Space).**
 

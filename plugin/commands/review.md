@@ -1,19 +1,6 @@
-Transition the workflow to REVIEW phase. First check for soft gate warnings:
+!`WARN=$(.claude/hooks/workflow-cmd.sh check_soft_gate "review"); if [ -n "$WARN" ]; then echo "SOFT_GATE_WARNING: $WARN"; else WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "review" && .claude/hooks/workflow-cmd.sh reset_review_status && .claude/hooks/workflow-cmd.sh set_active_skill "review-pipeline" && echo "Phase set to REVIEW — running review pipeline."; fi`
 
-```bash
-WARN=$(.claude/hooks/workflow-cmd.sh check_soft_gate "review")
-if [ -n "$WARN" ]; then
-    echo "WARNING: $WARN"
-fi
-```
-
-If a warning was shown, ask the user: "Proceed anyway? (yes/no)". If they say no, stop. If yes or no warning, continue:
-
-```bash
-.claude/hooks/workflow-cmd.sh set_phase "review" && .claude/hooks/workflow-cmd.sh reset_review_status && .claude/hooks/workflow-cmd.sh set_active_skill "review-pipeline" && echo "Phase set to REVIEW — running review pipeline."
-```
-
-Then confirm the phase change and execute the review pipeline below.
+If the output shows `SOFT_GATE_WARNING`, ask the user: "Proceed anyway? (yes/no)". If yes, run the phase transition manually. If no, stop.
 
 Before proceeding:
 1. Read `plugin/docs/reference/professional-standards.md` — apply the Universal Standards and REVIEW Phase Standards throughout this phase.

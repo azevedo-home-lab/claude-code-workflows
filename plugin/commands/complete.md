@@ -1,31 +1,10 @@
-Transition the workflow to COMPLETE phase. First check for soft gate warnings:
+!`WARN=$(.claude/hooks/workflow-cmd.sh check_soft_gate "complete"); if [ -n "$WARN" ]; then echo "SOFT_GATE_WARNING: $WARN"; else WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "complete" && .claude/hooks/workflow-cmd.sh reset_completion_status && .claude/hooks/workflow-cmd.sh set_active_skill "completion-pipeline" && echo "Phase set to COMPLETE — running completion pipeline."; fi`
 
-```bash
-WARN=$(.claude/hooks/workflow-cmd.sh check_soft_gate "complete")
-if [ -n "$WARN" ]; then
-    echo "WARNING: $WARN"
-fi
-```
+!`if [ "$(.claude/hooks/workflow-cmd.sh has_completion_snapshot)" = "true" ]; then .claude/hooks/workflow-cmd.sh restore_completion_snapshot && echo "LOOP_BACK: Resuming from IMPLEMENT excursion — milestones restored."; fi`
 
-If a warning was shown, ask the user: "Review hasn't been run. The workflow should be followed for best results. Proceed anyway?" If they say no, stop. If yes or no warning, continue:
+If the output shows `SOFT_GATE_WARNING`, ask the user: "Review hasn't been run. Proceed anyway?" If no, stop. If yes, run the phase transition manually.
 
-```bash
-.claude/hooks/workflow-cmd.sh set_phase "complete" && .claude/hooks/workflow-cmd.sh reset_completion_status && .claude/hooks/workflow-cmd.sh set_active_skill "completion-pipeline" && echo "Phase set to COMPLETE — running completion pipeline. Code edits blocked, doc updates allowed."
-```
-
-Then confirm the phase change and execute the completion pipeline below.
-
-**Loop-back detection:** Check if returning from an IMPLEMENT excursion:
-
-```bash
-if [ "$(.claude/hooks/workflow-cmd.sh has_completion_snapshot)" = "true" ]; then
-    .claude/hooks/workflow-cmd.sh restore_completion_snapshot
-    echo "Resuming completion pipeline from IMPLEMENT excursion — milestones restored."
-    echo "Re-running validation (Steps 1-3), then resuming from where you left off."
-fi
-```
-
-If a snapshot was restored, re-run Steps 1-3 (validation) to verify the fix, then skip to the first incomplete milestone in Steps 4-8.
+If the output shows `LOOP_BACK`, re-run Steps 1-3 (validation) to verify the fix, then skip to the first incomplete milestone in Steps 4-8.
 
 Before proceeding:
 1. Read `plugin/docs/reference/professional-standards.md` — apply the Universal Standards and COMPLETE Phase Standards throughout this phase.
