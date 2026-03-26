@@ -2508,7 +2508,7 @@ assert_file_not_exists "$TEST_DIR/.claude/state/autonomy-intent.json" "setup.sh 
 echo ""
 echo "=== Agent Definitions (REVIEW phase) ==="
 
-REVIEW_AGENTS="code-quality-reviewer security-reviewer architecture-reviewer governance-reviewer review-verifier"
+REVIEW_AGENTS="code-quality-reviewer security-reviewer architecture-reviewer governance-reviewer codebase-hygiene-reviewer review-verifier"
 
 for agent in $REVIEW_AGENTS; do
     AGENT_FILE="$REPO_DIR/plugin/agents/${agent}.md"

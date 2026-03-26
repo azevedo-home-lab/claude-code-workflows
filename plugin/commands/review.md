@@ -42,9 +42,9 @@ git ls-files --others --exclude-standard
 
 If no changes detected, report "No changes to review" and skip to the end. Update state with `agents_dispatched: true`, `findings_presented: true`, `findings_acknowledged: true`.
 
-### Step 3: Dispatch 4 Review Agents in Parallel
+### Step 3: Dispatch 5 Review Agents in Parallel
 
-Launch all four agents simultaneously using the Agent tool (4 parallel calls in one message). Pass each agent the list of changed files as runtime context.
+Launch all five agents simultaneously using the Agent tool (5 parallel calls in one message). Pass each agent the list of changed files as runtime context.
 
 **Agent 1 — Code Quality Reviewer** (subagent_type: "workflow-manager:code-quality-reviewer")
 Context: "Changed files: [LIST]"
@@ -61,13 +61,16 @@ Context: "Changed files: [LIST]. Plan file: [PLAN_PATH or 'no plan file found']"
 **Agent 4 — Governance & Production Readiness Reviewer** (subagent_type: "workflow-manager:governance-reviewer")
 Context: "Changed files: [LIST]"
 
+**Agent 5 — Codebase Hygiene Reviewer** (subagent_type: "workflow-manager:codebase-hygiene-reviewer")
+Context: "Changed files: [LIST]"
+
 If any agent fails or times out, note which agent failed and proceed with findings from agents that succeeded.
 
 ### Step 4: Dispatch Verification Agent
 
-After all 4 review agents return, dispatch a single verification agent (subagent_type: "workflow-manager:review-verifier"):
+After all 5 review agents return, dispatch a single verification agent (subagent_type: "workflow-manager:review-verifier"):
 
-Context: "Candidate findings from 4 review agents: [ALL FINDINGS FROM STEP 3]"
+Context: "Candidate findings from 5 review agents: [ALL FINDINGS FROM STEP 3]"
 
 ### Step 5: Consolidate, Persist, and Present Findings
 
@@ -83,7 +86,7 @@ Take the verified findings and:
 ## Review Findings
 
 ### Critical (must fix before merge)
-Prefix findings with category: [QUAL] code quality, [SEC] security, [ARCH] architecture, [GOV] governance
+Prefix findings with category: [QUAL] code quality, [SEC] security, [ARCH] architecture, [GOV] governance, [HYG] codebase hygiene
 - [findings or "None"]
 
 ### Warnings (should fix)
