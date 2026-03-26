@@ -1,0 +1,1 @@
+../../plugin/commands/wf:obs-read.md

@@ -1,0 +1,1 @@
+../../plugin/commands/wf:obs-untrack.md
