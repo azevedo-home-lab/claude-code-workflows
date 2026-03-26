@@ -1,7 +1,7 @@
 ---
 name: versioning-agent
 description: Determines semantic version bump based on change analysis.
-  Use in COMPLETE phase Step 5.
+  Use in IMPLEMENT phase step 4b.
 tools:
   - Read
   - Bash

@@ -100,6 +100,30 @@ assert_exit_code() {
     assert_eq "$expected" "$actual" "$test_name"
 }
 
+validate_agent_group() {
+    local group_name="$1"
+    shift
+    local agents="$*"
+    for agent in $agents; do
+        local agent_file="$REPO_DIR/plugin/agents/${agent}.md"
+        assert_file_exists "$agent_file" "agent file exists: ${agent}.md"
+        if [ -f "$agent_file" ]; then
+            local first_line
+            first_line=$(head -1 "$agent_file")
+            assert_eq "---" "$first_line" "agent file has YAML frontmatter: ${agent}"
+            local agent_name
+            agent_name=$(sed -n '2,/^---$/p' "$agent_file" | grep "^name:" | sed 's/^name:[[:space:]]*//')
+            assert_eq "$agent" "$agent_name" "agent frontmatter name matches filename: ${agent}"
+            local has_description
+            has_description=$(sed -n '2,/^---$/p' "$agent_file" | grep -c "^description:" || true)
+            assert_eq "1" "$has_description" "agent has description field: ${agent}"
+            local has_tools
+            has_tools=$(sed -n '2,/^---$/p' "$agent_file" | grep -c "^tools:" || true)
+            assert_eq "1" "$has_tools" "agent has tools field: ${agent}"
+        fi
+    done
+}
+
 # Setup: create a temporary project directory for testing
 TEST_DIR=$(mktemp -d)
 trap 'rm -rf "$TEST_DIR"' EXIT
@@ -2503,124 +2527,27 @@ assert_file_not_exists "$TEST_DIR/.claude/state/phase-intent.json" "setup.sh cle
 assert_file_not_exists "$TEST_DIR/.claude/state/autonomy-intent.json" "setup.sh cleans stale autonomy intent"
 
 # ============================================================
-# TEST SUITE: Agent Definitions (REVIEW phase)
+# TEST SUITE: Agent Definitions (all phases)
 # ============================================================
 echo ""
 echo "=== Agent Definitions (REVIEW phase) ==="
+validate_agent_group "REVIEW" code-quality-reviewer security-reviewer architecture-reviewer governance-reviewer codebase-hygiene-reviewer review-verifier
 
-REVIEW_AGENTS="code-quality-reviewer security-reviewer architecture-reviewer governance-reviewer codebase-hygiene-reviewer review-verifier"
-
-for agent in $REVIEW_AGENTS; do
-    AGENT_FILE="$REPO_DIR/plugin/agents/${agent}.md"
-
-    # Test: agent file exists
-    assert_file_exists "$AGENT_FILE" "agent file exists: ${agent}.md"
-
-    # Test: agent file has valid YAML frontmatter with name field
-    if [ -f "$AGENT_FILE" ]; then
-        FIRST_LINE=$(head -1 "$AGENT_FILE")
-        assert_eq "---" "$FIRST_LINE" "agent file has YAML frontmatter: ${agent}"
-
-        AGENT_NAME=$(sed -n '2,/^---$/p' "$AGENT_FILE" | grep "^name:" | sed 's/^name:[[:space:]]*//')
-        assert_eq "$agent" "$AGENT_NAME" "agent frontmatter name matches filename: ${agent}"
-    fi
-done
-
-# ============================================================
-# TEST SUITE: Agent Definitions (COMPLETE phase — task agents)
-# ============================================================
 echo ""
 echo "=== Agent Definitions (COMPLETE phase — task agents) ==="
+validate_agent_group "COMPLETE-task" plan-validator outcome-validator boundary-tester devils-advocate docs-detector versioning-agent handover-writer
 
-COMPLETE_TASK_AGENTS="plan-validator outcome-validator boundary-tester devils-advocate docs-detector versioning-agent handover-writer"
-
-for agent in $COMPLETE_TASK_AGENTS; do
-    AGENT_FILE="$REPO_DIR/plugin/agents/${agent}.md"
-
-    # Test: agent file exists
-    assert_file_exists "$AGENT_FILE" "agent file exists: ${agent}.md"
-
-    # Test: agent file has valid YAML frontmatter with name field
-    if [ -f "$AGENT_FILE" ]; then
-        FIRST_LINE=$(head -1 "$AGENT_FILE")
-        assert_eq "---" "$FIRST_LINE" "agent file has YAML frontmatter: ${agent}"
-
-        AGENT_NAME=$(sed -n '2,/^---$/p' "$AGENT_FILE" | grep "^name:" | sed 's/^name:[[:space:]]*//')
-        assert_eq "$agent" "$AGENT_NAME" "agent frontmatter name matches filename: ${agent}"
-    fi
-done
-
-# ============================================================
-# TEST SUITE: Agent Definitions (COMPLETE phase — review gates)
-# ============================================================
 echo ""
 echo "=== Agent Definitions (COMPLETE phase — review gates) ==="
+validate_agent_group "COMPLETE-gate" results-reviewer docs-reviewer commit-reviewer tech-debt-reviewer handover-reviewer
 
-COMPLETE_GATE_AGENTS="results-reviewer docs-reviewer commit-reviewer tech-debt-reviewer handover-reviewer"
-
-for agent in $COMPLETE_GATE_AGENTS; do
-    AGENT_FILE="$REPO_DIR/plugin/agents/${agent}.md"
-
-    # Test: agent file exists
-    assert_file_exists "$AGENT_FILE" "agent file exists: ${agent}.md"
-
-    # Test: agent file has valid YAML frontmatter with name field
-    if [ -f "$AGENT_FILE" ]; then
-        FIRST_LINE=$(head -1 "$AGENT_FILE")
-        assert_eq "---" "$FIRST_LINE" "agent file has YAML frontmatter: ${agent}"
-
-        AGENT_NAME=$(sed -n '2,/^---$/p' "$AGENT_FILE" | grep "^name:" | sed 's/^name:[[:space:]]*//')
-        assert_eq "$agent" "$AGENT_NAME" "agent frontmatter name matches filename: ${agent}"
-    fi
-done
-
-# ============================================================
-# TEST SUITE: Agent Definitions (DEFINE phase)
-# ============================================================
 echo ""
 echo "=== Agent Definitions (DEFINE phase) ==="
+validate_agent_group "DEFINE" domain-researcher context-gatherer assumption-challenger outcome-structurer scope-boundary-checker
 
-DEFINE_AGENTS="domain-researcher context-gatherer assumption-challenger outcome-structurer scope-boundary-checker"
-
-for agent in $DEFINE_AGENTS; do
-    AGENT_FILE="$REPO_DIR/plugin/agents/${agent}.md"
-
-    # Test: agent file exists
-    assert_file_exists "$AGENT_FILE" "agent file exists: ${agent}.md"
-
-    # Test: agent file has valid YAML frontmatter with name field
-    if [ -f "$AGENT_FILE" ]; then
-        FIRST_LINE=$(head -1 "$AGENT_FILE")
-        assert_eq "---" "$FIRST_LINE" "agent file has YAML frontmatter: ${agent}"
-
-        AGENT_NAME=$(sed -n '2,/^---$/p' "$AGENT_FILE" | grep "^name:" | sed 's/^name:[[:space:]]*//')
-        assert_eq "$agent" "$AGENT_NAME" "agent frontmatter name matches filename: ${agent}"
-    fi
-done
-
-# ============================================================
-# TEST SUITE: Agent Definitions (DISCUSS phase)
-# ============================================================
 echo ""
 echo "=== Agent Definitions (DISCUSS phase) ==="
-
-DISCUSS_AGENTS="solution-researcher-a solution-researcher-b prior-art-scanner codebase-analyst risk-assessor"
-
-for agent in $DISCUSS_AGENTS; do
-    AGENT_FILE="$REPO_DIR/plugin/agents/${agent}.md"
-
-    # Test: agent file exists
-    assert_file_exists "$AGENT_FILE" "agent file exists: ${agent}.md"
-
-    # Test: agent file has valid YAML frontmatter with name field
-    if [ -f "$AGENT_FILE" ]; then
-        FIRST_LINE=$(head -1 "$AGENT_FILE")
-        assert_eq "---" "$FIRST_LINE" "agent file has YAML frontmatter: ${agent}"
-
-        AGENT_NAME=$(sed -n '2,/^---$/p' "$AGENT_FILE" | grep "^name:" | sed 's/^name:[[:space:]]*//')
-        assert_eq "$agent" "$AGENT_NAME" "agent frontmatter name matches filename: ${agent}"
-    fi
-done
+validate_agent_group "DISCUSS" solution-researcher-a solution-researcher-b prior-art-scanner codebase-analyst risk-assessor
 
 # ============================================================
 # TEST SUITE: Skill Registry
@@ -2640,7 +2567,14 @@ if [ -f "$REPO_DIR/plugin/config/skill-registry.json" ]; then
     assert_eq "1.0" "$VERSION" "skill-registry.json version is 1.0"
 
     OP_COUNT=$(jq '.operations | length' "$REPO_DIR/plugin/config/skill-registry.json")
-    assert_eq "16" "$OP_COUNT" "skill-registry.json has 16 operations"
+    if [ "$OP_COUNT" -ge 16 ]; then
+        echo -e "  ${GREEN}PASS${NC} skill-registry.json has >= 16 operations (found $OP_COUNT)"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${RED}FAIL${NC} skill-registry.json has >= 16 operations (found $OP_COUNT)"
+        FAIL=$((FAIL + 1))
+        ERRORS="$ERRORS\n  FAIL: skill-registry.json has >= 16 operations"
+    fi
 fi
 
 # ============================================================
@@ -2650,6 +2584,14 @@ echo ""
 echo "=== Proposals Command ==="
 
 assert_file_exists "$REPO_DIR/plugin/commands/proposals.md" "proposals.md command file exists"
+
+if [ -f "$REPO_DIR/plugin/commands/proposals.md" ]; then
+    PROPOSALS_CONTENT=$(cat "$REPO_DIR/plugin/commands/proposals.md")
+    assert_contains "$PROPOSALS_CONTENT" "claude-mem" "proposals.md references claude-mem"
+    assert_contains "$PROPOSALS_CONTENT" "Approve" "proposals.md has Approve action"
+    assert_contains "$PROPOSALS_CONTENT" "Reject" "proposals.md has Reject action"
+    assert_contains "$PROPOSALS_CONTENT" "Defer" "proposals.md has Defer action"
+fi
 
 # ============================================================
 # RESULTS

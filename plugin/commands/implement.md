@@ -22,17 +22,9 @@ Follow this workflow:
 ```
 4b. **Version bump** (after all tasks complete, before final test run):
 
-Dispatch a **Versioning agent** to determine the bump type:
+Dispatch a **Versioning agent** (subagent_type: `workflow-manager:versioning-agent`):
 
-Prompt: "Determine the semantic version bump for this release.
-1. Read the decision record at [DECISION_RECORD_PATH] for phase history
-2. Read `git log --oneline main...HEAD` for commit history (if no divergence, check last 10 commits)
-3. Read current version from `.claude-plugin/marketplace.json`
-4. Apply these rules:
-   - **Major** (X.0.0): Breaking changes to public API — hook contract changes, state schema changes that break existing state files, command interface changes
-   - **Minor** (x.Y.0): New features — session went through DEFINE/DISCUSS phases (new capability), new commands added, new state fields
-   - **Patch** (x.y.Z): Bug fixes, refactors, tech debt cleanup, doc updates — changes are internal only
-5. Return: current version, bump type (major/minor/patch), new version, one-line reasoning"
+Context: "Decision record: [DECISION_RECORD_PATH]. Determine the semantic version bump for this release."
 
 Apply the version bump to all 3 files:
 ```bash

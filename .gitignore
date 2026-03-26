@@ -27,6 +27,9 @@ token_do_not_commit/
 *.key
 *.pem
 
+# User-specific skill overrides (created from .example template)
+plugin/config/skill-overrides.json
+
 # Archived docs (moved from docs/research/, kept locally for reference)
 archive/
 
