@@ -38,9 +38,9 @@ Orthogonal to phase, the autonomy level controls how independently Claude operat
 
 | Symbol | Level | Name | Description |
 |--------|-------|------|-------------|
-| `▶` | off | Supervised | All writes blocked regardless of phase. Claude can only read files and research. |
-| `▶▶` | ask | Semi-Auto | Writes follow phase rules. Stops at phase transitions for user approval. **Default.** |
-| `▶▶▶` | auto | Unattended | Full autonomy within phase rules. Auto-transitions, auto-commits. Stops only for user input or before git push. |
+| `▶` | off | Supervised | Step-by-step pair programming. Claude executes one plan step at a time, presents the change, and waits for review before proceeding. Writes follow phase rules. |
+| `▶▶` | ask | Semi-Auto | Claude works freely within each phase but stops at phase boundaries for review and guidance before transitioning. No auto-commits. **Default.** |
+| `▶▶▶` | auto | Unattended | Full autonomy. Claude auto-transitions between phases, auto-fixes review findings, auto-commits. Stops only when user input is genuinely needed or before git push. |
 
 ## What does it produce?
 

@@ -47,9 +47,9 @@ Any command can jump to any phase. `/off` closes the workflow. Soft gates warn w
 
 Orthogonal to phase, the autonomy level controls how independently Claude operates. Set with `/autonomy off|ask|auto` (default: ask):
 
-- `▶` **Supervised (off)**: All writes blocked regardless of phase. Claude can only read files and research.
-- `▶▶` **Semi-Auto (ask)**: Writes follow phase rules (blocked in define/discuss/complete, allowed in implement/review). Stops at phase transitions for user approval.
-- `▶▶▶` **Unattended (auto)**: Full autonomy within phase rules. Auto-transitions between phases, auto-commits. Stops only when user input is needed or before git push.
+- `▶` **Supervised (off)**: Step-by-step pair programming. Claude executes one plan step at a time, presents the change, and waits for your review before proceeding. Writes follow phase rules.
+- `▶▶` **Semi-Auto (ask)**: Claude works freely within each phase but stops at phase boundaries for review and guidance before transitioning. No auto-commits.
+- `▶▶▶` **Unattended (auto)**: Full autonomy. Claude auto-transitions between phases, auto-fixes review findings, auto-commits. Stops only when user input is genuinely needed or before git push.
 
 See the [Status Line guide](docs/guides/statusline-guide.md) for symbol display details.
 

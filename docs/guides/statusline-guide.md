@@ -113,9 +113,9 @@ When the Workflow Manager is active, the status line displays a symbol indicatin
 
 | Symbol | Level | Name | Behavior |
 |--------|-------|------|----------|
-| `▶` | off | Supervised | All writes blocked regardless of phase. Claude can only read files and research. |
-| `▶▶` | ask | Semi-Auto | Writes follow phase rules. Stops at phase transitions for user approval. |
-| `▶▶▶` | auto | Unattended | Full autonomy within phase rules. Auto-transitions, auto-commits. |
+| `▶` | off | Supervised | Step-by-step pair programming. One plan step at a time, waits for review. |
+| `▶▶` | ask | Semi-Auto | Works freely within phases, stops at phase boundaries for review. |
+| `▶▶▶` | auto | Unattended | Full autonomy. Auto-transitions, auto-fixes, auto-commits. |
 
 No symbol is shown when the workflow is OFF or when the autonomy field is absent from state.
 

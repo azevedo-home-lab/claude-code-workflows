@@ -177,9 +177,9 @@ Phase and autonomy are two orthogonal dimensions of control:
 
 | Symbol | Level | Name | Description |
 |--------|-------|------|-------------|
-| `▶` | off | Supervised | All writes blocked regardless of phase. Claude can only read files and research. |
-| `▶▶` | ask | Semi-Auto | Writes follow phase rules (blocked in define/discuss/complete, allowed in implement/review). Stops at phase transitions for user approval. **Default.** |
-| `▶▶▶` | auto | Unattended | Full autonomy within phase rules. Auto-transitions between phases, auto-commits. Stops only when user input is needed or before git push. |
+| `▶` | off | Supervised | Step-by-step pair programming. Claude executes one plan step at a time, presents the change, and waits for review before proceeding. Writes follow phase rules. |
+| `▶▶` | ask | Semi-Auto | Claude works freely within each phase but stops at phase boundaries for review and guidance before transitioning. No auto-commits. **Default.** |
+| `▶▶▶` | auto | Unattended | Full autonomy. Claude auto-transitions between phases, auto-fixes review findings, auto-commits. Stops only when user input is genuinely needed or before git push. |
 
 **Enforcement**: Hooks (`workflow-gate.sh`, `bash-write-guard.sh`) are the single source of truth and apply the autonomy check before the phase gate. Claude Code permission modes (`plan`/`default`/`acceptEdits`) are best-effort convenience that mirror the active autonomy level but are not relied upon for enforcement.
 

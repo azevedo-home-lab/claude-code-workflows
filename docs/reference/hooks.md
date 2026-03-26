@@ -191,9 +191,9 @@ Autonomy level is an orthogonal dimension to phase — phase controls **what** i
 
 | Symbol | Level | Name | Behavior |
 |--------|-------|------|----------|
-| `▶` | off | Supervised | All writes blocked regardless of phase. Claude can only read files and research. |
-| `▶▶` | ask | Semi-Auto | Writes follow phase rules (blocked in define/discuss/complete, allowed in implement/review). Stops at phase transitions for user approval. **Default.** |
-| `▶▶▶` | auto | Unattended | Full autonomy within phase rules. Auto-transitions between phases, auto-commits. Stops only when user input is needed or before git push. |
+| `▶` | off | Supervised | Step-by-step pair programming. Claude executes one plan step at a time, presents the change, and waits for review before proceeding. Writes follow phase rules. |
+| `▶▶` | ask | Semi-Auto | Claude works freely within each phase but stops at phase boundaries for review and guidance before transitioning. No auto-commits. **Default.** |
+| `▶▶▶` | auto | Unattended | Full autonomy. Claude auto-transitions between phases, auto-fixes review findings, auto-commits. Stops only when user input is genuinely needed or before git push. |
 
 Set the level with `/autonomy off`, `/autonomy ask`, or `/autonomy auto`. Only the user can change it.
 
@@ -204,12 +204,13 @@ Both `workflow-gate.sh` and `bash-write-guard.sh` apply checks in this order:
 ```
 1. No state file → allow (fails open)
 2. Workflow OFF → allow
-3. Autonomy off → deny all writes (regardless of phase)
-4. Implement/Review phase check (phase gate)
-5. Phase-specific whitelist check (specs/plans, docs)
+3. Implement/Review phase check (phase gate)
+4. Phase-specific whitelist check (specs/plans, docs)
 ```
 
-Autonomy `off` blocks all writes before the phase gate is even evaluated. Levels `ask` and `auto` fall through to the existing phase-based logic. The hooks are the single source of truth; Claude Code permission modes (`plan`/`default`/`acceptEdits`) are best-effort convenience only.
+All three autonomy levels (`off`, `ask`, `auto`) follow the same phase-based write rules. The difference between levels is behavioral (checkpoint granularity), not enforcement — `off` stops after each plan step, `ask` stops at phase boundaries, `auto` runs end-to-end. The hooks are the single source of truth for write permissions; Claude Code permission modes (`plan`/`default`/`acceptEdits`) are best-effort convenience only.
+
+> **Note:** The hook code currently has an extra gate that blocks all writes when autonomy is `off` regardless of phase. This is a known bug — `off` should follow phase rules like `ask` and `auto`. See issue #4228.
 
 ## Known Limitations
 
