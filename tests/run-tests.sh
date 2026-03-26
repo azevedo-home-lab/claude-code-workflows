@@ -2841,6 +2841,7 @@ done
 for cmd in wf:obs-read wf:obs-track wf:obs-untrack; do
   assert_file_exists "$PLUGIN_COMMANDS/$cmd.md" "$cmd.md command file exists"
 done
+assert_file_exists "$REPO_DIR/plugin/commands/wf:debug.md" "wf:debug.md command file exists"
 
 # ============================================================
 # RESULTS
