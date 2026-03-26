@@ -1,3 +1,6 @@
+---
+description: Validate outcomes, commit, audit tech debt, and save handover
+---
 !`WARN=$(.claude/hooks/workflow-cmd.sh check_soft_gate "complete"); if [ -n "$WARN" ]; then echo "SOFT_GATE_WARNING: $WARN"; else WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "complete" && .claude/hooks/workflow-cmd.sh reset_completion_status && .claude/hooks/workflow-cmd.sh set_active_skill "completion-pipeline" && echo "Phase set to COMPLETE — running completion pipeline."; fi`
 
 !`if [ "$(.claude/hooks/workflow-cmd.sh has_completion_snapshot)" = "true" ]; then .claude/hooks/workflow-cmd.sh restore_completion_snapshot && echo "LOOP_BACK: Resuming from IMPLEMENT excursion — milestones restored."; fi`

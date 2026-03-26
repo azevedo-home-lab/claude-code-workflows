@@ -1,3 +1,6 @@
+---
+description: Execute the approved plan with TDD and code edits enabled
+---
 !`WARN=$(.claude/hooks/workflow-cmd.sh check_soft_gate "implement"); if [ -n "$WARN" ]; then echo "SOFT_GATE_WARNING: $WARN"; else WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "implement" && .claude/hooks/workflow-cmd.sh reset_implement_status && .claude/hooks/workflow-cmd.sh set_active_skill "" && echo "Phase set to IMPLEMENT — code edits are now allowed."; fi`
 
 If the output shows `SOFT_GATE_WARNING`, ask the user: "Proceed anyway? (yes/no)". If yes, run the phase transition manually. If no, stop.

@@ -1,3 +1,6 @@
+---
+description: Manage workflow improvement proposals from claude-mem
+---
 Query claude-mem for observations tagged with type "proposal" for
 the current project.
 
