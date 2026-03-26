@@ -1,1 +1,1 @@
-/Users/pedroazevedo/Documents/GDrive/Projects/ClaudeWorkflows/plugin/commands/off.md
+../../plugin/commands/off.md

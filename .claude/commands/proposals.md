@@ -1,0 +1,1 @@
+../../plugin/commands/proposals.md

@@ -187,13 +187,12 @@ fi || true
 COMMANDS_DIR="$PROJECT_DIR/.claude/commands"
 mkdir -p "$COMMANDS_DIR"
 
-# Install all plugin command files as symlinks (idempotent)
+# Install all plugin command files as symlinks (idempotent, self-healing)
+# Uses ln -sf to fix stale/incorrect symlinks on re-run
 for cmd_file in "$PLUGIN_ROOT/commands/"*.md; do
   [ -f "$cmd_file" ] || continue
   cmd_name=$(basename "$cmd_file")
-  if [ ! -e "$COMMANDS_DIR/$cmd_name" ]; then
-    ln -s "../../plugin/commands/$cmd_name" "$COMMANDS_DIR/$cmd_name"
-  fi
+  ln -sf "../../plugin/commands/$cmd_name" "$COMMANDS_DIR/$cmd_name"
 done
 
 # ─────────────────────────────────────────────────────────────────────────────
