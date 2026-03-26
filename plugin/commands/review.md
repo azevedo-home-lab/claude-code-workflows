@@ -119,4 +119,8 @@ Wait for the user's response. If they choose option 2 (acknowledge):
 .claude/hooks/workflow-cmd.sh set_review_field "findings_acknowledged" "true"
 ```
 
+**Autonomy-aware behavior:**
+- **off (▶):** After each review agent returns, present its findings individually and wait for user review before dispatching the next agent. Do not batch all 5 agents in parallel — dispatch one at a time, presenting results between each.
+- **ask (▶▶):** Dispatch all 5 agents in parallel, present consolidated findings, wait for user response.
+
 **Auto-transition:** If autonomy is auto: fix ALL findings — critical, warnings, and suggestions. Only stop if there are critical findings or decisions that require user judgment. Do not acknowledge findings without fixing them unless the user has explicitly accepted them. After all findings are fixed, invoke `/complete` now. Do not wait for the user.

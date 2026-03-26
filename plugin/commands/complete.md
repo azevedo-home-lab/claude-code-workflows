@@ -24,7 +24,8 @@ Before proceeding:
 
 **Autonomy-aware behavior:**
 - **auto (▶▶▶):** Make operational decisions autonomously: auto-commit, auto-update docs (yes), auto-select recommended options. Only stop for git push (always requires confirmation) and validation failures that need user judgment.
-- **off/ask:** Ask the user at each decision point (doc updates, commit, push, tech debt actions).
+- **ask (▶▶):** Ask the user at each decision point (doc updates, commit, push, tech debt actions).
+- **off (▶):** After each pipeline step (validation, docs, commit, push, tech debt, handover), present the result and wait for explicit approval before proceeding to the next step. Never batch steps.
 
 ### Pre-validation: Test Evidence Gate
 

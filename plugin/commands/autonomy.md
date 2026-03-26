@@ -5,6 +5,6 @@ description: Set autonomy level (off, ask, auto) — controls how much Claude de
 
 Respond based on the level that was set:
 
-- **off**: Call `EnterPlanMode`. Say: "▶ **Supervised** — read-only mode."
+- **off**: Say: "▶ **Supervised** — step-by-step mode. I'll work within phase rules and pause after each plan step for your review."
 - **ask**: Call `ExitPlanMode` if in plan mode. Say: "▶▶ **Semi-Auto** — writes enabled per phase rules. I'll wait for approval at phase transitions."
 - **auto**: Call `ExitPlanMode` if in plan mode. Say: "▶▶▶ **Unattended** — full autonomy. I'll auto-transition and auto-commit. Stopping only for user input or before git push."

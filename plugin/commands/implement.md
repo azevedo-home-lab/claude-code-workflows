@@ -14,7 +14,8 @@ If the output shows `SOFT_GATE_WARNING`, ask the user: "Proceed anyway? (yes/no)
 
 **Autonomy-aware behavior:**
 - **auto (▶▶▶):** Use `superpowers:subagent-driven-development` (recommended execution mode) without asking. Make operational decisions (execution approach, model selection, task ordering) autonomously. Only stop for genuine blockers.
-- **off/ask:** Ask the user which execution approach they prefer if multiple options exist.
+- **ask (▶▶):** Ask the user which execution approach they prefer if multiple options exist. Work freely within the phase, committing after each task.
+- **off (▶):** Work within phase rules. After completing each plan step, present the change (files modified, key diff summary), and wait for the user's explicit approval before proceeding to the next step. Never batch multiple steps. Never auto-commit — ask before each commit.
 
 Follow this workflow:
 1. Read the plan file and mark milestone:

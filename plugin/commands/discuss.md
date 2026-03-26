@@ -87,6 +87,7 @@ Every plan step must trace back to the chosen approach. If a step can't be justi
 **Review transparency:** When the spec review loop or plan review loop finds issues, always present a summary to the user: what the reviewer found, what you fixed, and the final verdict. Never silently fix and move on — the user must see what was caught.
 
 **Autonomy-aware behavior:**
-- **off/ask:** When the plan is ready and the user approves, they will run `/implement` to proceed.
+- **off (▶):** After each design decision or research finding, present the result and wait for explicit user approval before proceeding. Never batch diverge/converge phases. Present the plan section by section, waiting for approval after each.
+- **ask (▶▶):** When the plan is ready and the user approves, they will run `/implement` to proceed.
 
 **Auto-transition:** If autonomy is auto, invoke `/implement` now after the plan passes review. Do not wait for the user. Only stop if user input is needed during the converge phase (approach selection).

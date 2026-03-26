@@ -81,4 +81,9 @@ Register the decision record path:
 
 Confirm to the user: "Problem and outcomes saved to the decision record. Use `/discuss` to proceed to solution design."
 
+**Autonomy-aware behavior:**
+- **auto (▶▶▶):** Auto-transition to `/discuss` after problem is defined.
+- **ask (▶▶):** Present the decision record and wait for the user to run `/discuss`.
+- **off (▶):** After each problem discovery exchange, summarize what was learned and wait for the user's direction before proceeding. Present the decision record and wait for explicit approval before any transition.
+
 **Auto-transition:** If autonomy is auto, invoke `/discuss` now. Do not wait for the user.
