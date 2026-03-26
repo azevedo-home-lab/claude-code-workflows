@@ -12,7 +12,7 @@ Claude Code is powerful but undisciplined. Left to its defaults, it:
 - Doesn't naturally follow think → plan → build → review → ship
 - Produces no auditable record of what was decided and why
 
-Inspired by [cc-sessions](https://github.com/chronologos/cc-sessions) (a CLI for listing and resuming Claude Code sessions across projects), this project builds an opinionated workflow enforcement system that goes further. Session management alone wasn't enough — Claude also needed:
+Inspired by [cc-sessions](https://github.com/GWUDCAP/cc-sessions) (DAIC workflow enforcement with trigger-phrase automation and sub-agents for Claude Code), this project builds an opinionated workflow enforcement system that goes further. Workflow phases alone weren't enough — Claude also needed:
 - **Guardrails** to prevent coding before planning (hard edit gates)
 - **Structure** to guide each phase of development (coaching + skills)
 - **Accountability** through decision records and review pipelines
@@ -96,7 +96,7 @@ The plugin auto-wires hooks, installs the statusline, and initializes project st
 
 ## Sources
 
-- [cc-sessions](https://github.com/chronologos/cc-sessions) — CLI for listing and resuming Claude Code sessions across projects
+- [cc-sessions](https://github.com/GWUDCAP/cc-sessions) — DAIC workflow enforcement with trigger-phrase automation for Claude Code
 - [claude-mem](https://github.com/thedotmack/claude-mem) — cross-session memory MCP server
 - [Superpowers](https://github.com/obra/superpowers) — agentic skills framework and development methodology for Claude Code
 - [everything-claude-code](https://github.com/affaan-m/everything-claude-code) — agent harness performance optimization, skills, instincts, memory

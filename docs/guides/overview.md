@@ -8,7 +8,7 @@ Claude Code is a powerful AI coding assistant, but left to its defaults it behav
 
 Over long sessions, this gets worse. The context window fills up, older decisions get compressed or forgotten, and the model starts hallucinating — confidently referencing functions that were renamed three steps ago, or implementing a solution that contradicts an earlier design choice.
 
-Inspired by [cc-sessions](https://github.com/chronologos/cc-sessions) (a CLI for listing and resuming Claude Code sessions across projects), this project builds an opinionated workflow enforcement system that goes further. Session management alone wasn't enough — Claude also needed guardrails (hard edit gates that prevent coding before planning), structure (coaching and skills that guide each development phase), and accountability (decision records and multi-agent review pipelines).
+Inspired by [cc-sessions](https://github.com/GWUDCAP/cc-sessions) (DAIC workflow enforcement with trigger-phrase automation and sub-agents for Claude Code), this project builds an opinionated workflow enforcement system that goes further. Workflow phases alone weren't enough — Claude also needed guardrails (hard edit gates that prevent coding before planning), structure (coaching and skills that guide each development phase), and accountability (decision records and multi-agent review pipelines).
 
 The result makes Claude Code behave like a disciplined senior engineer: think first, plan second, code third, review before shipping.
 
@@ -75,7 +75,7 @@ See the [Getting Started guide](getting-started.md) for a walkthrough of your fi
 
 ## Sources
 
-- [cc-sessions](https://github.com/chronologos/cc-sessions) — CLI for listing and resuming Claude Code sessions across projects
+- [cc-sessions](https://github.com/GWUDCAP/cc-sessions) — DAIC workflow enforcement with trigger-phrase automation for Claude Code
 - [claude-mem](https://github.com/thedotmack/claude-mem) — cross-session memory MCP server
 - [Superpowers](https://github.com/obra/superpowers) — agentic skills framework and development methodology for Claude Code
 - [everything-claude-code](https://github.com/affaan-m/everything-claude-code) — agent harness performance optimization, skills, instincts, memory
