@@ -38,18 +38,15 @@ if [ ! -f "$STATE_FILE" ]; then
     exit 0
 fi
 
-# Debug mode
-DEBUG_MODE="false"
-if [ -f "$STATE_FILE" ]; then
-    DEBUG_MODE=$(get_debug)
-fi
-
 PHASE=$(get_phase)
 
 # OFF phase: no enforcement
 case "$PHASE" in
-    off) if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: phase is OFF" >&2; fi; exit 0 ;;
+    off) exit 0 ;;
 esac
+
+# Debug mode (read after OFF exit to avoid unnecessary jq call)
+DEBUG_MODE=$(get_debug)
 
 # ---------------------------------------------------------------------------
 # Shared command parsing — runs once, used by both autonomy and phase-gate paths

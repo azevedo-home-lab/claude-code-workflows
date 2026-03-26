@@ -13,13 +13,7 @@ Toggle WFM debug mode. When enabled, all hook coaching messages and gate decisio
 
 ## Execution
 
-1. Parse the argument from `$ARGUMENTS`:
-
-```bash
-.claude/hooks/workflow-cmd.sh get_phase
-```
-
-2. If no argument, report current state:
+1. If no argument (`$ARGUMENTS` is empty), report current state:
 
 ```bash
 .claude/hooks/workflow-cmd.sh get_debug
@@ -27,7 +21,7 @@ Toggle WFM debug mode. When enabled, all hook coaching messages and gate decisio
 
 Report: "Debug mode is **on/off**."
 
-3. If argument is `on`:
+2. If argument is `on`:
 
 ```bash
 .claude/hooks/workflow-cmd.sh set_debug "true"
@@ -35,7 +29,7 @@ Report: "Debug mode is **on/off**."
 
 Report: "Debug mode **enabled**. Hook messages will now be visible to you."
 
-4. If argument is `off`:
+3. If argument is `off`:
 
 ```bash
 .claude/hooks/workflow-cmd.sh set_debug "false"
@@ -43,4 +37,4 @@ Report: "Debug mode **enabled**. Hook messages will now be visible to you."
 
 Report: "Debug mode **disabled**. Hook messages are now Claude-only."
 
-5. If argument is anything else, report: "Invalid argument. Use `on`, `off`, or no argument to check status."
+4. If argument is anything else, report: "Invalid argument. Use `on`, `off`, or no argument to check status."

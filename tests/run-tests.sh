@@ -2354,6 +2354,7 @@ mkdir -p "$SL_DEBUG_DIR/.claude/state"
 echo '{"phase":"implement","debug":true,"autonomy_level":"ask"}' > "$SL_DEBUG_DIR/.claude/state/workflow.json"
 OUTPUT=$(run_statusline "{\"version\":\"2.1.83\",\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_DEBUG_DIR\"}")
 assert_contains "$OUTPUT" "DEBUG" "statusline shows DEBUG when debug flag is true"
+rm -rf "$SL_DEBUG_DIR"
 
 # Test: statusline hides DEBUG indicator when debug=false
 SL_NODEBUG_DIR=$(mktemp -d)
@@ -2362,6 +2363,7 @@ echo '{"phase":"implement","debug":false,"autonomy_level":"ask"}' > "$SL_NODEBUG
 OUTPUT=$(run_statusline "{\"version\":\"2.1.83\",\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_NODEBUG_DIR\"}")
 CLEAN_OUTPUT=$(echo "$OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
 assert_not_contains "$CLEAN_OUTPUT" "DEBUG" "statusline hides DEBUG when debug flag is false"
+rm -rf "$SL_NODEBUG_DIR"
 
 # ============================================================
 # TEST SUITE: Statusline Version Detection
