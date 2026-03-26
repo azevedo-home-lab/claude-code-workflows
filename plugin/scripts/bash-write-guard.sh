@@ -101,20 +101,6 @@ if echo "$COMMAND" | grep -qE 'python[3]?[[:space:]]+-c'; then
 fi
 
 # ---------------------------------------------------------------------------
-# Autonomy "off": block ALL Bash write commands regardless of phase
-# ---------------------------------------------------------------------------
-
-AUTONOMY_LEVEL=$(get_autonomy_level)
-if [ "$AUTONOMY_LEVEL" = "off" ]; then
-    if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ]; then
-        emit_deny "BLOCKED: ▶ Supervised (off) — read-only mode. No Bash write operations allowed. Run /autonomy ask to enable writes."
-        exit 0
-    fi
-    # Read-only Bash commands allowed at autonomy off
-    exit 0
-fi
-
-# ---------------------------------------------------------------------------
 # Defense-in-depth: block writes to workflow state and intent files in ALL active phases
 # Only triggers when a write operation targets these files (not on reads like cat/jq).
 # Fires before the implement/review early-exit to catch forgery attempts.
@@ -133,7 +119,7 @@ fi
 # Phase-gate: ask/auto enforcement by phase
 # ---------------------------------------------------------------------------
 
-# Allow everything in implement and review phases (ask/auto only reach here)
+# Allow everything in implement and review phases
 case "$PHASE" in
     implement|review) exit 0 ;;
 esac

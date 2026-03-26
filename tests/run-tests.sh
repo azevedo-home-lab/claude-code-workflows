@@ -821,15 +821,12 @@ assert_contains "$OUTPUT" "deny" "blocks path traversal in cp target"
 
 # --- Autonomy level enforcement ---
 
-# Test: Level 1 blocks Bash write in IMPLEMENT phase
+# Test: Level 1 allows Bash write in IMPLEMENT phase (same as ask)
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level off
 OUTPUT=$(run_bash_guard 'echo data > output.txt')
-assert_contains "$OUTPUT" "deny" "Level 1 blocks Bash write in IMPLEMENT phase"
-
-# Test: Level 1 denial message mentions /autonomy
-assert_contains "$OUTPUT" "/autonomy" "Level 1 bash deny message mentions /autonomy"
+assert_not_contains "$OUTPUT" "deny" "Level 1 allows Bash write in IMPLEMENT (supervised, not read-only)"
 
 # Test: Level 2 allows Bash write in IMPLEMENT
 setup_test_project
@@ -852,6 +849,13 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level ask
 OUTPUT=$(run_bash_guard 'echo data > output.txt')
 assert_contains "$OUTPUT" "deny" "Level 2 blocks Bash write in DISCUSS (phase gate)"
 
+# Test: Level 1 blocks Bash write in DISCUSS (phase gate preserved, same as ask)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level off
+OUTPUT=$(run_bash_guard 'echo data > output.txt')
+assert_contains "$OUTPUT" "deny" "Level 1 blocks Bash write in DISCUSS (phase gate, same as ask)"
+
 # Test: Level 1 allows read-only Bash commands in IMPLEMENT
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
@@ -859,12 +863,12 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level off
 OUTPUT=$(run_bash_guard 'ls -la')
 assert_not_contains "$OUTPUT" "deny" "Level 1 allows read-only Bash in IMPLEMENT"
 
-# Test: Level 1 rejects chained workflow-state command (bypass attempt)
+# Test: Level 1 rejects chained workflow-state command in DISCUSS (bypass attempt)
 setup_test_project
-source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level off
 OUTPUT=$(run_bash_guard 'source .claude/hooks/workflow-state.sh && echo pwned > evil.txt')
-assert_contains "$OUTPUT" "deny" "Level 1 blocks chained workflow-state bypass"
+assert_contains "$OUTPUT" "deny" "Level 1 blocks chained workflow-state bypass in DISCUSS"
 
 # --- git commit allowlist ---
 
@@ -1024,11 +1028,11 @@ RESULT=$(echo '{"tool_input":{"command":"touch newfile.txt"}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
 assert_eq "" "$RESULT" "bash-guard: touch allowed in IMPLEMENT"
 
-# Regression: multi-line python3 blocked at Level 1 even in IMPLEMENT
+# Level 1 in IMPLEMENT now allows python writes (same as ask)
 jq '.autonomy_level = "off"' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 RESULT=$(printf '{"tool_input":{"command":"python3 -c \\\"\\nwith open('"'"'f'"'"','"'"'w'"'"') as fh:\\n  fh.write('"'"'x'"'"')\\n\\\""}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
-assert_contains "$RESULT" "deny" "bash-guard: python3 write blocked at Level 1 in IMPLEMENT"
+assert_eq "" "$RESULT" "bash-guard: python3 write allowed at Level 1 in IMPLEMENT"
 
 # Reset state
 setup_test_project
