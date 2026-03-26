@@ -79,12 +79,6 @@ fi
 # Assemble output
 OUTPUT=""
 
-# CC Version
-OUTPUT+="${BOLD}CC ${CC_VERSION}${RESET}"
-
-# Separator
-OUTPUT+="  ${DIM}│${RESET}  "
-
 # Model
 OUTPUT+="${BOLD}${MODEL}${RESET}"
 
@@ -107,7 +101,12 @@ fi
 # Directory
 OUTPUT+="  ${DIM}│${RESET}  ${DIM}${SHORT_CWD}${RESET}"
 
-# --- Component detection (version from plugin cache) ---
+# --- Line 2: CC version + components ---
+
+OUTPUT+="\n"
+
+# CC Version
+OUTPUT+="${GREEN}CC ${CC_VERSION} ✓${RESET}  ${DIM}│${RESET}  "
 
 # Shared state file used by all three components
 WM_STATE_FILE="${CWD}/.claude/state/workflow.json"
@@ -137,7 +136,7 @@ if [ -f "$WM_SOURCE_JSON" ] || [ -d "$WM_PLUGIN_DIR" ]; then
     WM_VERSION=$(_plugin_version "$WM_PLUGIN_DIR")
   fi
   WM_VERSION="${WM_VERSION:-?}"
-  OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Workflow Manager ${WM_VERSION} ✓${RESET}"
+  OUTPUT+="${GREEN}Workflow Manager ${WM_VERSION} ✓${RESET}"
   # Show phase if state file exists
   if [ -f "$WM_STATE_FILE" ]; then
     WM_PHASE=$(grep -o '"phase"[[:space:]]*:[[:space:]]*"[^"]*"' "$WM_STATE_FILE" | grep -o '"[^"]*"$' | tr -d '"')
@@ -171,7 +170,7 @@ if [ -f "$WM_SOURCE_JSON" ] || [ -d "$WM_PLUGIN_DIR" ]; then
     fi
   fi
 else
-  OUTPUT+="  ${DIM}│${RESET}  ${DIM}Workflow Manager ✗${RESET}"
+  OUTPUT+="${DIM}Workflow Manager ✗${RESET}"
 fi
 
 # Superpowers: version from cache, active skill from project state
