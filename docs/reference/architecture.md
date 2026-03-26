@@ -191,8 +191,9 @@ Set via `/autonomy off|ask|auto`. Only the user can change it.
 
 - `workflow-gate.sh` — blocks Write/Edit/MultiEdit in DEFINE, DISCUSS, and COMPLETE phases (with different whitelist tiers)
 - `bash-write-guard.sh` — blocks Bash write operations in DEFINE, DISCUSS, and COMPLETE phases
-- `workflow-state.sh` — state read/write utility
+- `workflow-state.sh` — state read/write utility (phase, autonomy, debug, coaching, review status)
 - State: `.claude/state/workflow.json` (gitignored)
+- Debug mode (`/wf:debug on`): makes all hook decisions visible to the user via stderr
 
 ### Superpowers — Development Techniques
 

@@ -105,6 +105,7 @@ Per-project state (gitignored):
 - **Soft gates**: `check_soft_gate <target_phase>` — returns warning message or empty string
 - **Review status**: `reset_review_status`, `get_review_field <field>`, `set_review_field <field> <value>`
 - **Coaching state**: `increment_coaching_counter`, `reset_coaching_counter`, `add_coaching_fired <type>`, `has_coaching_fired <type>`
+- **Debug mode**: `get_debug`, `set_debug <true|false>` — preserved across transitions, cleared on OFF
 - **Whitelists**: `RESTRICTED_WRITE_WHITELIST` (DEFINE/DISCUSS), `COMPLETE_WRITE_WHITELIST` (COMPLETE)
 
 ## Commands
@@ -124,6 +125,10 @@ Sets phase to `complete`. Triggers verified completion with outcome validation, 
 ### /discuss
 
 Sets phase to `discuss`. Code edits are blocked. Instructs Claude to use `brainstorming` and `writing-plans` superpowers. Use to start a workflow or abort/rethink from any phase.
+
+### /wf:debug
+
+Toggles debug mode. When enabled (`/wf:debug on`), all hook coaching messages and gate decisions are echoed to stderr with `[WFM DEBUG]` prefix, making them visible to the user. `/wf:debug off` disables. `/wf:debug` (no argument) reports current state. Status line shows `[DEBUG]` indicator when active.
 
 ## Configuration
 
