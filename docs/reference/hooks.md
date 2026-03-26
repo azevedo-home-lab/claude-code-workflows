@@ -13,9 +13,9 @@ Layer 1: PreToolUse Hooks (Deterministic)       Layer 2: Superpowers Skills (Beh
 │   Blocks Write/Edit in DEFINE,       │        │ /superpowers:writing-plans       │
 │   DISCUSS, and COMPLETE              │
 │                                      │        │ /superpowers:executing-plans     │
-│ bash-write-guard.sh                  │        │ /superpowers:tdd                 │
-│   Blocks Bash write ops in DEFINE,   │        │ /superpowers:verify              │
-│   DISCUSS, and COMPLETE              │        │ /superpowers:code-review         │
+│ bash-write-guard.sh                  │        │ /superpowers:test-driven-development │
+│   Blocks Bash write ops in DEFINE,   │        │ /superpowers:verification-before-completion │
+│   DISCUSS, and COMPLETE              │        │ /superpowers:requesting-code-review │
 │ State: .claude/state/workflow.json   │        │                                  │
 └──────────────────────────────────────┘        └──────────────────────────────────┘
 ```
@@ -64,7 +64,9 @@ plugin/
 │   ├── implement.md            # /implement → DISCUSS to IMPLEMENT
 │   ├── review.md               # /review → IMPLEMENT to REVIEW
 │   ├── complete.md             # /complete → REVIEW to COMPLETE
-│   └── autonomy.md             # /autonomy → set autonomy level
+│   ├── off.md                  # /off → close workflow
+│   ├── autonomy.md             # /autonomy → set autonomy level
+│   └── proposals.md            # /proposals → view/manage proposals
 ├── statusline/
 │   └── statusline.sh           # Status bar with version display
 └── docs/

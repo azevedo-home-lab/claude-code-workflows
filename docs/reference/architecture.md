@@ -264,8 +264,10 @@ your-project/
 ├── .claude/
 │   ├── hooks/
 │   │   ├── workflow-state.sh       # State utility
+│   │   ├── workflow-cmd.sh         # Shell-independent wrapper
 │   │   ├── workflow-gate.sh        # Write/Edit gate
 │   │   ├── bash-write-guard.sh     # Bash write gate
+│   │   ├── user-phase-gate.sh      # User prompt phase authorization
 │   │   └── post-tool-navigator.sh  # Phase guidance messages
 │   ├── commands/
 │   │   ├── define.md               # /define command
@@ -274,8 +276,7 @@ your-project/
 │   │   ├── review.md               # /review command
 │   │   ├── complete.md             # /complete command
 │   │   ├── off.md                  # /off command
-│   │   ├── autonomy.md             # /autonomy command
-│   │   └── proposals.md            # /proposals command
+│   │   └── autonomy.md             # /autonomy command
 │   ├── state/
 │   │   └── workflow.json           # Consolidated workflow state (gitignored)
 │   └── settings.json               # Hook configuration
