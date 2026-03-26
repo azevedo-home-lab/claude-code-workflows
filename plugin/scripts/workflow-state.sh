@@ -696,7 +696,7 @@ set_debug() {
         echo "WARNING: No workflow state file. Start a workflow phase first." >&2
         return 1
     fi
-    local val="$1"
+    local val="${1:-}"
     case "$val" in
         true|false) ;;
         *) echo "ERROR: Invalid debug value: $val (valid: true, false)" >&2; return 1 ;;
