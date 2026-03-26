@@ -45,3 +45,24 @@ Single approach — replace yellow with blue, adjust thresholds. User specified:
 - **Risks identified:** stderr behavior in CC hooks needs verification — if CC doesn't show hook stderr, we pivot to Approach B.
 - **Constraints applied:** CC session JSON schema provides version field. Terminal color codes must work on both light and dark themes.
 - **Tech debt acknowledged:** None introduced.
+
+## Review Findings (REVIEW phase)
+
+**5 review agents dispatched, 4 false positives filtered, 11 unique confirmed findings.**
+
+### Fixed (this session)
+- [QUAL] Redundant `if [ -f STATE_FILE ]` guard in workflow-gate.sh and bash-write-guard.sh — removed
+- [QUAL] Vestigial `get_phase` call in wf:debug.md Step 1 — removed
+- [QUAL] `get_debug` called before OFF-phase exit — moved after exit for efficiency
+- [ARCH/GOV] Missing temp dir cleanup in debug indicator tests — added `rm -rf`
+
+### Pre-existing tech debt (not introduced by this change)
+- [SEC] `_update_state` jq filter interpolation is fragile against future callers (workflow-state.sh:47-56)
+- [HYG] `pushed` completion field written but never checked by exit gate (complete.md:257)
+- [HYG] `_plugin_version` function duplicated in test suite (tests/run-tests.sh:2372-2384)
+
+### Dismissed as false positive
+- SEC: `WF_SKIP_AUTH=1` is a production mechanism (used by 8 command files), not a test backdoor
+- GOV: `allowed-tools: Bash` in wf:debug.md is intentionally different from other commands
+- CQ: Missing tests for error paths is a coverage suggestion, not a code defect
+- ARCH: Version bump without plan step is an informational process note
