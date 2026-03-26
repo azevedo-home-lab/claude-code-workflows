@@ -142,6 +142,7 @@ if [ -f "$WM_SOURCE_JSON" ] || [ -d "$WM_PLUGIN_DIR" ]; then
   if [ -f "$WM_STATE_FILE" ]; then
     WM_PHASE=$(grep -o '"phase"[[:space:]]*:[[:space:]]*"[^"]*"' "$WM_STATE_FILE" | grep -o '"[^"]*"$' | tr -d '"')
     WM_AUTONOMY=$(grep -o '"autonomy_level"[[:space:]]*:[[:space:]]*"[^"]*"' "$WM_STATE_FILE" | grep -o '"[^"]*"$' | tr -d '"')
+    WM_DEBUG=$(grep -o '"debug"[[:space:]]*:[[:space:]]*true' "$WM_STATE_FILE" || true)
     # Autonomy symbol (only when phase is not OFF and level is set)
     AUTONOMY_SYM=""
     if [ "$WM_PHASE" != "off" ] && [ -n "$WM_AUTONOMY" ]; then
@@ -163,6 +164,10 @@ if [ -f "$WM_SOURCE_JSON" ] || [ -d "$WM_PLUGIN_DIR" ]; then
       OUTPUT+=" ${CYAN}${AUTONOMY_SYM}[REVIEW]${RESET}"
     elif [ "$WM_PHASE" = "complete" ]; then
       OUTPUT+=" ${MAGENTA}${AUTONOMY_SYM}[COMPLETE]${RESET}"
+    fi
+    # Debug indicator
+    if [ -n "$WM_DEBUG" ]; then
+      OUTPUT+=" ${BOLD}${YELLOW}[DEBUG]${RESET}"
     fi
   fi
 else
