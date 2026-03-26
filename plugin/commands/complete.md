@@ -227,12 +227,36 @@ Include version files in the commit staging if they were modified.
 4. Commit using conventional commit format. Use your current model name (from the "You are powered by the model named..." line in your environment context) in the Co-Authored-By line:
 
        Co-Authored-By: <your model name> <noreply@anthropic.com>
-5. Ask: "Push to remote? (yes / no)" — if yes, warn about YubiKey touch:
-   ```
-   ========== YUBIKEY: TOUCH NOW FOR GIT PUSH ==========
-   ```
-
 If clean working tree: skip and note "Nothing to commit."
+
+#### Push to Remote
+
+After committing, push to the remote:
+
+1. Check if there are commits to push:
+```bash
+AHEAD=$(git rev-list --count @{u}..HEAD 2>/dev/null || git rev-list --count origin/$(git symbolic-ref --short HEAD)..HEAD 2>/dev/null || echo "unknown")
+echo "Commits ahead of remote: $AHEAD"
+```
+
+2. If ahead > 0, ask: "Push to remote? (yes / no)"
+   - At **all autonomy levels**: always ask before pushing. Push is never automatic.
+   - If **yes**: warn about YubiKey, then push:
+     ```
+     ========== YUBIKEY: TOUCH NOW FOR GIT PUSH ==========
+     ```
+     ```bash
+     git push origin HEAD
+     ```
+   - If **no**: note "Push deferred — run `git push` manually when ready."
+
+3. If no upstream or unknown: skip push, note "No remote tracking branch — push skipped."
+
+4. After push (or skip), mark informational milestone:
+```bash
+.claude/hooks/workflow-cmd.sh set_completion_field "pushed" "true"
+```
+This is NOT an exit gate — just tracks whether push happened.
 
 #### Step 5 Review Gate
 
