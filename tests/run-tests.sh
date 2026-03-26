@@ -2167,8 +2167,8 @@ mkdir -p "$SETUP_TEST_DIR/.claude"
 # Create minimal settings.json with just Bash permission
 jq -n '{"permissions":{"allow":["Bash"]}}' > "$SETUP_TEST_DIR/.claude/settings.json"
 
-# Run setup.sh
-CLAUDE_PROJECT_DIR="$SETUP_TEST_DIR" bash "$REPO_DIR/plugin/scripts/setup.sh" 2>/dev/null
+# Run setup.sh (|| true: setup.sh may fail on sections B-D which use real $HOME paths)
+CLAUDE_PROJECT_DIR="$SETUP_TEST_DIR" bash "$REPO_DIR/plugin/scripts/setup.sh" 2>/dev/null || true
 
 # Test: state directory created
 if [ -d "$SETUP_TEST_DIR/.claude/state" ]; then
@@ -2203,7 +2203,7 @@ assert_contains "$SETTINGS_CONTENT" "Grep" "setup.sh adds Grep permission"
 assert_contains "$SETTINGS_CONTENT" "Bash" "setup.sh preserves existing Bash permission"
 
 # Test: idempotency (run twice, no duplication)
-CLAUDE_PROJECT_DIR="$SETUP_TEST_DIR" bash "$REPO_DIR/plugin/scripts/setup.sh" 2>/dev/null
+CLAUDE_PROJECT_DIR="$SETUP_TEST_DIR" bash "$REPO_DIR/plugin/scripts/setup.sh" 2>/dev/null || true
 READ_COUNT=$(jq -r '[.permissions.allow[]? | select(. == "Read")] | length' "$SETUP_TEST_DIR/.claude/settings.json")
 assert_eq "1" "$READ_COUNT" "setup.sh is idempotent (no duplicate permissions)"
 
@@ -2497,10 +2497,34 @@ printf '{"intent":"stale"}\n' > "$TEST_DIR/.claude/state/phase-intent.json"
 printf '{"intent":"autonomy:stale"}\n' > "$TEST_DIR/.claude/state/autonomy-intent.json"
 export CLAUDE_PROJECT_DIR="$TEST_DIR"
 FAKE_HOME=$(mktemp -d)
-HOME="$FAKE_HOME" bash "$REPO_DIR/plugin/scripts/setup.sh"
+HOME="$FAKE_HOME" bash "$REPO_DIR/plugin/scripts/setup.sh" 2>/dev/null || true
 rm -rf "$FAKE_HOME"
 assert_file_not_exists "$TEST_DIR/.claude/state/phase-intent.json" "setup.sh cleans stale phase intent"
 assert_file_not_exists "$TEST_DIR/.claude/state/autonomy-intent.json" "setup.sh cleans stale autonomy intent"
+
+# ============================================================
+# TEST SUITE: Agent Definitions (REVIEW phase)
+# ============================================================
+echo ""
+echo "=== Agent Definitions (REVIEW phase) ==="
+
+REVIEW_AGENTS="code-quality-reviewer security-reviewer architecture-reviewer governance-reviewer review-verifier"
+
+for agent in $REVIEW_AGENTS; do
+    AGENT_FILE="$REPO_DIR/plugin/agents/${agent}.md"
+
+    # Test: agent file exists
+    assert_file_exists "$AGENT_FILE" "agent file exists: ${agent}.md"
+
+    # Test: agent file has valid YAML frontmatter with name field
+    if [ -f "$AGENT_FILE" ]; then
+        FIRST_LINE=$(head -1 "$AGENT_FILE")
+        assert_eq "---" "$FIRST_LINE" "agent file has YAML frontmatter: ${agent}"
+
+        AGENT_NAME=$(sed -n '2,/^---$/p' "$AGENT_FILE" | grep "^name:" | sed 's/^name:[[:space:]]*//')
+        assert_eq "$agent" "$AGENT_NAME" "agent frontmatter name matches filename: ${agent}"
+    fi
+done
 
 # ============================================================
 # RESULTS
