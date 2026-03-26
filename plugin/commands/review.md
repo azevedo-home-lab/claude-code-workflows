@@ -42,29 +42,32 @@ git ls-files --others --exclude-standard
 
 If no changes detected, report "No changes to review" and skip to the end. Update state with `agents_dispatched: true`, `findings_presented: true`, `findings_acknowledged: true`.
 
-### Step 3: Dispatch 3 Review Agents in Parallel
+### Step 3: Dispatch 4 Review Agents in Parallel
 
-Launch all three agents simultaneously using the Agent tool (3 parallel calls in one message). Pass each agent the list of changed files.
+Launch all four agents simultaneously using the Agent tool (4 parallel calls in one message). Pass each agent the list of changed files as runtime context.
 
-**Agent 1 — Code Quality Reviewer** (subagent_type: "code-review")
-Prompt: "Review these changed files for code quality issues. Changed files: [LIST]. Project principles: KISS, DRY, SOLID, YAGNI. Check for: unnecessary complexity, code duplication, dead code, functions doing too many things, poor naming, missing error handling at system boundaries. For each finding report: Severity (CRITICAL/WARNING/SUGGESTION), File and line range, Description, Recommended fix. If no issues: 'No code quality issues found.' Also check: are there tests for unhappy paths and edge cases? For every conditional branch, error path, or input validation in the changed code, verify a test exercises the failure case. If tests only cover happy paths, flag as WARNING with specific untested scenarios. Keep output concise — findings only, limit to 2000 tokens."
+**Agent 1 — Code Quality Reviewer** (subagent_type: "workflow-manager:code-quality-reviewer")
+Context: "Changed files: [LIST]"
 
-**Agent 2 — Security Reviewer** (subagent_type: "code-review")
-Prompt: "Review these changed files for security vulnerabilities. Changed files: [LIST]. Check for: command injection, hardcoded credentials/tokens/API keys, exposed internal IPs, XSS/SQL injection, unsafe file operations, insecure defaults. IMPORTANT: Consider execution context — scripts run by the user on their own infrastructure are NOT command injection. Only flag where untrusted input reaches a command. For each finding report: Severity (CRITICAL/WARNING/SUGGESTION), File and line range, Description and threat model, Recommended fix. If no issues: 'No security issues found.' Keep output concise — findings only, limit to 2000 tokens."
+**Agent 2 — Security Reviewer** (subagent_type: "workflow-manager:security-reviewer")
+Context: "Changed files: [LIST]"
 
-**Agent 3 — Architecture & Plan Compliance Reviewer** (subagent_type: "code-review")
+**Agent 3 — Architecture & Plan Compliance Reviewer** (subagent_type: "workflow-manager:architecture-reviewer")
 
-Before dispatching Agent 3, find the plan file path: check `docs/superpowers/plans/` and `docs/plans/` for the most recent `.md` file. If found, include it in the prompt.
+Before dispatching Agent 3, find the plan file path: check `docs/superpowers/plans/` and `docs/plans/` for the most recent `.md` file. If found, include it in the context.
 
-Prompt: "Review these changed files for architectural issues and plan compliance. Changed files: [LIST]. Plan file: [PLAN_PATH or 'no plan file found']. If a plan file is provided, read it and verify each task was implemented correctly. Check for: does implementation match the plan/spec, are existing patterns followed, are component boundaries respected, new undocumented dependencies, regressions. For each finding report: Severity (CRITICAL/WARNING/SUGGESTION), File and line range, Description, Recommended fix. If no issues: 'No architectural issues found.' Keep output concise — findings only, limit to 2000 tokens."
+Context: "Changed files: [LIST]. Plan file: [PLAN_PATH or 'no plan file found']"
+
+**Agent 4 — Governance & Production Readiness Reviewer** (subagent_type: "workflow-manager:governance-reviewer")
+Context: "Changed files: [LIST]"
 
 If any agent fails or times out, note which agent failed and proceed with findings from agents that succeeded.
 
 ### Step 4: Dispatch Verification Agent
 
-After all 3 review agents return, dispatch a single verification agent (subagent_type: "code-review"):
+After all 4 review agents return, dispatch a single verification agent (subagent_type: "workflow-manager:review-verifier"):
 
-Prompt: "You are a code review verifier. Check each candidate finding against actual code to filter false positives. Candidate findings: [ALL FINDINGS FROM STEP 3]. For each finding: (1) Read the actual file and line range, (2) Check if issue is real — 'unused function' grep for calls, 'hardcoded credential' check if placeholder/comment, 'command injection' check if input is user-controlled, (3) Verdict: CONFIRMED / FALSE_POSITIVE / DOWNGRADE. Output only CONFIRMED and DOWNGRADED findings with: severity, file:line, description, which reviewer found it, brief verification evidence."
+Context: "Candidate findings from 4 review agents: [ALL FINDINGS FROM STEP 3]"
 
 ### Step 5: Consolidate, Persist, and Present Findings
 
@@ -80,6 +83,7 @@ Take the verified findings and:
 ## Review Findings
 
 ### Critical (must fix before merge)
+Prefix findings with category: [QUAL] code quality, [SEC] security, [ARCH] architecture, [GOV] governance
 - [findings or "None"]
 
 ### Warnings (should fix)
