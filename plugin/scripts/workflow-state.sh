@@ -314,6 +314,7 @@ _read_preserved_state() {
     preserved_tracked=$(get_tracked_observations)
     preserved_snapshot=$(jq -c '.completion_snapshot // null' "$STATE_FILE" 2>/dev/null) || preserved_snapshot="null"
     preserved_tests_passed=$(get_tests_passed_at)
+    preserved_debug=$(get_debug)
 }
 
 set_phase() {
@@ -372,6 +373,7 @@ set_phase() {
     local preserved_skill="" preserved_decision="" preserved_autonomy=""
     local preserved_obs_id="" preserved_tracked="" preserved_snapshot="null"
     local preserved_tests_passed=""
+    local preserved_debug=""
     local current_phase="off"
     if [ -f "$STATE_FILE" ]; then
         current_phase=$(get_phase)
@@ -385,6 +387,7 @@ set_phase() {
         preserved_decision=""
         preserved_autonomy=""
         preserved_tests_passed=""
+        preserved_debug="false"
     fi
 
     # Initialize autonomy_level to "ask" when transitioning from OFF to active phase.
@@ -419,6 +422,7 @@ set_phase() {
           --argjson tracked "$tracked_json" \
           --argjson snapshot "$snapshot_json" \
           --arg tests_passed "$preserved_tests_passed" \
+          --arg debug "$preserved_debug" \
           '{
               phase: $phase,
               message_shown: false,
@@ -431,7 +435,8 @@ set_phase() {
           + (if $obs_id != "" and $obs_id != "null" then {last_observation_id: ($obs_id | tonumber)} else {} end)
           + (if ($tracked | length) > 0 then {tracked_observations: $tracked} else {} end)
           + (if $snapshot != null then {completion_snapshot: $snapshot} else {} end)
-          + (if $tests_passed != "" then {tests_last_passed_at: $tests_passed} else {} end)' \
+          + (if $tests_passed != "" then {tests_last_passed_at: $tests_passed} else {} end)
+          + (if $debug == "true" then {debug: true} else {} end)' \
           | _safe_write
     )
 }
@@ -669,4 +674,32 @@ get_pending_verify() {
     local val
     val=$(jq -r '.coaching.pending_verify // 0' "$STATE_FILE" 2>/dev/null) || val="0"
     echo "$val"
+}
+
+# ---------------------------------------------------------------------------
+# Debug mode
+# ---------------------------------------------------------------------------
+
+get_debug() {
+    if [ ! -f "$STATE_FILE" ]; then
+        echo "false"
+        return
+    fi
+    local val
+    val=$(jq -r 'if .debug == true then "true" else "false" end' "$STATE_FILE" 2>/dev/null) || val="false"
+    [ -z "$val" ] && val="false"
+    echo "$val"
+}
+
+set_debug() {
+    if [ ! -f "$STATE_FILE" ]; then
+        echo "WARNING: No workflow state file. Start a workflow phase first." >&2
+        return 1
+    fi
+    local val="$1"
+    case "$val" in
+        true|false) ;;
+        *) echo "ERROR: Invalid debug value: $val (valid: true, false)" >&2; return 1 ;;
+    esac
+    _update_state '.debug = ($v == "true")' --arg v "$val"
 }

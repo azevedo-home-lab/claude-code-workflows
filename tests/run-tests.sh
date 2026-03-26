@@ -518,6 +518,37 @@ OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review
 # Should not crash — jq handles corrupt JSON gracefully via fallback defaults
 assert_not_contains "$OUTPUT" "HARD GATE" "corrupt state file does not trigger false gate block"
 
+# --- Debug flag tests ---
+echo ""
+echo "--- Debug flag ---"
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+
+# Test: get_debug returns "false" by default
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_debug)
+assert_eq "false" "$RESULT" "get_debug defaults to false"
+
+# Test: set_debug enables debug mode
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_debug "true"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_debug)
+assert_eq "true" "$RESULT" "set_debug enables debug mode"
+
+# Test: set_debug disables debug mode
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_debug "false"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_debug)
+assert_eq "false" "$RESULT" "set_debug disables debug mode"
+
+# Test: debug flag preserved across phase transitions
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_debug "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_debug)
+assert_eq "true" "$RESULT" "debug flag preserved across phase transitions"
+
+# Test: debug flag cleared when phase goes to OFF
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_debug)
+assert_eq "false" "$RESULT" "debug flag cleared on OFF"
+
 # ============================================================
 # TEST SUITE: workflow-gate.sh
 # ============================================================
