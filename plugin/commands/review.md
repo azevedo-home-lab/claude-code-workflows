@@ -11,17 +11,17 @@ Before proceeding:
 
 **You MUST execute all steps in order. Do not skip any step.**
 
-### Step 1: Run Tests
+### Step 1: Verify Tests Passed
 
-Look for test commands in the project:
-- `tests/run-tests.sh` or similar test scripts in `tests/` directory
-- `package.json` with test scripts (`npm test`)
-- `pytest`, `make test`, `cargo test`, etc.
+The IMPLEMENT phase runs the full test suite as an exit gate (`tests_passing` milestone). Do NOT re-run the test suite here — use the IMPLEMENT result.
 
-If tests found, run them and capture the output.
-- If tests **pass**: report the result and continue.
-- If tests **fail**: report the failures and ask: "Tests failed. Fix now or continue review?"
-- If **no tests found**: report "No tests found — skipping verification" and continue.
+```bash
+TESTS_PASSED=$(.claude/hooks/workflow-cmd.sh get_implement_field "tests_passing")
+echo "IMPLEMENT tests_passing: $TESTS_PASSED"
+```
+
+- If `"true"`: report "Tests verified in IMPLEMENT phase" and continue.
+- If not `"true"` or empty: tests may not have run or code changed since IMPLEMENT. Run the test suite now and report results.
 
 Update state after this step:
 ```bash

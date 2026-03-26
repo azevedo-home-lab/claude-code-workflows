@@ -34,7 +34,7 @@ Dispatch a **Plan validator agent** to:
 1. Read the plan file
 2. Extract every deliverable, acceptance criterion, and expected outcome
 3. Classify each as structural (file exists) or behavioral (must demonstrate)
-4. For behavioral deliverables: exercise and show output, don't just grep
+4. For behavioral deliverables: exercise and show output, don't just grep. **Exception: do NOT re-run the full test suite.** The IMPLEMENT phase already ran it as an exit gate. Instead, verify test *coverage* by reading the test file — check that tests exist for each deliverable and reference the IMPLEMENT result (tests_passing=true) as evidence.
 5. Return a checklist with PASS/FAIL and evidence for each
 
 **If no plan file exists**: report "No plan file found — skipping plan validation" and mark as done.
@@ -56,7 +56,7 @@ Use the first source found. If the workflow started at `/discuss` (no decision r
 Dispatch an **Outcome validator agent** to:
 1. Read the outcome source document
 2. Extract every outcome, success metric, and acceptance criterion
-3. For each outcome, require behavioral evidence — demonstrate, don't just grep
+3. For each outcome, require behavioral evidence — demonstrate, don't just grep. **Exception: do NOT re-run the full test suite.** Reference the IMPLEMENT result (tests_passing=true) and verify test *coverage* by reading the test file instead.
 4. For each success metric: verify if immediately testable, flag as "TO MONITOR" if long-term
 5. **Flag manual steps** — if the spec defines steps that require user action (key generation, service registration, hardware setup), list them as outcomes that need E2E verification. Guide the user through verification rather than skipping.
 6. Return an outcome checklist with PASS/FAIL/MANUAL and evidence
