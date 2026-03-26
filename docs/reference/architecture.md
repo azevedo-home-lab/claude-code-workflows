@@ -181,7 +181,7 @@ Phase and autonomy are two orthogonal dimensions of control:
 | `▶▶` | ask | Semi-Auto | Claude works freely within each phase but stops at phase boundaries for review and guidance before transitioning. No auto-commits. **Default.** |
 | `▶▶▶` | auto | Unattended | Full autonomy. Claude auto-transitions between phases, auto-fixes review findings, auto-commits. Stops only when user input is genuinely needed or before git push. |
 
-**Enforcement**: Hooks (`workflow-gate.sh`, `bash-write-guard.sh`) are the single source of truth and apply the autonomy check before the phase gate. Claude Code permission modes (`plan`/`default`/`acceptEdits`) are best-effort convenience that mirror the active autonomy level but are not relied upon for enforcement.
+**Enforcement**: Hooks (`workflow-gate.sh`, `bash-write-guard.sh`) are the single source of truth for write permissions. All autonomy levels follow the same phase-based rules — the difference is checkpoint granularity (instructional), not enforcement. Claude Code permission modes (`default`/`acceptEdits`/`auto`) are separate from WFM autonomy — they control tool-level prompting, not workflow discipline.
 
 Set via `/autonomy off|ask|auto`. Only the user can change it.
 

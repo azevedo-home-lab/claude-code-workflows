@@ -210,8 +210,6 @@ Both `workflow-gate.sh` and `bash-write-guard.sh` apply checks in this order:
 
 All three autonomy levels (`off`, `ask`, `auto`) follow the same phase-based write rules. The difference between levels is behavioral (checkpoint granularity), not enforcement — `off` stops after each plan step, `ask` stops at phase boundaries, `auto` runs end-to-end. The hooks are the single source of truth for write permissions; Claude Code permission modes (`plan`/`default`/`acceptEdits`) are best-effort convenience only.
 
-> **Note:** The hook code currently has an extra gate that blocks all writes when autonomy is `off` regardless of phase. This is a known bug — `off` should follow phase rules like `ask` and `auto`. See issue #4228.
-
 ## Known Limitations
 
 1. **Bash bypass is ~95% covered**. A sufficiently creative command can slip through. Anthropic closed this as NOT_PLANNED (GitHub #29709).
