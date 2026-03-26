@@ -259,6 +259,36 @@ remove_tracked_observation() {
 }
 
 # ---------------------------------------------------------------------------
+# Issue mappings (observation ID → GitHub issue URL)
+# ---------------------------------------------------------------------------
+
+set_issue_mapping() {
+    local obs_id="$1" issue_url="$2"
+    if [ -z "$obs_id" ] || [ -z "$issue_url" ]; then return 1; fi
+    mkdir -p "$STATE_DIR"
+    local ts
+    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    if [ ! -f "$STATE_FILE" ]; then
+        ( set -o pipefail; jq -n --arg id "$obs_id" --arg url "$issue_url" --arg ts "$ts" \
+            '{"phase": "off", "issue_mappings": {($id): $url}, "updated": $ts}' | _safe_write )
+        return $?
+    fi
+    _update_state '.issue_mappings = ((.issue_mappings // {}) + {($id): $url})' \
+        --arg id "$obs_id" --arg url "$issue_url"
+}
+
+get_issue_url() {
+    local obs_id="$1"
+    if [ ! -f "$STATE_FILE" ]; then echo ""; return; fi
+    jq -r --arg id "$obs_id" '.issue_mappings[$id] // ""' "$STATE_FILE" 2>/dev/null
+}
+
+get_issue_mappings() {
+    if [ ! -f "$STATE_FILE" ]; then echo "{}"; return; fi
+    jq -r '.issue_mappings // {}' "$STATE_FILE" 2>/dev/null
+}
+
+# ---------------------------------------------------------------------------
 # Completion snapshot (loop-back exception from COMPLETE → IMPLEMENT → COMPLETE)
 # ---------------------------------------------------------------------------
 
@@ -291,7 +321,7 @@ _check_phase_gates() {
     # COMPLETE exit gate: leaving complete → must have completed completion pipeline
     if [ "$current" = "complete" ] && [ "$new_phase" != "complete" ]; then
         local missing=""
-        missing=$(_check_milestones "completion" "plan_validated" "outcomes_validated" "results_presented" "docs_checked" "committed" "tech_debt_audited" "handover_saved")
+        missing=$(_check_milestones "completion" "plan_validated" "outcomes_validated" "results_presented" "docs_checked" "committed" "pushed" "tech_debt_audited" "handover_saved")
         if [ -n "$missing" ]; then
             echo "HARD GATE: Cannot leave COMPLETE — incomplete pipeline steps:$missing. Complete all completion steps before transitioning." >&2
             return 1
@@ -313,6 +343,7 @@ _read_preserved_state() {
     preserved_obs_id=$(get_last_observation_id)
     preserved_tracked=$(get_tracked_observations)
     preserved_snapshot=$(jq -c '.completion_snapshot // null' "$STATE_FILE" 2>/dev/null) || preserved_snapshot="null"
+    preserved_issue_mappings=$(jq -c '.issue_mappings // null' "$STATE_FILE" 2>/dev/null) || preserved_issue_mappings="null"
     preserved_tests_passed=$(get_tests_passed_at)
     preserved_debug=$(get_debug)
 }
@@ -372,6 +403,7 @@ set_phase() {
     # Read existing state to preserve fields across transitions
     local preserved_skill="" preserved_decision="" preserved_autonomy=""
     local preserved_obs_id="" preserved_tracked="" preserved_snapshot="null"
+    local preserved_issue_mappings="null"
     local preserved_tests_passed=""
     local preserved_debug=""
     local current_phase="off"
@@ -421,6 +453,7 @@ set_phase() {
           --arg obs_id "$preserved_obs_id" \
           --argjson tracked "$tracked_json" \
           --argjson snapshot "$snapshot_json" \
+          --argjson issue_maps "${preserved_issue_mappings:-null}" \
           --arg tests_passed "$preserved_tests_passed" \
           --arg debug "$preserved_debug" \
           '{
@@ -435,6 +468,7 @@ set_phase() {
           + (if $obs_id != "" and $obs_id != "null" then {last_observation_id: ($obs_id | tonumber)} else {} end)
           + (if ($tracked | length) > 0 then {tracked_observations: $tracked} else {} end)
           + (if $snapshot != null then {completion_snapshot: $snapshot} else {} end)
+          + (if $issue_maps != null then {issue_mappings: $issue_maps} else {} end)
           + (if $tests_passed != "" then {tests_last_passed_at: $tests_passed} else {} end)
           + (if $debug == "true" then {debug: true} else {} end)' \
           | _safe_write

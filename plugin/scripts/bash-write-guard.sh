@@ -92,6 +92,27 @@ if echo "$COMMAND" | grep -qE '^[[:space:]]*(git|/usr/bin/git|/usr/local/bin/git
     exit 0
 fi
 
+# Allow safe git chains: git add/status/diff/log && git commit
+# Splits command on chain operators, checks every non-commit segment is a safe git op
+if echo "$COMMAND" | grep -qE '(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+commit\b'; then
+    SAFE=true
+    while IFS= read -r segment; do
+        segment=$(echo "$segment" | sed 's/^[[:space:]]*//')
+        [ -z "$segment" ] && continue
+        # Skip the git commit segment itself
+        echo "$segment" | grep -qE '^(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+commit\b' && continue
+        # Allow only safe git ops: add, status, diff, stash, log, show
+        if ! echo "$segment" | grep -qE '^(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+(add|status|diff|stash|log|show)\b'; then
+            SAFE=false
+            break
+        fi
+    done < <(echo "$COMMAND" | head -1 | sed -E 's/-m "[^"]*"/-m MSG/g; s/-m '"'"'[^'"'"']*'"'"'/-m MSG/g; s/-m [^ ;|&]+/-m MSG/g' | sed 's/&&/\n/g; s/||/\n/g; s/;/\n/g')
+    if [ "$SAFE" = true ]; then
+        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: safe git chain with commit" >&2; fi
+        exit 0
+    fi
+fi
+
 # Strip safe redirects before checking write patterns
 # 2>/dev/null, 2>&1, 1>&2 etc. are not file writes
 CLEAN_CMD=$(echo "$COMMAND" | sed -E 's/[0-9]+>\/dev\/null//g; s/[0-9]*>&[0-9]+//g')

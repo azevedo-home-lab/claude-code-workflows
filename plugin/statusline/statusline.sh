@@ -35,6 +35,10 @@ BLUE='\033[34m'
 CYAN='\033[36m'
 MAGENTA='\033[35m'
 
+# Bounds-check percentage
+[ "$USED_PCT" -lt 0 ] 2>/dev/null && USED_PCT=0
+[ "$USED_PCT" -gt 100 ] 2>/dev/null && USED_PCT=100
+
 # Context bar color: green <30%, blue 30-60%, red >=60%
 if [ "$USED_PCT" -lt 30 ]; then
   BAR_COLOR="$GREEN"
@@ -67,6 +71,9 @@ if [ "${#SHORT_CWD}" -gt 30 ]; then
   SHORT_CWD="…/$(echo "$SHORT_CWD" | rev | cut -d/ -f1-2 | rev)"
 fi
 
+# Sanitize untrusted inputs — escape backslashes to prevent printf '%b' injection
+SHORT_CWD="${SHORT_CWD//\\/\\\\}"
+
 # Git branch (from worktree or local git)
 if [ -n "$WORKTREE_BRANCH" ]; then
   BRANCH="$WORKTREE_BRANCH"
@@ -92,6 +99,10 @@ OUTPUT+="${BAR_COLOR}${BAR}${RESET} ${USED_PCT}%${TOKEN_INFO}"
 if [ -n "$BRANCH" ]; then
   OUTPUT+="  ${DIM}│${RESET}  ${CYAN} ${BRANCH}${RESET}"
 fi
+
+# Sanitize worktree/branch inputs
+WORKTREE_NAME="${WORKTREE_NAME//\\/\\\\}"
+BRANCH="${BRANCH//\\/\\\\}"
 
 # Worktree indicator
 if [ -n "$WORKTREE_NAME" ]; then
@@ -199,9 +210,22 @@ if [ -d "$CM_PLUGIN_DIR" ]; then
   if [ -f "$WM_STATE_FILE" ]; then
     CM_OBS_ID=$(grep -o '"last_observation_id"[[:space:]]*:[[:space:]]*[0-9]*' "$WM_STATE_FILE" | grep -o '[0-9]*$')
     [ -n "$CM_OBS_ID" ] && CM_SUFFIX=" ${CYAN}[#${CM_OBS_ID}]${RESET}"
-    # Tracked observations (tech debt, open issues, next steps)
-    CM_TRACKED=$(jq -r '.tracked_observations // [] | map("#" + tostring) | join(",")' "$WM_STATE_FILE" 2>/dev/null)
-    [ -n "$CM_TRACKED" ] && CM_SUFFIX+=" ${DIM}Open:[${CM_TRACKED}]${RESET}"
+    # Tracked observations with OSC 8 hyperlinks (clickable in VS Code, plain text elsewhere)
+    CM_TRACKED_IDS=$(jq -r '.tracked_observations // [] | .[]' "$WM_STATE_FILE" 2>/dev/null)
+    if [ -n "$CM_TRACKED_IDS" ]; then
+      LINKS=""
+      for OBS_ID in $CM_TRACKED_IDS; do
+        [ -n "$LINKS" ] && LINKS+=","
+        ISSUE_URL=$(jq -r --arg id "$OBS_ID" '.issue_mappings[$id] // ""' "$WM_STATE_FILE" 2>/dev/null)
+        if [ -n "$ISSUE_URL" ]; then
+          # OSC 8 hyperlink: \e]8;;URL\a VISIBLE \e]8;;\a
+          LINKS+="\033]8;;${ISSUE_URL}\a#${OBS_ID}\033]8;;\a"
+        else
+          LINKS+="#${OBS_ID}"
+        fi
+      done
+      CM_SUFFIX+=" ${DIM}Open:[${LINKS}]${RESET}"
+    fi
   fi
   OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Claude-Mem ${CM_VERSION} ✓${RESET}${CM_SUFFIX}"
 else

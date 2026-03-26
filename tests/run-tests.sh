@@ -468,6 +468,7 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "outc
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "results_presented" "true"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "docs_checked" "true"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "committed" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "pushed" "true"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "tech_debt_audited" "true"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "handover_saved" "true"
 OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off" 2>&1)
@@ -936,6 +937,28 @@ assert_eq "" "$RESULT" "bash-guard: git commit with simple message allowed in DI
 RESULT=$(echo '{"tool_input":{"command":"git commit -m \"msg\" && rm -rf /"}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
 assert_contains "$RESULT" "deny" "bash-guard: git commit && rm blocked"
+
+# Test: git add && git commit allowed (safe chain)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+RESULT=$(echo '{"tool_input":{"command":"git add file.txt && git commit -m \"feat: test\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_eq "" "$RESULT" "bash-guard: git add && git commit allowed"
+
+# Test: git add -A && git commit allowed
+RESULT=$(echo '{"tool_input":{"command":"git add -A && git commit -m \"fix: stuff\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_eq "" "$RESULT" "bash-guard: git add -A && git commit allowed"
+
+# Test: git status && git add && git commit allowed
+RESULT=$(echo '{"tool_input":{"command":"git status && git add . && git commit -m \"chore: update\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_eq "" "$RESULT" "bash-guard: git status && git add && git commit allowed"
+
+# Test: echo > file && git commit blocked (write + commit chain)
+RESULT=$(echo '{"tool_input":{"command":"echo pwned > evil.txt && git commit -m \"msg\""}}' | \
+    CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
+assert_contains "$RESULT" "deny" "bash-guard: echo > file && git commit blocked"
 
 # Test: git commit allowed at Level 1
 setup_test_project
@@ -1730,6 +1753,43 @@ CLEAN_OUTPUT=$(echo "$OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
 assert_not_contains "$CLEAN_OUTPUT" "#[0-9]" "statusline shows no observation ID when field absent"
 rm -rf "$SL_NOOBS_DIR"
 
+# Test: used_percentage clamped to 0-100
+OUTPUT=$(run_statusline '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":150,"context_window_size":200000,"current_usage":{"input_tokens":300000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/test"}')
+assert_contains "$OUTPUT" "100%" "statusline clamps used_percentage >100 to 100"
+assert_not_contains "$OUTPUT" "150" "statusline does not show unclamped 150%"
+
+OUTPUT=$(run_statusline '{"model":{"display_name":"Opus"},"context_window":{"used_percentage":-5,"context_window_size":200000,"current_usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"cwd":"/tmp/test"}')
+assert_contains "$OUTPUT" "0%" "statusline clamps used_percentage <0 to 0"
+
+# Test: CWD with backslash does not cause injection
+SL_BS_DIR=$(mktemp -d)
+OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_BS_DIR\"}")
+# Output should not contain unexpected newlines from printf '%b' injection
+LINE_COUNT=$(echo "$OUTPUT" | wc -l | tr -d ' ')
+assert_eq "2" "$LINE_COUNT" "statusline output is exactly 2 lines (no injection)"
+rm -rf "$SL_BS_DIR"
+
+# Test: tracked observations with issue mapping produce OSC 8 links
+SL_LINK_DIR=$(mktemp -d)
+mkdir -p "$SL_LINK_DIR/.claude/state"
+echo '{"phase":"implement","tracked_observations":[100,200],"issue_mappings":{"100":"https://github.com/test/repo/issues/42"}}' > "$SL_LINK_DIR/.claude/state/workflow.json"
+OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_LINK_DIR\"}")
+# Obs 100 should have OSC 8 link, obs 200 should be plain
+assert_contains "$OUTPUT" "#100" "statusline shows tracked obs 100"
+assert_contains "$OUTPUT" "#200" "statusline shows tracked obs 200 (plain)"
+assert_contains "$OUTPUT" "github.com/test/repo/issues/42" "statusline contains issue URL in OSC 8 link"
+rm -rf "$SL_LINK_DIR"
+
+# Test: tracked observations without mappings are plain text
+SL_PLAIN_DIR=$(mktemp -d)
+mkdir -p "$SL_PLAIN_DIR/.claude/state"
+echo '{"phase":"implement","tracked_observations":[300,400]}' > "$SL_PLAIN_DIR/.claude/state/workflow.json"
+OUTPUT=$(run_statusline "{\"model\":{\"display_name\":\"Opus\"},\"context_window\":{\"used_percentage\":10,\"context_window_size\":200000,\"current_usage\":{\"input_tokens\":20000,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0}},\"cwd\":\"$SL_PLAIN_DIR\"}")
+assert_contains "$OUTPUT" "#300" "statusline shows plain obs 300"
+assert_contains "$OUTPUT" "#400" "statusline shows plain obs 400"
+assert_contains "$OUTPUT" "Open:" "statusline shows Open: prefix"
+rm -rf "$SL_PLAIN_DIR"
+
 # Teardown: clean up Workflow Manager plugin cache if we created it
 if [ "$WM_CACHE_EXISTED" = "false" ]; then
     rm -rf "$HOME/.claude/plugins/cache/azevedo-home-lab"
@@ -2252,6 +2312,7 @@ assert_eq "true" "$(has_completion_snapshot)" "has_completion_snapshot true afte
 set_completion_field "results_presented" "true"
 set_completion_field "docs_checked" "true"
 set_completion_field "committed" "true"
+set_completion_field "pushed" "true"
 set_completion_field "tech_debt_audited" "true"
 set_completion_field "handover_saved" "true"
 set_phase "implement"
@@ -2371,7 +2432,8 @@ rm -rf "$SL_NODEBUG_DIR"
 echo ""
 echo "=== Statusline Version Detection ==="
 
-# _plugin_version helper (mirrors statusline.sh)
+# SYNC: must match plugin/statusline/statusline.sh:_plugin_version
+# If you change this, update the statusline copy too (and vice versa).
 _plugin_version() {
   local plugin_dir="$1"
   local latest_dir
@@ -2887,6 +2949,55 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/workflow-cmd.sh" set_tests_passed_at "cmd-test-hash"
 RESULT=$(CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/workflow-cmd.sh" get_tests_passed_at)
 assert_eq "cmd-test-hash" "$RESULT" "workflow-cmd.sh exposes set/get_tests_passed_at"
+
+# --- Issue mapping state helpers ---
+
+# Test: set and get issue mapping round-trip
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+set_issue_mapping "1234" "https://github.com/test/repo/issues/42"
+RESULT=$(get_issue_url "1234")
+assert_eq "https://github.com/test/repo/issues/42" "$RESULT" "issue mapping set/get round-trip"
+
+# Test: get_issue_url returns empty for unmapped observation
+RESULT=$(get_issue_url "9999")
+assert_eq "" "$RESULT" "get_issue_url returns empty for unmapped obs"
+
+# Test: multiple issue mappings coexist
+set_issue_mapping "5678" "https://github.com/test/repo/issues/99"
+RESULT1=$(get_issue_url "1234")
+RESULT2=$(get_issue_url "5678")
+assert_eq "https://github.com/test/repo/issues/42" "$RESULT1" "first mapping preserved after second add"
+assert_eq "https://github.com/test/repo/issues/99" "$RESULT2" "second mapping stored correctly"
+
+# Test: issue mappings preserved across phase transition
+set_phase "review"
+RESULT=$(get_issue_url "1234")
+assert_eq "https://github.com/test/repo/issues/42" "$RESULT" "issue mapping preserved across phase transition"
+
+# Test: workflow-cmd.sh exposes issue mapping functions
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/workflow-cmd.sh" set_issue_mapping "111" "https://github.com/x/y/issues/1"
+RESULT=$(CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/workflow-cmd.sh" get_issue_url "111")
+assert_eq "https://github.com/x/y/issues/1" "$RESULT" "workflow-cmd.sh exposes set/get_issue_mapping"
+
+# --- COMPLETE exit gate: pushed field ---
+
+# Test: COMPLETE exit gate fails without pushed field
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
+# Set all milestones except pushed
+for field in plan_validated outcomes_validated results_presented docs_checked committed tech_debt_audited handover_saved; do
+    set_completion_field "$field" "true"
+done
+RESULT=$(set_phase "off" 2>&1) || true
+assert_contains "$RESULT" "pushed" "COMPLETE exit gate requires pushed field"
+
+# Test: COMPLETE exit gate passes with all fields including pushed
+set_completion_field "pushed" "true"
+RESULT=$(set_phase "off" 2>&1)
+assert_not_contains "$RESULT" "HARD GATE" "COMPLETE exit gate passes with pushed field set"
 
 # ============================================================
 # TEST SUITE: Command Files
