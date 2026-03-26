@@ -96,6 +96,12 @@ if [ -f "$SOURCE_PLUGIN_JSON" ] && [ -d "$CACHE_DIR" ]; then
         [ ! -e "$CACHE_DIR/$SOURCE_VERSION/$entry" ] && cp -r "$item" "$CACHE_DIR/$SOURCE_VERSION/$entry"
       done
     fi
+    # Ensure agents/ and config/ are in the cache (may be missing from older versions)
+    for dir in agents config; do
+      if [ -d "$PLUGIN_ROOT/$dir" ] && [ ! -d "$CACHE_DIR/$SOURCE_VERSION/$dir" ]; then
+        cp -r "$PLUGIN_ROOT/$dir" "$CACHE_DIR/$SOURCE_VERSION/$dir"
+      fi
+    done
   fi
 fi
 

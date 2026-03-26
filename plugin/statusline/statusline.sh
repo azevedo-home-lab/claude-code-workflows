@@ -122,7 +122,7 @@ _plugin_version() {
 
 # Workflow Manager: prefer source plugin.json (avoids stale cache), fall back to cache
 WM_PLUGIN_DIR="$HOME/.claude/plugins/cache/azevedo-home-lab/workflow-manager"
-WM_SOURCE_JSON="${CWD}/plugin/.claude-plugin/plugin.json"
+WM_SOURCE_JSON="${CWD}/.claude-plugin/plugin.json"
 if [ -f "$WM_SOURCE_JSON" ] || [ -d "$WM_PLUGIN_DIR" ]; then
   if [ -f "$WM_SOURCE_JSON" ]; then
     WM_VERSION=$(jq -r '.version // "?"' "$WM_SOURCE_JSON" 2>/dev/null)

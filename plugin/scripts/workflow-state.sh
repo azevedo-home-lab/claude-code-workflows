@@ -313,6 +313,7 @@ _read_preserved_state() {
     preserved_obs_id=$(get_last_observation_id)
     preserved_tracked=$(get_tracked_observations)
     preserved_snapshot=$(jq -c '.completion_snapshot // null' "$STATE_FILE" 2>/dev/null) || preserved_snapshot="null"
+    preserved_tests_passed=$(get_tests_passed_at)
 }
 
 set_phase() {
@@ -370,6 +371,7 @@ set_phase() {
     # Read existing state to preserve fields across transitions
     local preserved_skill="" preserved_decision="" preserved_autonomy=""
     local preserved_obs_id="" preserved_tracked="" preserved_snapshot="null"
+    local preserved_tests_passed=""
     local current_phase="off"
     if [ -f "$STATE_FILE" ]; then
         current_phase=$(get_phase)
@@ -382,6 +384,7 @@ set_phase() {
         preserved_skill=""
         preserved_decision=""
         preserved_autonomy=""
+        preserved_tests_passed=""
     fi
 
     # Initialize autonomy_level to "ask" when transitioning from OFF to active phase.
@@ -415,6 +418,7 @@ set_phase() {
           --arg obs_id "$preserved_obs_id" \
           --argjson tracked "$tracked_json" \
           --argjson snapshot "$snapshot_json" \
+          --arg tests_passed "$preserved_tests_passed" \
           '{
               phase: $phase,
               message_shown: false,
@@ -426,7 +430,8 @@ set_phase() {
           + (if $autonomy != "" then {autonomy_level: $autonomy} else {} end)
           + (if $obs_id != "" and $obs_id != "null" then {last_observation_id: ($obs_id | tonumber)} else {} end)
           + (if ($tracked | length) > 0 then {tracked_observations: $tracked} else {} end)
-          + (if $snapshot != null then {completion_snapshot: $snapshot} else {} end)' \
+          + (if $snapshot != null then {completion_snapshot: $snapshot} else {} end)
+          + (if $tests_passed != "" then {tests_last_passed_at: $tests_passed} else {} end)' \
           | _safe_write
     )
 }
@@ -473,6 +478,22 @@ get_decision_record() {
     fi
     local val
     val=$(jq -r '.decision_record // ""' "$STATE_FILE" 2>/dev/null) || val=""
+    echo "$val"
+}
+
+# ---------------------------------------------------------------------------
+# Test results tracking (preserved across phase transitions)
+# ---------------------------------------------------------------------------
+
+set_tests_passed_at() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.tests_last_passed_at = $v' --arg v "$1"; }
+
+get_tests_passed_at() {
+    if [ ! -f "$STATE_FILE" ]; then
+        echo ""
+        return
+    fi
+    local val
+    val=$(jq -r '.tests_last_passed_at // ""' "$STATE_FILE" 2>/dev/null) || val=""
     echo "$val"
 }
 

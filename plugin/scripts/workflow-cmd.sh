@@ -34,6 +34,7 @@ case "$1" in
     increment_coaching_counter|reset_coaching_counter|\
     add_coaching_fired|has_coaching_fired|check_coaching_refresh|\
     set_pending_verify|get_pending_verify|\
+    set_tests_passed_at|get_tests_passed_at|\
     get_last_observation_id|set_last_observation_id|\
     get_tracked_observations|set_tracked_observations|\
     add_tracked_observation|remove_tracked_observation|\

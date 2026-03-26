@@ -148,8 +148,9 @@ HOOKS_DIR="$REPO_DIR/plugin/scripts"
 
 # Create a fake project structure in TEST_DIR
 setup_test_project() {
-    rm -rf "$TEST_DIR"
+    [ -n "$TEST_DIR" ] && rm -rf "$TEST_DIR"
     TEST_DIR=$(mktemp -d)
+    trap 'rm -rf "$TEST_DIR"' EXIT
     mkdir -p "$TEST_DIR/.claude/hooks" "$TEST_DIR/.claude/state" "$TEST_DIR/.claude/commands"
     cp "$HOOKS_DIR/workflow-state.sh" "$TEST_DIR/.claude/hooks/"
     cp "$HOOKS_DIR/workflow-cmd.sh" "$TEST_DIR/.claude/hooks/"
@@ -159,6 +160,7 @@ setup_test_project() {
     export CLAUDE_PROJECT_DIR="$TEST_DIR"
     # Skip intent auth for existing tests (BUG-3 tests explicitly unset this via run_with_auth)
     export WF_SKIP_AUTH=1
+    STATE_FILE="$TEST_DIR/.claude/state/workflow.json"
 }
 
 # Run a workflow-state.sh function with auth enforcement enabled (no WF_SKIP_AUTH bypass).
@@ -1902,7 +1904,6 @@ echo ""
 echo "=== Plugin Structure ==="
 
 # Verify all required plugin files exist
-assert_file_exists "$REPO_DIR/plugin/.claude-plugin/plugin.json" "plugin/.claude-plugin/plugin.json exists"
 assert_file_exists "$REPO_DIR/.claude-plugin/marketplace.json" ".claude-plugin/marketplace.json exists"
 assert_file_exists "$REPO_DIR/.claude-plugin/plugin.json" ".claude-plugin/plugin.json exists"
 assert_file_exists "$REPO_DIR/plugin/hooks/hooks.json" "plugin/hooks/hooks.json exists"
@@ -1970,21 +1971,13 @@ SYNC_EXIT=$?
 assert_eq "0" "$SYNC_EXIT" "Version sync check passes"
 assert_contains "$SYNC_OUTPUT" "All versions in sync" "Version sync reports success"
 
-# Test version mismatch detection
-ORIG_VERSION=$(jq -r '.version' "$REPO_DIR/plugin/.claude-plugin/plugin.json")
-jq '.version = "99.99.99"' "$REPO_DIR/plugin/.claude-plugin/plugin.json" > "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" && mv "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" "$REPO_DIR/plugin/.claude-plugin/plugin.json"
+# Test version mismatch detection (marketplace.json vs plugin.json)
+ORIG_VERSION=$(jq -r '.plugins[0].version' "$REPO_DIR/.claude-plugin/marketplace.json")
+jq --arg v "99.99.99" '.plugins[0].version = $v' "$REPO_DIR/.claude-plugin/marketplace.json" > "$REPO_DIR/.claude-plugin/marketplace.json.tmp" && mv "$REPO_DIR/.claude-plugin/marketplace.json.tmp" "$REPO_DIR/.claude-plugin/marketplace.json"
 MISMATCH_OUTPUT=$(bash "$REPO_DIR/scripts/check-version-sync.sh" 2>&1) && MISMATCH_EXIT=0 || MISMATCH_EXIT=$?
-jq --arg v "$ORIG_VERSION" '.version = $v' "$REPO_DIR/plugin/.claude-plugin/plugin.json" > "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" && mv "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" "$REPO_DIR/plugin/.claude-plugin/plugin.json"
+jq --arg v "$ORIG_VERSION" '.plugins[0].version = $v' "$REPO_DIR/.claude-plugin/marketplace.json" > "$REPO_DIR/.claude-plugin/marketplace.json.tmp" && mv "$REPO_DIR/.claude-plugin/marketplace.json.tmp" "$REPO_DIR/.claude-plugin/marketplace.json"
 assert_eq "1" "$MISMATCH_EXIT" "Version sync detects mismatch"
 assert_contains "$MISMATCH_OUTPUT" "mismatch" "Version sync reports mismatch"
-
-# Test field mismatch detection (name differs between plugin.json files)
-ORIG_NAME=$(jq -r '.name' "$REPO_DIR/plugin/.claude-plugin/plugin.json")
-jq '.name = "wrong-name"' "$REPO_DIR/plugin/.claude-plugin/plugin.json" > "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" && mv "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" "$REPO_DIR/plugin/.claude-plugin/plugin.json"
-FIELD_OUTPUT=$(bash "$REPO_DIR/scripts/check-version-sync.sh" 2>&1) && FIELD_EXIT=0 || FIELD_EXIT=$?
-jq --arg n "$ORIG_NAME" '.name = $n' "$REPO_DIR/plugin/.claude-plugin/plugin.json" > "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" && mv "$REPO_DIR/plugin/.claude-plugin/plugin.json.tmp" "$REPO_DIR/plugin/.claude-plugin/plugin.json"
-assert_eq "1" "$FIELD_EXIT" "Version sync detects field mismatch"
-assert_contains "$FIELD_OUTPUT" "Field" "Version sync reports field mismatch"
 
 # ============================================================
 # TEST SUITE: Tracked Observations Lifecycle
@@ -2570,8 +2563,8 @@ validate_agent_group "DISCUSS" solution-researcher-a solution-researcher-b prior
 echo ""
 echo "=== Command-Agent Cross-References ==="
 
-# Extract all workflow-manager: references from command files
-AGENT_REFS=$(grep -roh 'workflow-manager:[a-z0-9][a-z0-9-]*' "$REPO_DIR/plugin/commands/"*.md 2>/dev/null | sed 's/workflow-manager://' | sort -u)
+# Extract all agent file references from command files (new pattern: plugin/agents/<name>.md)
+AGENT_REFS=$(grep -roh 'plugin/agents/[a-z0-9][a-z0-9-]*\.md' "$REPO_DIR/plugin/commands/"*.md 2>/dev/null | sed 's|plugin/agents/||;s|\.md||' | sort -u)
 
 AGENT_REF_COUNT=0
 AGENT_REF_MISSING=0
@@ -2639,6 +2632,141 @@ if [ -f "$REPO_DIR/plugin/commands/proposals.md" ]; then
     assert_contains "$PROPOSALS_CONTENT" "Reject" "proposals.md has Reject action"
     assert_contains "$PROPOSALS_CONTENT" "Defer" "proposals.md has Defer action"
 fi
+
+# ============================================================
+# TEST SUITE: Skill Resolution Reference
+# ============================================================
+echo ""
+echo "=== Skill Resolution Reference ==="
+
+# Test: shared reference doc exists
+assert_file_exists "$REPO_DIR/plugin/docs/reference/skill-resolution.md" "skill-resolution.md reference doc exists"
+
+# Test: all 5 command files reference the shared doc (not inline the block)
+for cmd in define discuss implement review complete; do
+    if grep -q "plugin/docs/reference/skill-resolution.md" "$REPO_DIR/plugin/commands/$cmd.md"; then
+        echo -e "  ${GREEN}PASS${NC} $cmd.md references skill-resolution.md"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${RED}FAIL${NC} $cmd.md references skill-resolution.md"
+        FAIL=$((FAIL + 1))
+        ERRORS="$ERRORS\n  FAIL: $cmd.md references skill-resolution.md"
+    fi
+done
+
+# Test: no command file has the inline Skill Resolution block anymore
+for cmd in define discuss implement review complete; do
+    INLINE_COUNT=$(grep -c "Read \`plugin/config/skill-registry.json\`" "$REPO_DIR/plugin/commands/$cmd.md" 2>/dev/null) || INLINE_COUNT=0
+    if [ "$INLINE_COUNT" -eq 0 ]; then
+        echo -e "  ${GREEN}PASS${NC} $cmd.md has no inline Skill Resolution block"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${RED}FAIL${NC} $cmd.md still has inline Skill Resolution block"
+        FAIL=$((FAIL + 1))
+        ERRORS="$ERRORS\n  FAIL: $cmd.md still has inline Skill Resolution block"
+    fi
+done
+
+# ============================================================
+# TEST SUITE: Agent Dispatch Pattern
+# ============================================================
+echo ""
+echo "=== Agent Dispatch Pattern ==="
+
+# Test: agent-dispatch.md reference doc exists
+assert_file_exists "$REPO_DIR/plugin/docs/reference/agent-dispatch.md" "agent-dispatch.md reference doc exists"
+
+# Test: no command file uses workflow-manager: subagent_type anymore
+WM_REFS=$( (grep -roh 'workflow-manager:[a-z0-9][a-z0-9-]*' "$REPO_DIR/plugin/commands/"*.md 2>/dev/null || true) | wc -l | tr -d ' ')
+if [ "$WM_REFS" -eq 0 ]; then
+    echo -e "  ${GREEN}PASS${NC} no workflow-manager: subagent_type references in command files"
+    PASS=$((PASS + 1))
+else
+    echo -e "  ${RED}FAIL${NC} found $WM_REFS workflow-manager: subagent_type references in command files"
+    FAIL=$((FAIL + 1))
+    ERRORS="$ERRORS\n  FAIL: found $WM_REFS workflow-manager: references — should be 0"
+fi
+
+# Test: all 5 phase command files reference agent-dispatch.md
+for cmd in define discuss implement review complete; do
+    if grep -q "plugin/docs/reference/agent-dispatch.md" "$REPO_DIR/plugin/commands/$cmd.md"; then
+        echo -e "  ${GREEN}PASS${NC} $cmd.md references agent-dispatch.md"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${RED}FAIL${NC} $cmd.md references agent-dispatch.md"
+        FAIL=$((FAIL + 1))
+        ERRORS="$ERRORS\n  FAIL: $cmd.md references agent-dispatch.md"
+    fi
+done
+
+# Test: all command files use general-purpose for agent dispatch
+for cmd in define discuss implement review complete; do
+    if grep -q 'general-purpose' "$REPO_DIR/plugin/commands/$cmd.md"; then
+        echo -e "  ${GREEN}PASS${NC} $cmd.md uses general-purpose subagent_type"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${RED}FAIL${NC} $cmd.md does not reference general-purpose"
+        FAIL=$((FAIL + 1))
+        ERRORS="$ERRORS\n  FAIL: $cmd.md should reference general-purpose"
+    fi
+done
+
+# ============================================================
+# TEST SUITE: Tests Last Passed At (cross-phase preservation)
+# ============================================================
+echo ""
+echo "=== Tests Last Passed At ==="
+
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+
+# Test: get_tests_passed_at returns empty when not set
+set_phase "implement"
+RESULT=$(get_tests_passed_at)
+assert_eq "" "$RESULT" "get_tests_passed_at returns empty when not set"
+
+# Test: set_tests_passed_at stores a commit hash
+set_tests_passed_at "abc123def"
+RESULT=$(get_tests_passed_at)
+assert_eq "abc123def" "$RESULT" "set_tests_passed_at stores commit hash"
+
+# Test: tests_last_passed_at preserved across phase transition (implement -> review)
+set_phase "review"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_tests_passed_at)
+assert_eq "abc123def" "$RESULT" "tests_last_passed_at preserved: implement -> review"
+
+# Test: tests_last_passed_at preserved across phase transition (review -> complete)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+set_phase "implement"
+set_tests_passed_at "xyz789"
+set_phase "review"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+# Complete all review milestones so hard gate allows leaving
+reset_review_status
+set_review_field "verification_complete" "true"
+set_review_field "agents_dispatched" "true"
+set_review_field "findings_presented" "true"
+set_review_field "findings_acknowledged" "true"
+set_phase "complete"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_tests_passed_at)
+assert_eq "xyz789" "$RESULT" "tests_last_passed_at preserved: implement -> review -> complete"
+
+# Test: tests_last_passed_at cleared on off
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+set_phase "implement"
+set_tests_passed_at "will-be-cleared"
+set_phase "off"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_tests_passed_at)
+assert_eq "" "$RESULT" "tests_last_passed_at cleared on off"
+
+# Test: workflow-cmd.sh exposes set_tests_passed_at and get_tests_passed_at
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/workflow-cmd.sh" set_tests_passed_at "cmd-test-hash"
+RESULT=$(CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/workflow-cmd.sh" get_tests_passed_at)
+assert_eq "cmd-test-hash" "$RESULT" "workflow-cmd.sh exposes set/get_tests_passed_at"
 
 # ============================================================
 # RESULTS

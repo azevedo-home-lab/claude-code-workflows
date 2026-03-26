@@ -5,17 +5,9 @@ If the output shows `SOFT_GATE_WARNING`, ask the user: "Proceed anyway? (yes/no)
 **You are now in IMPLEMENT phase.** Before proceeding:
 1. Read `plugin/docs/reference/professional-standards.md` — apply the Universal Standards and IMPLEMENT Phase Standards throughout this phase.
 
-## Skill Resolution
+**Skill Resolution:** Follow the process in `plugin/docs/reference/skill-resolution.md` before invoking skills.
 
-Before invoking any skill in this phase, resolve it through the registry:
-
-1. Read `plugin/config/skill-registry.json` to find the default skill for each operation
-2. Check if `plugin/config/skill-overrides.json` exists (NOT the `.example` file)
-3. If overrides exist, merge them: override values replace defaults for matching operation keys
-4. If an operation is listed in the `"disabled"` array, skip it entirely
-5. Use the resolved `process_skill` and `reference_skills` when invoking skills below
-
-If no overrides file exists, use the registry defaults as-is. This is the normal case.
+**Agent Dispatch:** Follow `plugin/docs/reference/agent-dispatch.md` — read each agent's `.md` file, then dispatch as `general-purpose` with the file content + runtime context as the prompt.
 
 **Autonomy-aware behavior:**
 - **auto (▶▶▶):** Use `superpowers:subagent-driven-development` (recommended execution mode) without asking. Make operational decisions (execution approach, model selection, task ordering) autonomously. Only stop for genuine blockers.
@@ -34,16 +26,16 @@ Follow this workflow:
 ```
 4b. **Version bump** (after all tasks complete, before final test run):
 
-Dispatch a **Versioning agent** (subagent_type: `workflow-manager:versioning-agent`):
+Dispatch a **Versioning agent** — read `plugin/agents/versioning-agent.md`, then dispatch as `general-purpose`:
 
 Context: "Decision record: [DECISION_RECORD_PATH]. Determine the semantic version bump for this release."
 
-Apply the version bump to all 3 files:
+Apply the version bump to both files:
 ```bash
 python3 -c "
 import json, sys
 new_version = sys.argv[1]
-for path in ['.claude-plugin/marketplace.json', '.claude-plugin/plugin.json', 'plugin/.claude-plugin/plugin.json']:
+for path in ['.claude-plugin/marketplace.json', '.claude-plugin/plugin.json']:
     with open(path) as f:
         data = json.load(f)
     if 'plugins' in data:
@@ -56,11 +48,12 @@ for path in ['.claude-plugin/marketplace.json', '.claude-plugin/plugin.json', 'p
 " "<NEW_VERSION>"
 ```
 
-Run `scripts/check-version-sync.sh` to validate all 3 files match. This is not an IMPLEMENT exit gate — COMPLETE Step 5 will verify it.
+Run `scripts/check-version-sync.sh` to validate both files match. This is not an IMPLEMENT exit gate — COMPLETE Step 5 will verify it.
 
 5. Run the full test suite and verify all pass. Then mark milestone:
 ```bash
 .claude/hooks/workflow-cmd.sh set_implement_field "tests_passing" "true"
+.claude/hooks/workflow-cmd.sh set_tests_passed_at "$(git rev-parse HEAD)"
 ```
 6. Proceed to `/review` (auto) or wait for the user to run `/review` (off/ask)
 

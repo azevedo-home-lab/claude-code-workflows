@@ -7,17 +7,9 @@
 Before proceeding:
 1. Read `plugin/docs/reference/professional-standards.md` — apply the Universal Standards and DEFINE Phase Standards throughout this phase.
 
-## Skill Resolution
+**Skill Resolution:** Follow the process in `plugin/docs/reference/skill-resolution.md` before invoking skills.
 
-Before invoking any skill in this phase, resolve it through the registry:
-
-1. Read `plugin/config/skill-registry.json` to find the default skill for each operation
-2. Check if `plugin/config/skill-overrides.json` exists (NOT the `.example` file)
-3. If overrides exist, merge them: override values replace defaults for matching operation keys
-4. If an operation is listed in the `"disabled"` array, skip it entirely
-5. Use the resolved `process_skill` and `reference_skills` when invoking skills below
-
-If no overrides file exists, use the registry defaults as-is. This is the normal case.
+**Agent Dispatch:** Follow `plugin/docs/reference/agent-dispatch.md` — read each agent's `.md` file, then dispatch as `general-purpose` with the file content + runtime context as the prompt.
 
 ## Workflow
 
@@ -37,9 +29,9 @@ Guide the user through problem discovery — one question per message, prefer mu
 
 After 2-3 exchanges when an initial problem framing emerges, **dispatch background research agents** (unless the problem is trivial — if so, state explicitly: "This problem is well-defined — skipping background research. If you want broader exploration, say so."):
 
-1. **Domain researcher** (subagent_type: `workflow-manager:domain-researcher`) — Context: "Problem domain: [PROBLEM_STATEMENT]. Research the problem space."
-2. **Context gatherer** (subagent_type: `workflow-manager:context-gatherer`) — Context: "Problem: [PROBLEM_STATEMENT]. Project: [PROJECT_NAME from git remote]. Search project history and claude-mem for prior related work." **Always pass `project` parameter to claude-mem tools.** Derive repo name: `git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`
-3. **Assumption challenger** (subagent_type: `workflow-manager:assumption-challenger`) — Context: "Current problem framing: [PROBLEM_STATEMENT]. Challenge these assumptions."
+1. **Domain researcher** — Read `plugin/agents/domain-researcher.md`, then dispatch as `general-purpose`. Context: "Problem domain: [PROBLEM_STATEMENT]. Research the problem space."
+2. **Context gatherer** — Read `plugin/agents/context-gatherer.md`, then dispatch as `general-purpose`. Context: "Problem: [PROBLEM_STATEMENT]. Project: [PROJECT_NAME from git remote]. Search project history and claude-mem for prior related work." **Always pass `project` parameter to claude-mem tools.** Derive repo name: `git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`
+3. **Assumption challenger** — Read `plugin/agents/assumption-challenger.md`, then dispatch as `general-purpose`. Context: "Current problem framing: [PROBLEM_STATEMENT]. Challenge these assumptions."
 
 When agents return, synthesize findings into the conversation. Challenge the first framing — is this the real problem, or a symptom?
 
@@ -49,8 +41,8 @@ Once the user and you agree on the problem framing, synthesize into a crisp prob
 
 Then dispatch **converge agents**:
 
-1. **Outcome structurer** (subagent_type: `workflow-manager:outcome-structurer`) — Context: "Agreed problem statement: [PROBLEM_STATEMENT]. Constraints: [CONSTRAINTS]. Structure measurable outcomes."
-2. **Scope boundary checker** (subagent_type: `workflow-manager:scope-boundary-checker`) — Context: "Problem: [PROBLEM_STATEMENT]. Proposed outcomes: [OUTCOMES_SUMMARY]. Identify scope boundaries and hidden dependencies."
+1. **Outcome structurer** — Read `plugin/agents/outcome-structurer.md`, then dispatch as `general-purpose`. Context: "Agreed problem statement: [PROBLEM_STATEMENT]. Constraints: [CONSTRAINTS]. Structure measurable outcomes."
+2. **Scope boundary checker** — Read `plugin/agents/scope-boundary-checker.md`, then dispatch as `general-purpose`. Context: "Problem: [PROBLEM_STATEMENT]. Proposed outcomes: [OUTCOMES_SUMMARY]. Identify scope boundaries and hidden dependencies."
 
 Present structured outcomes to user for review. Each outcome must have:
 - **Description** — what should be true when done

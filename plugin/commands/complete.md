@@ -9,17 +9,9 @@ If the output shows `LOOP_BACK`, re-run Steps 1-3 (validation) to verify the fix
 Before proceeding:
 1. Read `plugin/docs/reference/professional-standards.md` — apply the Universal Standards and COMPLETE Phase Standards throughout this phase.
 
-## Skill Resolution
+**Skill Resolution:** Follow the process in `plugin/docs/reference/skill-resolution.md` before invoking skills.
 
-Before invoking any skill in this phase, resolve it through the registry:
-
-1. Read `plugin/config/skill-registry.json` to find the default skill for each operation
-2. Check if `plugin/config/skill-overrides.json` exists (NOT the `.example` file)
-3. If overrides exist, merge them: override values replace defaults for matching operation keys
-4. If an operation is listed in the `"disabled"` array, skip it entirely
-5. Use the resolved `process_skill` and `reference_skills` when invoking skills below
-
-If no overrides file exists, use the registry defaults as-is. This is the normal case.
+**Agent Dispatch:** Follow `plugin/docs/reference/agent-dispatch.md` — read each agent's `.md` file, then dispatch as `general-purpose` with the file content + runtime context as the prompt.
 
 ---
 
@@ -30,6 +22,34 @@ If no overrides file exists, use the registry defaults as-is. This is the normal
 **Autonomy-aware behavior:**
 - **auto (▶▶▶):** Make operational decisions autonomously: auto-commit, auto-update docs (yes), auto-select recommended options. Only stop for git push (always requires confirmation) and validation failures that need user judgment.
 - **off/ask:** Ask the user at each decision point (doc updates, commit, push, tech debt actions).
+
+### Pre-validation: Test Evidence Gate
+
+Before running the completion pipeline, check if tests need to re-run:
+
+1. Read `tests_last_passed_at` from workflow state:
+```bash
+TESTS_COMMIT=$(.claude/hooks/workflow-cmd.sh get_tests_passed_at)
+echo "Tests last passed at: $TESTS_COMMIT"
+```
+
+2. If set, check what changed since then:
+```bash
+git diff --name-only $TESTS_COMMIT..HEAD
+```
+
+3. Classify changed files using a **safe-to-skip whitelist** — only skip test re-run if ALL changed files match:
+   - **Safe to skip** (non-code): `docs/**/*.md`, `*.txt`, `.gitignore`, `LICENSE`, `README.md`, `CHANGELOG.md`
+   - **Everything else is code** — treat as requiring test re-run
+   - Rule: if in doubt, treat as code (run tests)
+
+4. If ALL changed files are safe to skip:
+   - Present evidence: "No code files changed since tests passed at commit [hash]. Git diff shows only: [list]. Using previous test results as evidence."
+   - Skip test re-run
+
+5. If code files changed OR `tests_last_passed_at` is not set:
+   - Run full test suite
+   - Store the result: `.claude/hooks/workflow-cmd.sh set_tests_passed_at "$(git rev-parse HEAD)"`
 
 ### Step 1: Plan Validation
 
@@ -42,7 +62,7 @@ echo "Decision record: $(.claude/hooks/workflow-cmd.sh get_decision_record)"
 
 **If a plan file exists** (check `docs/superpowers/plans/`, `docs/plans/`, or any plan referenced in the decision record):
 
-Dispatch a **Plan validator agent** (subagent_type: `workflow-manager:plan-validator`):
+Dispatch a **Plan validator agent** — read `plugin/agents/plan-validator.md`, then dispatch as `general-purpose`:
 
 Context: "Plan file: [PLAN_PATH]. Exception: do NOT re-run the full test suite. The IMPLEMENT phase already ran it as an exit gate. Instead, verify test *coverage* by reading the test file — check that tests exist for each deliverable and reference the IMPLEMENT result (tests_passing=true) as evidence."
 
@@ -62,17 +82,17 @@ Mark milestone:
 
 Use the first source found. If the workflow started at `/discuss` (no decision record), the spec and plan still define what success looks like.
 
-Dispatch an **Outcome validator agent** (subagent_type: `workflow-manager:outcome-validator`):
+Dispatch an **Outcome validator agent** — read `plugin/agents/outcome-validator.md`, then dispatch as `general-purpose`:
 
 Context: "Outcome source: [OUTCOME_SOURCE_PATH]. Exception: do NOT re-run the full test suite. Reference the IMPLEMENT result (tests_passing=true) and verify test *coverage* by reading the test file instead. Flag manual steps that require user action."
 
-Also dispatch a **Boundary tester agent** alongside the outcome validator (subagent_type: `workflow-manager:boundary-tester`):
+Also dispatch a **Boundary tester agent** alongside the outcome validator — read `plugin/agents/boundary-tester.md`, then dispatch as `general-purpose`:
 
 Context: "Changed files: [LIST from git diff --name-only main...HEAD]. Plan/spec: [PLAN_OR_SPEC_PATH]."
 
 The boundary tester's results are presented in Step 3 as a **Boundary Tests** table alongside Plan Deliverables and Outcomes.
 
-Finally, dispatch a **Devil's advocate agent** (runs after boundary tester, reads code not spec) (subagent_type: `workflow-manager:devils-advocate`):
+Finally, dispatch a **Devil's advocate agent** (runs after boundary tester, reads code not spec) — read `plugin/agents/devils-advocate.md`, then dispatch as `general-purpose`:
 
 Context: "Implementation files from git diff main...HEAD. Your job is to break this implementation."
 
@@ -143,7 +163,7 @@ Then enrich the decision record with the **Outcome Verification** section:
 
 #### Step 3 Review Gate
 
-After presenting validation results, dispatch a **review agent** (subagent_type: `workflow-manager:results-reviewer`) to verify presentation quality:
+After presenting validation results, dispatch a **review agent** — read `plugin/agents/results-reviewer.md`, then dispatch as `general-purpose` — to verify presentation quality:
 
 Context: "Review the validation results. Decision record: [DECISION_RECORD_PATH]."
 
@@ -157,7 +177,7 @@ Mark milestone:
 
 ### Step 4: Smart Documentation Detection
 
-Dispatch a **Docs detector agent** (subagent_type: `workflow-manager:docs-detector`):
+Dispatch a **Docs detector agent** — read `plugin/agents/docs-detector.md`, then dispatch as `general-purpose`:
 
 Context: "Changed files: [LIST from git diff --name-only main...HEAD plus unstaged/untracked]."
 
@@ -167,7 +187,7 @@ Present recommendations and ask: "Update these now? (yes / no / skip)"
 
 #### Step 4 Review Gate
 
-After presenting doc recommendations (whether updates were made or skipped), dispatch a **review agent** (subagent_type: `workflow-manager:docs-reviewer`) to verify completeness:
+After presenting doc recommendations (whether updates were made or skipped), dispatch a **review agent** — read `plugin/agents/docs-reviewer.md`, then dispatch as `general-purpose` — to verify completeness:
 
 Context: "Changed files: [LIST FROM git diff]. Recommendations made: [LIST]."
 
@@ -187,7 +207,7 @@ Stage all changed files relevant to the task and commit:
 2. Stage the relevant files (prefer specific files over `git add -A`)
 2b. **Version verification:** Verify the version bump was done during IMPLEMENT.
 
-Run `scripts/check-version-sync.sh` to validate all 3 version files match.
+Run `scripts/check-version-sync.sh` to validate both version files match.
 Then verify the version is greater than the last release tag:
 ```bash
 CURRENT=$(jq -r '.plugins[0].version // .version' .claude-plugin/marketplace.json)
@@ -200,15 +220,9 @@ If version bump was not done (version matches or is less than last tag), flag as
 
 Include version files in the commit staging if they were modified.
 3. Draft a concise conventional commit message explaining why
-4. Commit:
-   ```bash
-   git commit -m "$(cat <<'EOF'
-   <type>: <description>
+4. Commit using conventional commit format. Use your current model name (from the "You are powered by the model named..." line in your environment context) in the Co-Authored-By line:
 
-   Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
-   EOF
-   )"
-   ```
+       Co-Authored-By: <your model name> <noreply@anthropic.com>
 5. Ask: "Push to remote? (yes / no)" — if yes, warn about YubiKey touch:
    ```
    ========== YUBIKEY: TOUCH NOW FOR GIT PUSH ==========
@@ -218,7 +232,7 @@ If clean working tree: skip and note "Nothing to commit."
 
 #### Step 5 Review Gate
 
-After committing (or skipping), dispatch a **review agent** (subagent_type: `workflow-manager:commit-reviewer`) to verify commit quality:
+After committing (or skipping), dispatch a **review agent** — read `plugin/agents/commit-reviewer.md`, then dispatch as `general-purpose` — to verify commit quality:
 
 Context: "Review the most recent commit."
 
@@ -300,7 +314,7 @@ Present the table and ask: "Want to create tickets/issues for any of these, or n
 
 #### Step 7 Review Gate
 
-After presenting the tech debt table, dispatch a **review agent** (subagent_type: `workflow-manager:tech-debt-reviewer`) to verify proposal quality:
+After presenting the tech debt table, dispatch a **review agent** — read `plugin/agents/tech-debt-reviewer.md`, then dispatch as `general-purpose` — to verify proposal quality:
 
 Context: "Decision record: [DECISION_RECORD_PATH]. Tech debt table: [TABLE]."
 
@@ -314,7 +328,7 @@ Mark milestone:
 
 ### Step 8: Handover (Claude-Mem Observation)
 
-Dispatch a **Handover writer agent** (subagent_type: `workflow-manager:handover-writer`):
+Dispatch a **Handover writer agent** — read `plugin/agents/handover-writer.md`, then dispatch as `general-purpose`:
 
 Context: "Prepare a claude-mem handover observation. Project name: [derived from git remote get-url origin]. Decision record: [DECISION_RECORD_PATH]. Include commit hash, verification results, key decisions, gotchas, files modified, tech debt."
 
@@ -322,7 +336,7 @@ Save via the `save_observation` MCP tool. **Set `project` to the GitHub repo nam
 
 #### Step 8 Review Gate
 
-After saving the handover observation, dispatch a **review agent** (subagent_type: `workflow-manager:handover-reviewer`) to verify handover quality:
+After saving the handover observation, dispatch a **review agent** — read `plugin/agents/handover-reviewer.md`, then dispatch as `general-purpose` — to verify handover quality:
 
 Context: "Review the handover observation just saved."
 

@@ -5,17 +5,9 @@ If the output shows `SOFT_GATE_WARNING`, ask the user: "Proceed anyway? (yes/no)
 Before proceeding:
 1. Read `plugin/docs/reference/professional-standards.md` — apply the Universal Standards and REVIEW Phase Standards throughout this phase.
 
-## Skill Resolution
+**Skill Resolution:** Follow the process in `plugin/docs/reference/skill-resolution.md` before invoking skills.
 
-Before invoking any skill in this phase, resolve it through the registry:
-
-1. Read `plugin/config/skill-registry.json` to find the default skill for each operation
-2. Check if `plugin/config/skill-overrides.json` exists (NOT the `.example` file)
-3. If overrides exist, merge them: override values replace defaults for matching operation keys
-4. If an operation is listed in the `"disabled"` array, skip it entirely
-5. Use the resolved `process_skill` and `reference_skills` when invoking skills below
-
-If no overrides file exists, use the registry defaults as-is. This is the normal case.
+**Agent Dispatch:** Follow `plugin/docs/reference/agent-dispatch.md` — read each agent's `.md` file, then dispatch as `general-purpose` with the file content + runtime context as the prompt.
 
 ---
 
@@ -58,29 +50,29 @@ If no changes detected, report "No changes to review" and skip to the end. Updat
 
 Launch all five agents simultaneously using the Agent tool (5 parallel calls in one message). Pass each agent the list of changed files as runtime context.
 
-**Agent 1 — Code Quality Reviewer** (subagent_type: "workflow-manager:code-quality-reviewer")
+**Agent 1 — Code Quality Reviewer** — read `plugin/agents/code-quality-reviewer.md`, dispatch as `general-purpose`
 Context: "Changed files: [LIST]"
 
-**Agent 2 — Security Reviewer** (subagent_type: "workflow-manager:security-reviewer")
+**Agent 2 — Security Reviewer** — read `plugin/agents/security-reviewer.md`, dispatch as `general-purpose`
 Context: "Changed files: [LIST]"
 
-**Agent 3 — Architecture & Plan Compliance Reviewer** (subagent_type: "workflow-manager:architecture-reviewer")
+**Agent 3 — Architecture & Plan Compliance Reviewer** — read `plugin/agents/architecture-reviewer.md`, dispatch as `general-purpose`
 
 Before dispatching Agent 3, find the plan file path: check `docs/superpowers/plans/` and `docs/plans/` for the most recent `.md` file. If found, include it in the context.
 
 Context: "Changed files: [LIST]. Plan file: [PLAN_PATH or 'no plan file found']"
 
-**Agent 4 — Governance & Production Readiness Reviewer** (subagent_type: "workflow-manager:governance-reviewer")
+**Agent 4 — Governance & Production Readiness Reviewer** — read `plugin/agents/governance-reviewer.md`, dispatch as `general-purpose`
 Context: "Changed files: [LIST]"
 
-**Agent 5 — Codebase Hygiene Reviewer** (subagent_type: "workflow-manager:codebase-hygiene-reviewer")
+**Agent 5 — Codebase Hygiene Reviewer** — read `plugin/agents/codebase-hygiene-reviewer.md`, dispatch as `general-purpose`
 Context: "Changed files: [LIST]"
 
 If any agent fails or times out, note which agent failed and proceed with findings from agents that succeeded.
 
 ### Step 4: Dispatch Verification Agent
 
-After all 5 review agents return, dispatch a single verification agent (subagent_type: "workflow-manager:review-verifier"):
+After all 5 review agents return, dispatch a single verification agent — read `plugin/agents/review-verifier.md`, dispatch as `general-purpose`:
 
 Context: "Candidate findings from 5 review agents: [ALL FINDINGS FROM STEP 3]"
 
