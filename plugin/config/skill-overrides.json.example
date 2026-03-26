@@ -6,11 +6,11 @@
       "comment": "Prefer ECC's lighter TDD for this project"
     },
     "language-patterns": {
-      "reference_skills": ["ecc:golang-patterns", "ecc:golang-testing"],
+      "reference_skills": ["ecc:golang-patterns"],
       "comment": "This is a Go project"
     },
     "framework-stacks": {
-      "reference_skills": ["ecc:django-patterns", "ecc:django-security", "ecc:django-tdd"],
+      "reference_skills": ["ecc:django-patterns", "ecc:django-security"],
       "comment": "Django backend"
     }
   },

@@ -5,6 +5,18 @@ If the output shows `SOFT_GATE_WARNING`, ask the user: "Proceed anyway? (yes/no)
 **You are now in IMPLEMENT phase.** Before proceeding:
 1. Read `plugin/docs/reference/professional-standards.md` — apply the Universal Standards and IMPLEMENT Phase Standards throughout this phase.
 
+## Skill Resolution
+
+Before invoking any skill in this phase, resolve it through the registry:
+
+1. Read `plugin/config/skill-registry.json` to find the default skill for each operation
+2. Check if `plugin/config/skill-overrides.json` exists (NOT the `.example` file)
+3. If overrides exist, merge them: override values replace defaults for matching operation keys
+4. If an operation is listed in the `"disabled"` array, skip it entirely
+5. Use the resolved `process_skill` and `reference_skills` when invoking skills below
+
+If no overrides file exists, use the registry defaults as-is. This is the normal case.
+
 **Autonomy-aware behavior:**
 - **auto (▶▶▶):** Use `superpowers:subagent-driven-development` (recommended execution mode) without asking. Make operational decisions (execution approach, model selection, task ordering) autonomously. Only stop for genuine blockers.
 - **off/ask:** Ask the user which execution approach they prefer if multiple options exist.

@@ -19,6 +19,12 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+# Check for required dependencies
+if ! command -v jq >/dev/null 2>&1; then
+    echo "ERROR: jq is required but not found. Install with: brew install jq" >&2
+    exit 1
+fi
+
 assert_eq() {
     local expected="$1"
     local actual="$2"
@@ -93,13 +99,6 @@ assert_file_not_exists() {
     fi
 }
 
-assert_exit_code() {
-    local expected="$1"
-    local actual="$2"
-    local test_name="$3"
-    assert_eq "$expected" "$actual" "$test_name"
-}
-
 validate_agent_group() {
     local group_name="$1"
     shift
@@ -111,15 +110,31 @@ validate_agent_group() {
             local first_line
             first_line=$(head -1 "$agent_file")
             assert_eq "---" "$first_line" "agent file has YAML frontmatter: ${agent}"
+            local delimiter_count
+            delimiter_count=$(grep -c "^---$" "$agent_file" || true)
+            if [ "$delimiter_count" -lt 2 ]; then
+                echo -e "  ${RED}FAIL${NC} agent file has closing YAML delimiter: ${agent}"
+                echo "    found $delimiter_count '---' delimiters, expected >= 2"
+                FAIL=$((FAIL + 1))
+                ERRORS="$ERRORS\n  FAIL: agent file has closing YAML delimiter: ${agent}"
+            else
+                echo -e "  ${GREEN}PASS${NC} agent file has closing YAML delimiter: ${agent}"
+                PASS=$((PASS + 1))
+            fi
+            local frontmatter
+            frontmatter=$(sed -n '2,/^---$/p' "$agent_file")
             local agent_name
-            agent_name=$(sed -n '2,/^---$/p' "$agent_file" | grep "^name:" | sed 's/^name:[[:space:]]*//')
+            agent_name=$(echo "$frontmatter" | grep "^name:" | sed 's/^name:[[:space:]]*//')
             assert_eq "$agent" "$agent_name" "agent frontmatter name matches filename: ${agent}"
             local has_description
-            has_description=$(sed -n '2,/^---$/p' "$agent_file" | grep -c "^description:" || true)
+            has_description=$(echo "$frontmatter" | grep -c "^description:" || true)
             assert_eq "1" "$has_description" "agent has description field: ${agent}"
             local has_tools
-            has_tools=$(sed -n '2,/^---$/p' "$agent_file" | grep -c "^tools:" || true)
+            has_tools=$(echo "$frontmatter" | grep -c "^tools:" || true)
             assert_eq "1" "$has_tools" "agent has tools field: ${agent}"
+            local has_model
+            has_model=$(echo "$frontmatter" | grep -c "^model:" || true)
+            assert_eq "1" "$has_model" "agent has model field: ${agent}"
         fi
     done
 }
@@ -2548,6 +2563,38 @@ validate_agent_group "DEFINE" domain-researcher context-gatherer assumption-chal
 echo ""
 echo "=== Agent Definitions (DISCUSS phase) ==="
 validate_agent_group "DISCUSS" solution-researcher-a solution-researcher-b prior-art-scanner codebase-analyst risk-assessor
+
+# ============================================================
+# TEST SUITE: Command-Agent Cross-References
+# ============================================================
+echo ""
+echo "=== Command-Agent Cross-References ==="
+
+# Extract all workflow-manager: references from command files
+AGENT_REFS=$(grep -roh 'workflow-manager:[a-z0-9][a-z0-9-]*' "$REPO_DIR/plugin/commands/"*.md 2>/dev/null | sed 's/workflow-manager://' | sort -u)
+
+AGENT_REF_COUNT=0
+AGENT_REF_MISSING=0
+for ref in $AGENT_REFS; do
+    AGENT_REF_COUNT=$((AGENT_REF_COUNT + 1))
+    if [ ! -f "$REPO_DIR/plugin/agents/${ref}.md" ]; then
+        AGENT_REF_MISSING=$((AGENT_REF_MISSING + 1))
+    fi
+    assert_file_exists "$REPO_DIR/plugin/agents/${ref}.md" "command ref has matching agent file: ${ref}"
+done
+
+if [ "$AGENT_REF_COUNT" -gt 0 ] && [ "$AGENT_REF_MISSING" -eq 0 ]; then
+    echo -e "  ${GREEN}PASS${NC} all $AGENT_REF_COUNT agent references resolved"
+    PASS=$((PASS + 1))
+elif [ "$AGENT_REF_COUNT" -eq 0 ]; then
+    echo -e "  ${RED}FAIL${NC} no agent references found in command files"
+    FAIL=$((FAIL + 1))
+    ERRORS="$ERRORS\n  FAIL: no agent references found in command files"
+else
+    echo -e "  ${RED}FAIL${NC} $AGENT_REF_MISSING of $AGENT_REF_COUNT agent references have missing files"
+    FAIL=$((FAIL + 1))
+    ERRORS="$ERRORS\n  FAIL: $AGENT_REF_MISSING agent references have missing files"
+fi
 
 # ============================================================
 # TEST SUITE: Skill Registry
