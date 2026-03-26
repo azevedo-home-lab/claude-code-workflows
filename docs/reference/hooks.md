@@ -126,9 +126,9 @@ Sets phase to `complete`. Triggers verified completion with outcome validation, 
 
 Sets phase to `discuss`. Code edits are blocked. Instructs Claude to use `brainstorming` and `writing-plans` superpowers. Use to start a workflow or abort/rethink from any phase.
 
-### /wf:debug
+### /debug
 
-Toggles debug mode. When enabled (`/wf:debug on`), all hook coaching messages and gate decisions are echoed to stderr with `[WFM DEBUG]` prefix, making them visible to the user. `/wf:debug off` disables. `/wf:debug` (no argument) reports current state. Status line shows `[DEBUG]` indicator when active.
+Toggles debug mode. When enabled (`/debug on`), all hook coaching messages and gate decisions are echoed to stderr with `[WFM DEBUG]` prefix, making them visible to the user. `/debug off` disables. `/debug` (no argument) reports current state. Status line shows `[DEBUG]` indicator when active.
 
 ## Configuration
 

@@ -1,0 +1,1 @@
+../../plugin/commands/obs-read.md

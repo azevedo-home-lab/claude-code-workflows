@@ -193,7 +193,7 @@ Set via `/autonomy off|ask|auto`. Only the user can change it.
 - `bash-write-guard.sh` — blocks Bash write operations in DEFINE, DISCUSS, and COMPLETE phases
 - `workflow-state.sh` — state read/write utility (phase, autonomy, debug, coaching, review status)
 - State: `.claude/state/workflow.json` (gitignored)
-- Debug mode (`/wf:debug on`): makes all hook decisions visible to the user via stderr
+- Debug mode (`/debug on`): makes all hook decisions visible to the user via stderr
 
 ### Superpowers — Development Techniques
 

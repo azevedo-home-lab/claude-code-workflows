@@ -2889,36 +2889,21 @@ RESULT=$(CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/workflow-c
 assert_eq "cmd-test-hash" "$RESULT" "workflow-cmd.sh exposes set/get_tests_passed_at"
 
 # ============================================================
-# TEST SUITE: /wf: Aliases
+# TEST SUITE: Command Files
 # ============================================================
 echo ""
-echo "=== /wf: Aliases ==="
+echo "=== Command Files ==="
 
 PLUGIN_COMMANDS="$REPO_DIR/plugin/commands"
 
-# Test: all 8 wf: aliases exist as symlinks
-for cmd in define discuss implement review complete off autonomy proposals; do
-  if [ -L "$PLUGIN_COMMANDS/wf:$cmd.md" ]; then
-    echo -e "  ${GREEN}PASS${NC} wf:$cmd.md symlink exists"
-    PASS=$((PASS + 1))
-  else
-    echo -e "  ${RED}FAIL${NC} wf:$cmd.md symlink missing"
-    FAIL=$((FAIL + 1))
-    ERRORS="$ERRORS\n  FAIL: wf:$cmd.md symlink missing"
-  fi
-done
-
-# Test: wf: aliases resolve to correct targets
-for cmd in define discuss implement review complete off autonomy proposals; do
-  TARGET=$(readlink "$PLUGIN_COMMANDS/wf:$cmd.md")
-  assert_eq "$cmd.md" "$TARGET" "wf:$cmd.md points to $cmd.md"
-done
-
-# Test: observation command files exist
-for cmd in wf:obs-read wf:obs-track wf:obs-untrack; do
+# Test: all command files exist
+for cmd in define discuss implement review complete off autonomy proposals debug obs-read obs-track obs-untrack; do
   assert_file_exists "$PLUGIN_COMMANDS/$cmd.md" "$cmd.md command file exists"
 done
-assert_file_exists "$REPO_DIR/plugin/commands/wf:debug.md" "wf:debug.md command file exists"
+
+# Test: no wf: prefixed files remain
+WF_FILES=$(find "$PLUGIN_COMMANDS" -name "wf:*" 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "0" "$WF_FILES" "no wf: prefixed files in plugin/commands"
 
 # ============================================================
 # RESULTS

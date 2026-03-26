@@ -5,4 +5,4 @@ description: Track an observation ID in the workflow status line
 
 Confirm to the user that observation #$ARGUMENTS is now tracked and will appear in the status line.
 
-If the output shows an error, report it. If $ARGUMENTS is empty, say: "Usage: /wf:obs-track <observation-id>"
+If the output shows an error, report it. If $ARGUMENTS is empty, say: "Usage: /obs-track <observation-id>"

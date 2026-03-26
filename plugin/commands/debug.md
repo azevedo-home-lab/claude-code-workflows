@@ -7,9 +7,9 @@ Toggle WFM debug mode. When enabled, all hook coaching messages and gate decisio
 
 ## Usage
 
-- `/wf:debug on` — enable debug output
-- `/wf:debug off` — disable debug output
-- `/wf:debug` — show current debug state
+- `/debug on` — enable debug output
+- `/debug off` — disable debug output
+- `/debug` — show current debug state
 
 ## Execution
 

@@ -1,1 +1,0 @@
-../../plugin/commands/wf:obs-track.md
