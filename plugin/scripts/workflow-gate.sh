@@ -22,16 +22,22 @@ if [ ! -f "$STATE_FILE" ]; then
     exit 0
 fi
 
+# Debug mode
+DEBUG_MODE="false"
+if [ -f "$STATE_FILE" ]; then
+    DEBUG_MODE=$(get_debug)
+fi
+
 PHASE=$(get_phase)
 
 # OFF phase: no enforcement
 case "$PHASE" in
-    off) exit 0 ;;
+    off) if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse ALLOW: Write/Edit — phase is OFF" >&2; fi; exit 0 ;;
 esac
 
 # Allow everything in implement and review phases
 case "$PHASE" in
-    implement|review) exit 0 ;;
+    implement|review) if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse ALLOW: Write/Edit — phase=$PHASE allows all writes" >&2; fi; exit 0 ;;
 esac
 
 # Select whitelist based on phase
@@ -61,6 +67,7 @@ fi
 # Allow writes to whitelisted paths
 if [ -n "$NORMALIZED_PATH" ]; then
     if echo "$NORMALIZED_PATH" | grep -qE "$WHITELIST"; then
+        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse ALLOW: Write/Edit on $NORMALIZED_PATH — path whitelisted" >&2; fi
         exit 0
     fi
 fi
@@ -73,5 +80,6 @@ case "$PHASE" in
     *)        REASON="BLOCKED: Unexpected phase ($PHASE)." ;;
 esac
 
+if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse DENY: Write/Edit on $NORMALIZED_PATH — $REASON" >&2; fi
 emit_deny "$REASON"
 exit 0

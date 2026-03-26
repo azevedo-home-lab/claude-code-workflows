@@ -38,11 +38,17 @@ if [ ! -f "$STATE_FILE" ]; then
     exit 0
 fi
 
+# Debug mode
+DEBUG_MODE="false"
+if [ -f "$STATE_FILE" ]; then
+    DEBUG_MODE=$(get_debug)
+fi
+
 PHASE=$(get_phase)
 
 # OFF phase: no enforcement
 case "$PHASE" in
-    off) exit 0 ;;
+    off) if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: phase is OFF" >&2; fi; exit 0 ;;
 esac
 
 # ---------------------------------------------------------------------------
@@ -63,6 +69,7 @@ fi
 # (prevents bypass by chaining: source workflow-state.sh && echo pwned > evil)
 if echo "$COMMAND" | grep -qE '^[[:space:]]*(source[[:space:]]|\.[ /]).*workflow-state\.sh'; then
     if ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
+        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: workflow state command" >&2; fi
         exit 0
     fi
 fi
@@ -81,6 +88,7 @@ if echo "$COMMAND" | grep -qE '^[[:space:]]*(git|/usr/bin/git|/usr/local/bin/git
     # Strategy: strip the -m "..." or -m '...' inline value, then check for &&/||/;
     STRIPPED=$(echo "$FIRST_LINE" | sed -E 's/-m "[^"]*"/-m MSG/g; s/-m '"'"'[^'"'"']*'"'"'/-m MSG/g; s/-m [^ ;|&]+/-m MSG/g')
     if ! echo "$STRIPPED" | grep -qE '(&&|\|\||;)'; then
+        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: git commit" >&2; fi
         exit 0
     fi
     emit_deny "BLOCKED: 'git commit' chained with other commands is not allowed. Run git commit as a standalone command."
@@ -110,6 +118,7 @@ fi
 STATE_FILE_PATTERN='\.claude/(state/workflow\.json|state/phase-intent\.json|state/autonomy-intent\.json)'
 if echo "$COMMAND" | grep -qE "$STATE_FILE_PATTERN"; then
     if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ]; then
+        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: Direct writes to workflow state files are not allowed." >&2; fi
         emit_deny "BLOCKED: Direct writes to workflow state files are not allowed."
         exit 0
     fi
@@ -121,7 +130,7 @@ fi
 
 # Allow everything in implement and review phases
 case "$PHASE" in
-    implement|review) exit 0 ;;
+    implement|review) if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: phase=$PHASE allows all bash" >&2; fi; exit 0 ;;
 esac
 
 # Select whitelist based on phase
@@ -147,6 +156,7 @@ if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ]
 
     # If we can identify a write target, check it against the whitelist
     if [ -n "$WRITE_TARGET" ] && echo "$WRITE_TARGET" | grep -qE "$WHITELIST"; then
+        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: write target whitelisted ($WRITE_TARGET)" >&2; fi
         exit 0
     fi
     # Phase-aware deny message
@@ -157,9 +167,11 @@ if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ]
         *)        REASON="BLOCKED: Unexpected phase ($PHASE)." ;;
     esac
 
+    if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: $REASON" >&2; fi
     emit_deny "$REASON"
     exit 0
 fi
 
 # Read-only Bash commands are allowed
+if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: no write pattern detected" >&2; fi
 exit 0

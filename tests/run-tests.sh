@@ -697,6 +697,22 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level off
 OUTPUT=$(run_gate "/project/src/main.py")
 assert_contains "$OUTPUT" "deny" "Level 1 blocks Write in DISCUSS (phase gate, same as ask)"
 
+# --- Debug mode tests (workflow-gate) ---
+echo ""
+echo "--- Debug mode (workflow-gate) ---"
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_debug "true"
+
+# Test: workflow-gate debug shows allow in implement phase
+STDERR_OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/tmp/test.js"}}' | "$TEST_DIR/.claude/hooks/workflow-gate.sh" 2>&1 1>/dev/null || true)
+assert_contains "$STDERR_OUTPUT" "[WFM DEBUG]" "workflow-gate debug shows allow decision"
+
+# Test: no debug output when debug is off
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_debug "false"
+STDERR_OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/tmp/test.js"}}' | "$TEST_DIR/.claude/hooks/workflow-gate.sh" 2>&1 1>/dev/null || true)
+assert_not_contains "$STDERR_OUTPUT" "[WFM DEBUG]" "workflow-gate no debug when off"
+
 # ============================================================
 # TEST SUITE: bash-write-guard.sh
 # ============================================================
@@ -1068,6 +1084,22 @@ assert_eq "" "$RESULT" "bash-guard: python3 write allowed at Level 1 in IMPLEMEN
 # Reset state
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+
+# --- Debug mode tests (bash-write-guard) ---
+echo ""
+echo "--- Debug mode (bash-write-guard) ---"
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_debug "true"
+
+# Test: bash-write-guard debug shows allow in implement phase
+STDERR_OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"echo hello"}}' | "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>&1 1>/dev/null || true)
+assert_contains "$STDERR_OUTPUT" "[WFM DEBUG]" "bash-write-guard debug shows allow decision"
+
+# Test: no debug output when debug is off
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_debug "false"
+STDERR_OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"echo hello"}}' | "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>&1 1>/dev/null || true)
+assert_not_contains "$STDERR_OUTPUT" "[WFM DEBUG]" "bash-write-guard no debug when off"
 
 # ============================================================
 # TEST SUITE: install.sh (migration tool)
