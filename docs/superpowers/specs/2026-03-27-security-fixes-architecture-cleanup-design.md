@@ -1,5 +1,7 @@
 # Design Spec: v1.11.0 — Security Fixes, Architecture Cleanup, Command Dispatch
 
+> **Note (v1.11.0):** The `save_completion_snapshot` / `restore_completion_snapshot` mechanism referenced in this document was removed in v1.11.0. References below are historical.
+
 **Date:** 2026-03-27
 **Decision Record:** `docs/plans/2026-03-27-security-fixes-architecture-cleanup-decisions.md`
 

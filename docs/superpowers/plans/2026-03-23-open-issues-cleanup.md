@@ -1,5 +1,7 @@
 # Open Issues Cleanup & Tracked Observations Implementation Plan
 
+> **Note (v1.11.0):** The `save_completion_snapshot` / `restore_completion_snapshot` mechanism referenced in this document was removed in v1.11.0. References below are historical.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Resolve all 15 open issues and tech debt items from observation #3416, add safe tracked observations lifecycle, improve COMPLETE pipeline with boundary testing / devil's advocate / loop-back exception / version bumping, and fix setup.sh permissions for unattended operation.

@@ -1,5 +1,7 @@
 # Open Issues Cleanup & Tracked Observations Feature
 
+> **Note (v1.11.0):** The `save_completion_snapshot` / `restore_completion_snapshot` mechanism referenced in this document was removed in v1.11.0. References below are historical.
+
 **Date:** 2026-03-23
 **Status:** Design
 **Supersedes:** Observation #3416 (consolidated open issues list)

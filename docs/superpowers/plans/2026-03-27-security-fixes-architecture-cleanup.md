@@ -1,5 +1,7 @@
 # v1.11.0 Security Fixes & Architecture Cleanup — Implementation Plan
 
+> **Note (v1.11.0):** The `save_completion_snapshot` / `restore_completion_snapshot` mechanism referenced in this document was removed in v1.11.0. References below are historical.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Close 5 open security/architecture issues (#4483, #4484, #4470, #4471, #4478) from v1.10.0.
