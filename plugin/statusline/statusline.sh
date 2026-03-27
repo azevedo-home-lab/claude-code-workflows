@@ -233,4 +233,25 @@ else
   OUTPUT+="  ${DIM}│${RESET}  ${DIM}Claude-Mem ✗${RESET}"
 fi
 
+# CCProxy provider indicator — only shown when proxy is running
+CCPROXY_STATE="$HOME/.config/ccproxy/active-provider"
+CCPROXY_PID_FILE="$HOME/.config/ccproxy/ccproxy.pid"
+if [ -f "$CCPROXY_STATE" ] && [ -f "$CCPROXY_PID_FILE" ]; then
+  CCPROXY_PID_VAL=$(tr -d '[:space:]' < "$CCPROXY_PID_FILE" 2>/dev/null || true)
+  if [ -n "$CCPROXY_PID_VAL" ] && kill -0 "$CCPROXY_PID_VAL" 2>/dev/null; then
+    ACTIVE_PROVIDER=$(head -1 "$CCPROXY_STATE" 2>/dev/null || true)
+    CCPROXY_PORT=$(sed -n '2p' "$CCPROXY_STATE" 2>/dev/null || true)
+    # Sanitize against printf '%b' backslash injection (matches existing pattern)
+    ACTIVE_PROVIDER="${ACTIVE_PROVIDER//\\/\\\\}"
+    CCPROXY_PORT="${CCPROXY_PORT//\\/\\\\}"
+    case "$ACTIVE_PROVIDER" in
+      codex)  PROVIDER_LABEL="Codex"  ; PROVIDER_COLOR="$YELLOW" ;;
+      claude) PROVIDER_LABEL="Claude" ; PROVIDER_COLOR="$GREEN"  ;;
+      *)      PROVIDER_LABEL="$ACTIVE_PROVIDER" ; PROVIDER_COLOR="$DIM" ;;
+    esac
+    OUTPUT+="  ${DIM}│${RESET}  ${PROVIDER_COLOR}⇄ ${PROVIDER_LABEL}${RESET}"
+    [ -n "$CCPROXY_PORT" ] && OUTPUT+=" ${DIM}:${CCPROXY_PORT}${RESET}"
+  fi
+fi
+
 printf '%b' "$OUTPUT"
