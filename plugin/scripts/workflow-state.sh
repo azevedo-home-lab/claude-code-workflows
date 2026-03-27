@@ -12,7 +12,7 @@
 STATE_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/.claude/state"
 STATE_FILE="$STATE_DIR/workflow.json"
 
-# Atomic write helper. Reads stdin → PID-scoped temp file → guards → mv.
+# Atomic write helper. Reads stdin → mktemp temp file → guards → mv.
 # All state file writes MUST go through this function.
 # Rejects: zero-byte input, >10KB output, invalid JSON, mv failure.
 _safe_write() {
