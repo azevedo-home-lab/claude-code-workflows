@@ -1198,6 +1198,14 @@ assert_not_contains "$OUTPUT" "deny" "allows gh issue create in COMPLETE"
 OUTPUT=$(run_bash_guard "gh pr create --title test")
 assert_not_contains "$OUTPUT" "deny" "allows gh pr create in COMPLETE"
 
+# Test: gh chained with other commands blocked in COMPLETE
+OUTPUT=$(run_bash_guard "gh issue list && rm -rf /")
+assert_contains "$OUTPUT" "deny" "blocks gh chained with other commands in COMPLETE"
+
+# Test: rm .claude/tmp/ chained with other commands blocked in COMPLETE
+OUTPUT=$(run_bash_guard "rm .claude/tmp/artifact.md && echo pwned > evil.txt")
+assert_contains "$OUTPUT" "deny" "blocks rm .claude/tmp/ chained with other commands in COMPLETE"
+
 # Test: gh blocked in DISCUSS phase (no exception)
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"

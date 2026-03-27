@@ -186,13 +186,15 @@ esac
 
 # COMPLETE phase: allow gh commands (API operations) and rm for .claude/tmp/ cleanup
 if [ "$PHASE" = "complete" ]; then
-    if echo "$COMMAND" | grep -qE '^[[:space:]]*(gh)[[:space:]]'; then
+    if echo "$COMMAND" | grep -qE '^[[:space:]]*(gh)[[:space:]]' && \
+       ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
         if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: gh command in COMPLETE" >&2; fi
         exit 0
     fi
     if echo "$COMMAND" | grep -qE '^[[:space:]]*rm[[:space:]]' && \
        echo "$COMMAND" | grep -qE '\.claude/tmp/' && \
-       ! echo "$COMMAND" | grep -qE '\.\.'; then
+       ! echo "$COMMAND" | grep -qE '\.\.' && \
+       ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
         if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: rm .claude/tmp/ in COMPLETE" >&2; fi
         exit 0
     fi
