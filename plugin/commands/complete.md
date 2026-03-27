@@ -450,7 +450,7 @@ Mark milestone:
 
 ### Step 9: Phase Transition
 
-All 7 milestones must be marked true before the workflow can close.
+All 8 milestones must be marked true before the workflow can close.
 
 Inform the user that the completion pipeline is finished and they should run `/off` to close the workflow:
 

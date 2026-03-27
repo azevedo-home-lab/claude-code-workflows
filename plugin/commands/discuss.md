@@ -3,9 +3,7 @@ description: Design the solution and write the implementation plan (Diamond 2 �
 ---
 !`WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "discuss" && .claude/hooks/workflow-cmd.sh reset_discuss_status && .claude/hooks/workflow-cmd.sh set_active_skill "" && echo "Phase set to DISCUSS — code edits blocked until plan is ready."`
 
-**You are in DISCUSS phase.** Code edits are blocked — design the solution and write the plan.
-
-**You are now in DISCUSS phase (Diamond 2 — Solution Space).**
+**You are now in DISCUSS phase (Diamond 2 — Solution Space).** Code edits are blocked — design the solution and write the plan.
 
 Before proceeding:
 1. Read `plugin/docs/reference/professional-standards.md` — apply the Universal Standards and DISCUSS Phase Standards throughout this phase.

@@ -1298,6 +1298,10 @@ assert_not_contains "$OUTPUT" "deny" "allows gh pr create in COMPLETE"
 OUTPUT=$(run_bash_guard "gh issue list && rm -rf /")
 assert_contains "$OUTPUT" "deny" "blocks gh chained with other commands in COMPLETE"
 
+# Test: gh piped to jq allowed in COMPLETE (read-only pipe is safe)
+OUTPUT=$(run_bash_guard "gh issue list --json number | jq '.[]'")
+assert_not_contains "$OUTPUT" "deny" "allows gh piped to jq in COMPLETE"
+
 # Test: rm .claude/tmp/ chained with other commands blocked in COMPLETE
 OUTPUT=$(run_bash_guard "rm .claude/tmp/artifact.md && echo pwned > evil.txt")
 assert_contains "$OUTPUT" "deny" "blocks rm .claude/tmp/ chained with other commands in COMPLETE"
