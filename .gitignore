@@ -14,6 +14,9 @@
 # Workflow Manager state (per-session, not committed)
 .claude/state/
 
+# Temporary agent artifacts (cleaned up by COMPLETE pipeline)
+.claude/tmp/
+
 # Git worktrees (isolated workspaces)
 .worktrees/
 

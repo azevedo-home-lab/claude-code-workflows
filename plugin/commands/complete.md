@@ -328,43 +328,82 @@ If the tracked list is non-empty, fetch them via `get_observations([IDs])` and f
 
 Build two in-memory lists: `KEEP_IDS` (still-open observation IDs) and `RESOLVED_IDS` (completed this session). These are used by Step 8 — **do not modify tracked_observations here**.
 
-Then proceed with the existing tech debt audit:
+#### Collect and Categorize Findings
 
-Before closing, review the decision record for any "accepted trade-offs" or "tech debt acknowledged" entries. **For each item, propose a concrete improvement:**
+Gather all findings from these sources:
+- Decision record's "accepted trade-offs" and "tech debt acknowledged" entries
+- Review phase findings (if review was run — check the decision record's Review Findings section)
+- Steps 1-3 validation results (boundary tester, devil's advocate findings)
 
-| Trade-off | Impact | Proposed Fix | Effort | Priority |
+Group findings into these categories:
+
+| Category | GitHub Label | What goes here |
+|----------|-------------|---------------|
+| Security | `security` | Bypass vectors, injection risks, secret exposure, auth gaps |
+| Robustness | `robustness` | Race conditions, error handling, fail-open/closed, resilience |
+| Feature | `feature` | Missing capabilities, incomplete implementations |
+| Tech Debt | `tech-debt` | Code quality, duplication, pattern inconsistency |
+| Documentation | `documentation` | Stale references, missing docs, README drift |
+
+**Skip empty categories.** Only present categories that have findings.
+
+#### Present Categorized Table
+
+For each non-empty category, present a table with concrete improvement proposals:
+
+**[Category] ([N] items):**
+
+| Item | Impact | Proposed Fix | Effort | Priority |
 |---|---|---|---|---|
-| <description> | <what could go wrong> | <specific fix> | <S/M/L> | <high/medium/low> |
+| <description> | <what could go wrong> | <specific fix> | S/M/L | High/Medium/Low |
 
 Don't just list debt — recommend what to do about it. The user should leave this step with actionable next steps, not just a list of problems.
 
-Present the table and ask: "Want to create tickets/issues for any of these, or note them for the next session?"
+#### Save Category Observations
 
-#### GitHub Issue Creation (opt-in)
+For each non-empty category, save a single claude-mem observation:
+- **Title:** `Open Issue — [Category]: [summary] (YYYY-MM-DD)`
+- **Type:** `discovery`
+- **Project:** derived from git remote (`git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`)
+- **Narrative:** All items in that category with details, effort estimates, priority, and related observation IDs
 
-After presenting the tech debt table, offer to create GitHub issues:
+Autonomy gating for observations:
+- **auto (▶▶▶):** Auto-save all category observations
+- **ask (▶▶):** Auto-save all category observations
+- **off (▶):** Ask per-category "Save observation? (y/n)"
 
-- **auto (▶▶▶):** Create issues for all High/Medium priority items automatically. Skip Low priority.
-- **ask (▶▶):** Present each item and ask "Create GitHub issue? (y/n)"
-- **off (▶):** Present each item individually, wait for explicit yes/no.
+#### GitHub Issue Creation
+
+After saving observations, create GitHub issues per category:
+
+- **auto (▶▶▶):** Auto-create for High/Medium priority categories. Skip Low.
+- **ask (▶▶):** Ask per-category "Create GitHub issue? (y/n)"
+- **off (▶):** Ask per-item "Create GitHub issue? (y/n)"
 
 For each issue to create:
-1. Check `gh` is available and authenticated. If not, skip gracefully: "Skipping GitHub issue creation — gh CLI not available/authenticated."
-2. Run: `gh issue create --title "[Tech Debt] <item title>" --body "<details from table including impact, proposed fix, effort, priority>" --label "tech-debt"`
-3. Capture the issue URL from output (format: `https://github.com/owner/repo/issues/NNN`)
-4. If the tech debt item has a corresponding observation ID, store the mapping:
-   ```bash
-   .claude/hooks/workflow-cmd.sh set_issue_mapping "<obs_id>" "<issue_url>"
-   ```
-5. Report: "Created issue: <url>"
+1. Check `gh` is available: `gh auth status 2>&1`. If not, skip gracefully: "Skipping GitHub issue creation — gh CLI not available."
+2. Ensure label exists: `gh label create "<label>" --description "<desc>" 2>/dev/null || true`
+3. Create: `gh issue create --title "[Category] Summary" --body "<all items with details, effort, priority>" --label "<category-label>"`
+4. Capture the issue URL from output
+5. Store mapping: `.claude/hooks/workflow-cmd.sh set_issue_mapping "<obs_id>" "<issue_url>"`
+6. Report: "Created issue: <url>"
 
-The issue mapping makes observation IDs clickable in the status line (links to GitHub issues).
+The issue mapping makes observation IDs clickable in the status line (links to GitHub issues via OSC 8 hyperlinks).
+
+#### Temp File Cleanup
+
+After issue creation, clean up agent artifacts:
+
+```bash
+rm .claude/tmp/* 2>/dev/null || true
+echo "Cleaned up .claude/tmp/"
+```
 
 #### Step 7 Review Gate
 
-After presenting the tech debt table, dispatch a **review agent** — read `plugin/agents/tech-debt-reviewer.md`, then dispatch as `general-purpose` — to verify proposal quality:
+After presenting the categorized tech debt table, dispatch a **review agent** — read `plugin/agents/tech-debt-reviewer.md`, then dispatch as `general-purpose` — to verify proposal quality:
 
-Context: "Decision record: [DECISION_RECORD_PATH]. Tech debt table: [TABLE]."
+Context: "Decision record: [DECISION_RECORD_PATH]. Categorized tech debt table: [TABLE]."
 
 If REDO: fix and re-dispatch. Max 3 iterations, then surface to user.
 **After the gate passes (or on each iteration):** present a summary to the user: "Step 7 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
