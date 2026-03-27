@@ -307,7 +307,18 @@ echo "Worktree at: $WORKTREE_PATH"
 echo "Main project at: $MAIN_PROJECT"
 echo "Clean up worktree? (yes / no)"
 ```
-If **yes**: `git worktree remove <path>` and `git branch -d <branch>`
+If **yes**: first verify the branch was merged:
+```bash
+# Verify branch was merged before cleanup
+UNMERGED=$(git log origin/$MAIN_BRANCH..$CURRENT_BRANCH --oneline 2>/dev/null)
+if [ -n "$UNMERGED" ]; then
+    echo "WARNING: Branch has unmerged commits:"
+    echo "$UNMERGED"
+    echo "Proceed with cleanup anyway? (yes / no)"
+fi
+```
+If no unmerged commits (or user confirms anyway): `git worktree remove <path>` and `git branch -d <branch>`
+If user declines: note that worktree is still active with unmerged work
 If **no**: note that worktree is still active
 
 **If on main already:** skip this step.
