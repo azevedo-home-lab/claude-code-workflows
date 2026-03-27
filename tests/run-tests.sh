@@ -3637,6 +3637,59 @@ assert_contains "$(cat "$NAVIGATOR")" 'reset_review_status' "Check 8 implement s
 assert_contains "$(cat "$NAVIGATOR")" 'reset_completion_status' "Check 8 review stall includes reset_completion_status"
 
 # ============================================================
+# CCProxy Statusline Indicator
+# ============================================================
+echo ""
+echo "=== CCProxy Statusline Indicator ==="
+
+STATUSLINE="$REPO_DIR/plugin/statusline/statusline.sh"
+CCPROXY_DIR=$(mktemp -d)
+SAMPLE_INPUT='{"version":"2.0.0","model":{"display_name":"claude-sonnet-4-6"},"context_window":{"used_percentage":15,"current_usage":{"input_tokens":5000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0},"context_window_size":200000},"cwd":"'"$REPO_DIR"'"}'
+
+# Test: no state files → no indicator
+OUTPUT=$(echo "$SAMPLE_INPUT" | HOME="$CCPROXY_DIR" bash "$STATUSLINE" 2>/dev/null)
+assert_not_contains "$OUTPUT" "⇄" "CCProxy: no indicator when state files absent"
+
+# Test: live PID + codex provider → shows indicator
+mkdir -p "$CCPROXY_DIR/.config/ccproxy"
+printf 'codex\n8000\n' > "$CCPROXY_DIR/.config/ccproxy/active-provider"
+echo "$$" > "$CCPROXY_DIR/.config/ccproxy/ccproxy.pid"
+OUTPUT=$(echo "$SAMPLE_INPUT" | HOME="$CCPROXY_DIR" bash "$STATUSLINE" 2>/dev/null)
+assert_contains "$OUTPUT" "Codex" "CCProxy: shows Codex label when provider=codex"
+assert_contains "$OUTPUT" ":8000" "CCProxy: shows port when valid"
+
+# Test: live PID + claude provider → shows Claude label
+printf 'claude\n8000\n' > "$CCPROXY_DIR/.config/ccproxy/active-provider"
+OUTPUT=$(echo "$SAMPLE_INPUT" | HOME="$CCPROXY_DIR" bash "$STATUSLINE" 2>/dev/null)
+assert_contains "$OUTPUT" "Claude" "CCProxy: shows Claude label when provider=claude"
+
+# Test: dead PID → no indicator
+printf 'codex\n8000\n' > "$CCPROXY_DIR/.config/ccproxy/active-provider"
+echo "999999999" > "$CCPROXY_DIR/.config/ccproxy/ccproxy.pid"
+OUTPUT=$(echo "$SAMPLE_INPUT" | HOME="$CCPROXY_DIR" bash "$STATUSLINE" 2>/dev/null)
+assert_not_contains "$OUTPUT" "⇄" "CCProxy: no indicator when PID is dead"
+
+# Test: non-numeric PID → no indicator (negative PID guard)
+echo "-1" > "$CCPROXY_DIR/.config/ccproxy/ccproxy.pid"
+OUTPUT=$(echo "$SAMPLE_INPUT" | HOME="$CCPROXY_DIR" bash "$STATUSLINE" 2>/dev/null)
+assert_not_contains "$OUTPUT" "⇄" "CCProxy: no indicator when PID is non-numeric (-1 guard)"
+
+# Test: non-numeric port → no port suffix shown
+echo "$$" > "$CCPROXY_DIR/.config/ccproxy/ccproxy.pid"
+printf 'codex\nnotaport\n' > "$CCPROXY_DIR/.config/ccproxy/active-provider"
+OUTPUT=$(echo "$SAMPLE_INPUT" | HOME="$CCPROXY_DIR" bash "$STATUSLINE" 2>/dev/null)
+assert_contains "$OUTPUT" "Codex" "CCProxy: shows label even when port invalid"
+assert_not_contains "$OUTPUT" ":notaport" "CCProxy: no port suffix when port non-numeric"
+
+# Test: unknown provider → raw label shown
+printf 'gemini\n8000\n' > "$CCPROXY_DIR/.config/ccproxy/active-provider"
+echo "$$" > "$CCPROXY_DIR/.config/ccproxy/ccproxy.pid"
+OUTPUT=$(echo "$SAMPLE_INPUT" | HOME="$CCPROXY_DIR" bash "$STATUSLINE" 2>/dev/null)
+assert_contains "$OUTPUT" "gemini" "CCProxy: unknown provider falls through to raw label"
+
+rm -rf "$CCPROXY_DIR"
+
+# ============================================================
 # RESULTS
 # ============================================================
 echo ""
