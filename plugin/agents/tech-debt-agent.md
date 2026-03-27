@@ -31,6 +31,14 @@ Fetch tracked observations via `get_observations([IDs])`. For each:
 
 Build two lists: `KEEP_IDS` (still-open) and `RESOLVED_IDS` (completed).
 
+### Close Resolved GitHub Issues
+
+For each resolved observation that has a GitHub issue mapping:
+1. Check if an issue mapping exists: `.claude/hooks/workflow-cmd.sh get_issue_mapping "<obs_id>"`
+2. If a URL is returned, close the issue with a comment:
+   `gh issue close <issue_number> --comment "Resolved in this session."`
+3. If no mapping exists, skip (the observation may predate GitHub issue tracking).
+
 ### Collect and Categorize Findings
 
 Gather findings from:
