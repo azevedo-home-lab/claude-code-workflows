@@ -242,10 +242,7 @@ echo "Commits ahead of remote: $AHEAD"
 
 2. If ahead > 0, ask: "Push to remote? (yes / no)"
    - At **all autonomy levels**: always ask before pushing. Push is never automatic.
-   - If **yes**: warn about YubiKey, then push:
-     ```
-     ========== YUBIKEY: TOUCH NOW FOR GIT PUSH ==========
-     ```
+   - If **yes**: push to remote:
      ```bash
      git push origin HEAD
      ```

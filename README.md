@@ -66,12 +66,7 @@ Each cycle produces a **decision record** tracking problem, approaches, rational
 
 ### Optional Tools
 
-Installed separately with `--iterm` or `--yubikey` flags:
-
-| Tool | What it does | Docs |
-|------|-------------|------|
-| YubiKey signing | FIDO2 commit signing + push auth | [YubiKey setup](tools/yubikey-setup/) |
-| iTerm Launcher | Dedicated Claude Code window | [Launcher](tools/iterm-launcher/) |
+Optional companion tools (YubiKey signing, iTerm launcher) live in a [separate repository](https://github.com/azevedo-home-lab/claude-code-tools).
 
 ## Docs
 

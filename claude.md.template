@@ -109,6 +109,6 @@ New session starting:
 
 If using YubiKey FIDO2 for git signing/auth, install the wrappers and CLAUDE.md snippet:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-workflows/main/tools/yubikey-setup/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/azevedo-home-lab/claude-code-tools/main/yubikey-setup/install.sh | bash
 ```
-See [tools/yubikey-setup/](tools/yubikey-setup/) for details.
+See the [claude-code-tools repo](https://github.com/azevedo-home-lab/claude-code-tools) for details.
