@@ -1157,6 +1157,34 @@ RESULT=$(echo '{"tool_input":{"command":"truncate -s 0 file"}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
 assert_contains "$RESULT" "deny" "bash-guard: truncate blocked in DISCUSS"
 
+# Test: FILE_OPS false positive — "iTerm" contains "rm" mid-word (should ALLOW)
+RESULT=$(run_bash_guard 'echo Extract iTerm tooling to separate repo')
+assert_not_contains "$RESULT" "deny" "bash-guard: iTerm in gh body not false-positive on rm"
+
+# Test: FILE_OPS false positive — "perform" contains "rm" mid-word (should ALLOW)
+RESULT=$(run_bash_guard 'echo perform cleanup tasks')
+assert_not_contains "$RESULT" "deny" "bash-guard: perform not false-positive on rm"
+
+# Test: FILE_OPS false positive — "transform" contains "rm" mid-word (should ALLOW)
+RESULT=$(run_bash_guard 'echo transform data format')
+assert_not_contains "$RESULT" "deny" "bash-guard: transform not false-positive on rm"
+
+# Test: FILE_OPS — standalone rm still blocked
+RESULT=$(run_bash_guard 'rm file.txt')
+assert_contains "$RESULT" "deny" "bash-guard: standalone rm still blocked"
+
+# Test: FILE_OPS — chained rm still blocked
+RESULT=$(run_bash_guard 'echo foo && rm file.txt')
+assert_contains "$RESULT" "deny" "bash-guard: chained rm still blocked"
+
+# Test: FILE_OPS — semicolon-chained cp still blocked
+RESULT=$(run_bash_guard 'ls; cp src dst')
+assert_contains "$RESULT" "deny" "bash-guard: semicolon-chained cp still blocked"
+
+# Test: FILE_OPS — pipe-chained mv still blocked
+RESULT=$(run_bash_guard 'cat list | mv old new')
+assert_contains "$RESULT" "deny" "bash-guard: pipe-chained mv still blocked"
+
 # Test: perl -i blocked in DISCUSS
 RESULT=$(echo '{"tool_input":{"command":"perl -i -pe '"'"'s/old/new/'"'"' file"}}' | \
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>/dev/null)
