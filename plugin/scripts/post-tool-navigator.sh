@@ -112,6 +112,11 @@ Objective: Verify outcomes were met, update documentation, hand over for future 
 Be specific about failures. Recommend next steps. Audit tech debt. Write a useful handover.
 Done when: Validation results in decision record, README checked, claude-mem observation saved, phase OFF."
                 ;;
+            error)
+                MESSAGES="[Workflow Coach — ERROR]
+Workflow state is corrupted. All writes are blocked for safety.
+To recover: run /off to reset the workflow, or manually delete .claude/state/workflow.json"
+                ;;
         esac
         # Append auto-transition guidance if autonomy is "auto"
         AUTONOMY_LEVEL=$(get_autonomy_level)
@@ -136,7 +141,10 @@ Done when: Validation results in decision record, README checked, claude-mem obs
             esac
         fi
 
-        set_message_shown
+        # Skip state update in error phase — state is corrupt, writes will fail
+        if [ "$PHASE" != "error" ]; then
+            set_message_shown
+        fi
     fi
 fi
 

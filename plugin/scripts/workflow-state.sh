@@ -16,7 +16,8 @@ STATE_FILE="$STATE_DIR/workflow.json"
 # All state file writes MUST go through this function.
 # Rejects: zero-byte input, >10KB output, invalid JSON, mv failure.
 _safe_write() {
-    local tmpfile="${STATE_FILE}.tmp.$$"
+    local tmpfile
+    tmpfile=$(mktemp "${STATE_FILE}.tmp.XXXXXX") || return 1
     cat > "$tmpfile" || { rm -f "$tmpfile"; return 1; }
     local size
     size=$(wc -c < "$tmpfile")
@@ -88,6 +89,7 @@ emit_deny() {
 _phase_ordinal() {
     case "$1" in
         off)       echo 0 ;;
+        error)     echo 0 ;;
         define)    echo 1 ;;
         discuss)   echo 2 ;;
         implement) echo 3 ;;
@@ -134,11 +136,11 @@ get_phase() {
         return
     fi
     local phase
-    phase=$(jq -r '.phase // "off"' "$STATE_FILE" 2>/dev/null) || phase="off"
-    [ -z "$phase" ] && phase="off"
+    phase=$(jq -r '.phase // "off"' "$STATE_FILE" 2>/dev/null) || phase="error"
+    [ -z "$phase" ] && phase="error"
     case "$phase" in
         off|define|discuss|implement|review|complete) ;;
-        *) phase="off" ;;
+        *) phase="error" ;;
     esac
     echo "$phase"
 }

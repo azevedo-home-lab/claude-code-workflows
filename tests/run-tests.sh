@@ -519,6 +519,65 @@ OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review
 # Should not crash — jq handles corrupt JSON gracefully via fallback defaults
 assert_not_contains "$OUTPUT" "HARD GATE" "corrupt state file does not trigger false gate block"
 
+# --- State file resilience (2a-2b-2f) ---
+echo ""
+echo "--- State file resilience ---"
+
+# Test 2a: _safe_write uses mktemp (concurrent writes leave no leftover temp files)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+# Run 10 concurrent set_phase writes in subshells
+for i in $(seq 1 10); do
+    ( source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement" ) &
+done
+wait
+# Check that no leftover temp files remain
+LEFTOVER=$(find "$TEST_DIR/.claude/state/" -name 'workflow.json.tmp.*' 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "0" "$LEFTOVER" "2a: concurrent writes leave no leftover temp files"
+
+# Test 2b: get_phase returns "error" for corrupt JSON
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+echo "NOT VALID JSON" > "$TEST_DIR/.claude/state/workflow.json"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "error" "$RESULT" "2b: corrupt JSON returns error"
+
+# Test 2b: get_phase returns "error" for empty state file
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+> "$TEST_DIR/.claude/state/workflow.json"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "error" "$RESULT" "2b: empty state file returns error"
+
+# Test 2b: get_phase returns "error" for unknown phase value
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+echo '{"phase":"bogus"}' > "$TEST_DIR/.claude/state/workflow.json"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "error" "$RESULT" "2b: unknown phase value returns error"
+
+# Test 2b: get_phase returns "off" when no state file (unchanged)
+setup_test_project
+rm -f "$TEST_DIR/.claude/state/workflow.json"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "off" "$RESULT" "2b: no state file returns off (unchanged)"
+
+# Test 2b: set_phase off recovers from corrupt state
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+echo "CORRUPT" > "$TEST_DIR/.claude/state/workflow.json"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "error" "$RESULT" "2b: state is error before recovery"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "off" "$RESULT" "2b: set_phase off recovers from corrupt state"
+
+# Test 2f: _phase_ordinal for error returns 0
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+RESULT=$(_phase_ordinal "error")
+assert_eq "0" "$RESULT" "2f: error phase ordinal is 0"
+
 # --- Debug flag tests ---
 echo ""
 echo "--- Debug flag ---"
@@ -713,6 +772,25 @@ assert_contains "$STDERR_OUTPUT" "[WFM DEBUG]" "workflow-gate debug shows allow 
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_debug "false"
 STDERR_OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/tmp/test.js"}}' | "$TEST_DIR/.claude/hooks/workflow-gate.sh" 2>&1 1>/dev/null || true)
 assert_not_contains "$STDERR_OUTPUT" "[WFM DEBUG]" "workflow-gate no debug when off"
+
+# --- Error phase tests (workflow-gate) ---
+echo ""
+echo "--- Error phase (workflow-gate) ---"
+
+# Test 2d: error phase blocks Write/Edit to source files
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+echo "CORRUPT" > "$TEST_DIR/.claude/state/workflow.json"
+OUTPUT=$(run_gate "/project/src/main.py")
+assert_contains "$OUTPUT" "deny" "2d: error phase blocks Write to source files"
+assert_contains "$OUTPUT" "corrupted" "2d: error phase deny message mentions corrupted"
+
+# Test 2d: error phase allows Write to .claude/state/ (whitelist)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+echo "CORRUPT" > "$TEST_DIR/.claude/state/workflow.json"
+OUTPUT=$(run_gate "/project/.claude/state/workflow.json")
+assert_not_contains "$OUTPUT" "deny" "2d: error phase allows Write to .claude/state/"
 
 # ============================================================
 # TEST SUITE: bash-write-guard.sh
@@ -1124,6 +1202,24 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_debug "false"
 STDERR_OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"echo hello"}}' | "$TEST_DIR/.claude/hooks/bash-write-guard.sh" 2>&1 1>/dev/null || true)
 assert_not_contains "$STDERR_OUTPUT" "[WFM DEBUG]" "bash-write-guard no debug when off"
 
+# --- Error phase tests (bash-write-guard) ---
+echo ""
+echo "--- Error phase (bash-write-guard) ---"
+
+# Test 2c: error phase blocks Bash writes
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+echo "CORRUPT" > "$TEST_DIR/.claude/state/workflow.json"
+OUTPUT=$(run_bash_guard "echo hello > file.txt")
+assert_contains "$OUTPUT" "deny" "2c: error phase blocks Bash write"
+
+# Test 2c: error phase allows Bash reads
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+echo "CORRUPT" > "$TEST_DIR/.claude/state/workflow.json"
+OUTPUT=$(run_bash_guard "cat file.txt")
+assert_not_contains "$OUTPUT" "deny" "2c: error phase allows Bash read"
+
 # --- Pipe split in git chain ---
 # Test: pipe operator in git chain splits correctly — blocks non-git commands
 setup_test_project
@@ -1358,6 +1454,14 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
 cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(run_navigator "Read")
 assert_not_contains "$OUTPUT" "Workflow Coach" "Layer 1 silent in OFF phase"
+
+# Test 2e: Layer 1 shows corruption warning in error phase
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+echo "CORRUPT" > "$TEST_DIR/.claude/state/workflow.json"
+OUTPUT=$(run_navigator "Read")
+assert_contains "$OUTPUT" "corrupted" "2e: Layer 1 shows corruption warning in error phase"
 
 # Test: hook exits cleanly (exit 0) for irrelevant tool types in active phase
 setup_test_project
@@ -2377,7 +2481,7 @@ assert_eq "off" "$PHASE_AFTER" "jq failure: state file unchanged"
 # Test: zero-byte state file returns safe defaults (not empty string)
 : > "$STATE_FILE"
 PHASE_ZERO=$(get_phase)
-assert_eq "off" "$PHASE_ZERO" "zero-byte state: get_phase returns off"
+assert_eq "error" "$PHASE_ZERO" "zero-byte state: get_phase returns error"
 LEVEL_ZERO=$(get_autonomy_level)
 assert_eq "ask" "$LEVEL_ZERO" "zero-byte state: get_autonomy_level returns ask"
 MSG_ZERO=$(get_message_shown)
@@ -2421,7 +2525,7 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh"
 set_phase "off"
 jq '.phase = "bogus"' "$STATE_FILE" > "$STATE_FILE.tmp.test" && mv "$STATE_FILE.tmp.test" "$STATE_FILE"
 RESULT=$(get_phase)
-assert_eq "off" "$RESULT" "phase enum guard: unknown phase string returns off"
+assert_eq "error" "$RESULT" "phase enum guard: unknown phase string returns error"
 
 # Test: get_phase returns "off" for null phase (enum guard)
 setup_test_project
