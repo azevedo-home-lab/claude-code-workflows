@@ -1,6 +1,8 @@
 ---
 description: Define the problem and outcomes (Diamond 1 — Problem Space)
+disable-model-invocation: true
 ---
+<!-- Do NOT invoke this command via the Skill tool. Use the native /command path only. -->
 !`WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "define" && .claude/hooks/workflow-cmd.sh set_active_skill "" && echo "Phase set to DEFINE — code edits are blocked."`
 
 **You are in DEFINE phase.** Code edits are blocked — define the problem and outcomes first.

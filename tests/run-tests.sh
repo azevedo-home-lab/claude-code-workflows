@@ -3595,6 +3595,22 @@ assert_contains "$(cat plugin/agents/devils-advocate.md)" "MUST NOT modify" "dev
 assert_contains "$(cat plugin/agents/devils-advocate.md)" "mktemp -d" "devils-advocate has mktemp instruction"
 
 # ============================================================
+# Command Dispatch — disable-model-invocation
+# ============================================================
+echo ""
+echo "=== Command Dispatch — disable-model-invocation ==="
+
+# Phase commands MUST have disable-model-invocation: true
+for cmd in complete implement discuss review define off autonomy; do
+    assert_contains "$(cat plugin/commands/$cmd.md)" "disable-model-invocation: true" "$cmd.md has disable-model-invocation"
+done
+
+# Utility commands should NOT have it (they're fine as skills)
+for cmd in obs-read obs-track obs-untrack debug proposals; do
+    assert_not_contains "$(cat plugin/commands/$cmd.md)" "disable-model-invocation: true" "$cmd.md correctly omits disable-model-invocation"
+done
+
+# ============================================================
 # RESULTS
 # ============================================================
 echo ""
