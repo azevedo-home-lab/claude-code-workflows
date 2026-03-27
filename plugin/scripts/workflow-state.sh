@@ -62,7 +62,7 @@ _update_state() {
 RESTRICTED_WRITE_WHITELIST='(\.claude/state/|docs/superpowers/specs/|docs/superpowers/plans/|docs/plans/)'
 
 # Docs-allowed tier: COMPLETE phase
-COMPLETE_WRITE_WHITELIST='(\.claude/state/|\.claude/commands/|docs/|^[^/]*\.md$)'
+COMPLETE_WRITE_WHITELIST='(\.claude/state/|docs/|^[^/]*\.md$)'
 
 # ---------------------------------------------------------------------------
 # Shared hook helpers

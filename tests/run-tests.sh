@@ -2331,11 +2331,11 @@ assert_contains "$OUTPUT" "deny" "blocks Bash write to source in COMPLETE phase"
 OUTPUT=$(run_bash_guard "echo content > docs/guide.md")
 assert_not_contains "$OUTPUT" "deny" "allows Bash write to docs/ in COMPLETE phase"
 
-# Test: .claude/commands/ writable in COMPLETE phase (workflow-gate)
+# Test: .claude/commands/ blocked in COMPLETE phase (removed from whitelist in v1.12.0)
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
 OUTPUT=$(run_gate "$TEST_DIR/.claude/commands/foo.md")
-assert_not_contains "$OUTPUT" "deny" "allows Write to .claude/commands/ in COMPLETE phase"
+assert_contains "$OUTPUT" "deny" ".claude/commands/ blocked in COMPLETE phase (removed from whitelist)"
 
 # Test: .claude/commands/ blocked in DISCUSS phase (workflow-gate)
 setup_test_project
