@@ -1729,7 +1729,7 @@ cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 jq '.message_shown = false' "$TEST_DIR/.claude/state/workflow.json" > "$TEST_DIR/.claude/state/workflow.json.tmp" && mv "$TEST_DIR/.claude/state/workflow.json.tmp" "$TEST_DIR/.claude/state/workflow.json"
 OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/project/src/main.py"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_contains "$OUTPUT" "Unattended" "auto coaching mentions Unattended in phase entry"
-assert_contains "$OUTPUT" "MUST invoke /review" "auto coaching includes specific auto-transition guidance for IMPLEMENT"
+assert_contains "$OUTPUT" "auto-transition" "auto coaching includes specific auto-transition guidance for IMPLEMENT"
 
 # Test: stall detection fires when IMPLEMENT milestones complete + auto autonomy
 setup_test_project
@@ -1741,7 +1741,7 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "tests
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "all_tasks_complete" "true"
 cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git status"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
-assert_contains "$OUTPUT" "MUST transition to /review NOW" "stall detection fires in IMPLEMENT when all milestones complete + auto"
+assert_contains "$OUTPUT" "ALL MILESTONES COMPLETE" "stall detection fires in IMPLEMENT when all milestones complete + auto"
 
 # Test: stall detection does NOT fire in ask autonomy
 setup_test_project
@@ -1753,7 +1753,7 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "tests
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "all_tasks_complete" "true"
 cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git status"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
-assert_not_contains "$OUTPUT" "MUST transition" "stall detection does NOT fire in ask autonomy"
+assert_not_contains "$OUTPUT" "ALL MILESTONES COMPLETE" "stall detection does NOT fire in ask autonomy"
 
 # Test: stall detection does NOT fire when milestones incomplete
 setup_test_project
@@ -1763,7 +1763,7 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "plan_read" "true"
 cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git status"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
-assert_not_contains "$OUTPUT" "MUST transition" "stall detection does NOT fire when milestones incomplete"
+assert_not_contains "$OUTPUT" "ALL MILESTONES COMPLETE" "stall detection does NOT fire when milestones incomplete"
 
 # Test: stall detection fires when REVIEW milestones complete + auto autonomy
 setup_test_project
@@ -1776,7 +1776,7 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_review_field "findings
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_review_field "findings_acknowledged" "true"
 cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
 OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git status"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
-assert_contains "$OUTPUT" "MUST transition to /complete NOW" "stall detection fires in REVIEW when all milestones complete + auto"
+assert_contains "$OUTPUT" "ALL REVIEW MILESTONES COMPLETE" "stall detection fires in REVIEW when all milestones complete + auto"
 
 # Test: ask coaching does NOT include auto-transition guidance
 setup_test_project
@@ -3609,6 +3609,23 @@ done
 for cmd in obs-read obs-track obs-untrack debug proposals; do
     assert_not_contains "$(cat plugin/commands/$cmd.md)" "disable-model-invocation: true" "$cmd.md correctly omits disable-model-invocation"
 done
+
+# ============================================================
+# Command Dispatch — Auto-Transition Coaching
+# ============================================================
+echo ""
+echo "=== Command Dispatch — Auto-Transition Coaching ==="
+
+# Layer 1: check that "invoke /review" is NOT in the implement auto message
+NAVIGATOR="$REPO_DIR/plugin/scripts/post-tool-navigator.sh"
+assert_not_contains "$(cat "$NAVIGATOR")" 'invoke /review' "Layer 1 does not say invoke /review"
+assert_not_contains "$(cat "$NAVIGATOR")" 'invoke /complete' "Layer 1 does not say invoke /complete"
+
+# Check 8: check that stall messages use explicit bash
+assert_contains "$(cat "$NAVIGATOR")" 'set_phase \"review\"' "Check 8 implement stall uses explicit set_phase review"
+assert_contains "$(cat "$NAVIGATOR")" 'set_phase \"complete\"' "Check 8 review stall uses explicit set_phase complete"
+assert_contains "$(cat "$NAVIGATOR")" 'reset_review_status' "Check 8 implement stall includes reset_review_status"
+assert_contains "$(cat "$NAVIGATOR")" 'reset_completion_status' "Check 8 review stall includes reset_completion_status"
 
 # ============================================================
 # RESULTS
