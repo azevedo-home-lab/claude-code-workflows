@@ -86,13 +86,13 @@ Dispatch an **Outcome validator agent** — read `plugin/agents/outcome-validato
 
 Context: "Outcome source: [OUTCOME_SOURCE_PATH]. Exception: do NOT re-run the full test suite. Reference the IMPLEMENT result (tests_passing=true) and verify test *coverage* by reading the test file instead. Flag manual steps that require user action."
 
-Also dispatch a **Boundary tester agent** alongside the outcome validator — read `plugin/agents/boundary-tester.md`, then dispatch as `general-purpose`:
+Also dispatch a **Boundary tester agent** alongside the outcome validator — read `plugin/agents/boundary-tester.md`, then dispatch as `general-purpose` with `isolation: "worktree"`:
 
 Context: "Changed files: [LIST from git diff --name-only main...HEAD]. Plan/spec: [PLAN_OR_SPEC_PATH]."
 
 The boundary tester's results are presented in Step 3 as a **Boundary Tests** table alongside Plan Deliverables and Outcomes.
 
-Finally, dispatch a **Devil's advocate agent** (runs after boundary tester, reads code not spec) — read `plugin/agents/devils-advocate.md`, then dispatch as `general-purpose`:
+Finally, dispatch a **Devil's advocate agent** (runs after boundary tester, reads code not spec) — read `plugin/agents/devils-advocate.md`, then dispatch as `general-purpose` with `isolation: "worktree"`:
 
 Context: "Implementation files from git diff main...HEAD. Your job is to break this implementation."
 

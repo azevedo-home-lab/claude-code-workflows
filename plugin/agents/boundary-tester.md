@@ -35,3 +35,13 @@ Table of edge cases with actual test results:
 | 2 | _safe_write | Input 10241 bytes | Reject | Rejected with error | PASS |
 
 Run the actual tests — do not speculate about results.
+
+## Isolation Requirements
+
+IMPORTANT: You are testing against LIVE project files. You MUST NOT modify
+the workflow state file (.claude/state/workflow.json) or run any state-
+modifying commands (set_phase, reset_*_status, etc.) against the real
+project directory.
+
+For destructive tests: create a temp directory with `mktemp -d`, copy
+the files you need, and test against the copy. Clean up when done.

@@ -35,3 +35,13 @@ Table of attack results:
 
 Attempt each attack and report what actually happened. Do not
 speculate.
+
+## Isolation Requirements
+
+IMPORTANT: You are testing against LIVE project files. You MUST NOT modify
+the workflow state file (.claude/state/workflow.json) or run any state-
+modifying commands (set_phase, reset_*_status, etc.) against the real
+project directory.
+
+For destructive tests: create a temp directory with `mktemp -d`, copy
+the files you need, and test against the copy. Clean up when done.

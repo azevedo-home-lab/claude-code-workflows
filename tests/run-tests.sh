@@ -3581,6 +3581,19 @@ set_phase "implement"
 CURRENT=$(get_phase)
 assert_eq "implement" "$CURRENT" "phase gate allows when discuss milestones complete"
 
+echo ""
+echo "=== Agent Isolation Instructions ==="
+
+# Test: boundary-tester.md contains isolation instructions
+assert_contains "$(cat plugin/agents/boundary-tester.md)" "Isolation Requirements" "boundary-tester has isolation section"
+assert_contains "$(cat plugin/agents/boundary-tester.md)" "MUST NOT modify" "boundary-tester has MUST NOT modify"
+assert_contains "$(cat plugin/agents/boundary-tester.md)" "mktemp -d" "boundary-tester has mktemp instruction"
+
+# Test: devils-advocate.md contains isolation instructions
+assert_contains "$(cat plugin/agents/devils-advocate.md)" "Isolation Requirements" "devils-advocate has isolation section"
+assert_contains "$(cat plugin/agents/devils-advocate.md)" "MUST NOT modify" "devils-advocate has MUST NOT modify"
+assert_contains "$(cat plugin/agents/devils-advocate.md)" "mktemp -d" "devils-advocate has mktemp instruction"
+
 # ============================================================
 # RESULTS
 # ============================================================
