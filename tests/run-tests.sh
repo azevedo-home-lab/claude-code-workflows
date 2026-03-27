@@ -171,6 +171,22 @@ run_with_auth() {
     (unset WF_SKIP_AUTH; source "$TEST_DIR/.claude/hooks/workflow-state.sh" && "$@")
 }
 
+# Initialize and complete IMPLEMENT milestones so phase transitions from implement are not blocked.
+# Call this after set_phase "implement" when the test does not care about milestone gates.
+complete_implement() {
+    source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_implement_status
+    source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "plan_read" "true"
+    source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "tests_passing" "true"
+    source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_implement_field "all_tasks_complete" "true"
+}
+
+# Initialize and complete DISCUSS milestones so phase transitions from discuss are not blocked.
+# Call this after set_phase "discuss" when the test does not care about milestone gates.
+complete_discuss() {
+    source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_discuss_status
+    source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_discuss_field "plan_written" "true"
+}
+
 # ============================================================
 # TEST SUITE: workflow-state.sh
 # ============================================================
@@ -191,12 +207,17 @@ assert_file_exists "$TEST_DIR/.claude/state/workflow.json" "set_phase creates wo
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
 assert_eq "implement" "$RESULT" "get_phase returns 'implement' after set_phase"
 
-# Test: set_phase back to discuss
+# Test: set_phase to discuss (fresh project — no gated phase before discuss)
+setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
 assert_eq "discuss" "$RESULT" "set_phase can change back to 'discuss'"
 
-# Test: set_phase to review
+# Test: set_phase to review (from discuss with milestones complete)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_discuss_status
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_discuss_field "plan_written" "true"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
 assert_eq "review" "$RESULT" "set_phase supports 'review' phase"
@@ -333,6 +354,7 @@ assert_contains "$OUTPUT" "ERROR" "set_autonomy_level rejects invalid input"
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level auto
+complete_implement
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
 assert_eq "auto" "$RESULT" "autonomy_level preserved across phase transitions"
@@ -348,6 +370,7 @@ assert_eq "ask" "$RESULT" "set_phase from OFF initializes autonomy_level to ask"
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level auto
+complete_implement
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_autonomy_level)
 assert_eq "ask" "$RESULT" "set_phase off clears autonomy_level (returns default ask)"
@@ -418,6 +441,7 @@ RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_last_observat
 assert_eq "3007" "$RESULT" "set/get_last_observation_id roundtrip"
 
 # Test: last_observation_id preserved across phase transitions
+complete_implement
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_last_observation_id)
 assert_eq "3007" "$RESULT" "last_observation_id preserved across phase transitions"
@@ -486,21 +510,21 @@ assert_contains "$OUTPUT" "tests_passing" "hard gate message lists specific miss
 assert_contains "$OUTPUT" "all_tasks_complete" "hard gate message lists all missing milestones"
 assert_not_contains "$OUTPUT" "plan_read" "hard gate message does not list completed milestones"
 
-# Test: backward compat — set_phase without reset_implement_status succeeds (no gate)
+# Test: fail-closed — set_phase without reset_implement_status is blocked (section missing = all milestones missing)
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
-OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review" 2>&1)
-assert_not_contains "$OUTPUT" "HARD GATE" "no gate when reset_implement_status was never called"
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review" 2>&1 || true)
+assert_contains "$OUTPUT" "HARD GATE" "fail-closed: gate fires when reset_implement_status was never called"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
-assert_eq "review" "$RESULT" "phase transitions without implement status object"
+assert_eq "implement" "$RESULT" "phase blocked without implement status object"
 
-# Test: backward compat — set_phase off from complete without reset_completion_status succeeds
+# Test: fail-closed — set_phase off from complete without reset_completion_status is blocked
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
-OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off" 2>&1)
-assert_not_contains "$OUTPUT" "HARD GATE" "no gate when reset_completion_status was never called"
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "off" 2>&1 || true)
+assert_contains "$OUTPUT" "HARD GATE" "fail-closed: gate fires when reset_completion_status was never called"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
-assert_eq "off" "$RESULT" "phase transitions without completion status object"
+assert_eq "complete" "$RESULT" "phase blocked without completion status object"
 
 # Test: COMPLETE hard gate blocks ALL exits (not just complete->off)
 setup_test_project
@@ -600,6 +624,7 @@ assert_eq "false" "$RESULT" "set_debug disables debug mode"
 
 # Test: debug flag preserved across phase transitions
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_debug "true"
+complete_implement
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_debug)
 assert_eq "true" "$RESULT" "debug flag preserved across phase transitions"
@@ -1508,6 +1533,7 @@ OUTPUT=$(run_navigator "Edit")
 assert_not_contains "$OUTPUT" "Workflow Coach.*IMPLEMENT" "Layer 1 silent after first message shown"
 
 # Test: phase change resets message_shown
+complete_implement
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "review"
 OUTPUT=$(run_navigator "Read")
 assert_contains "$OUTPUT" "Workflow Coach.*REVIEW" "Layer 1 shows REVIEW message after phase change"
@@ -2016,6 +2042,7 @@ STDERR_OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"/tmp/test.
 assert_not_contains "$STDERR_OUTPUT" "[WFM DEBUG]" "no debug output when debug is off"
 
 # Test: debug mode shows no-fire message for irrelevant tools
+complete_implement
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_debug "true"
 STDERR_OUTPUT=$(echo '{"tool_name":"Read","tool_input":{"file_path":"/tmp/test.js"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 1>/dev/null || true)
@@ -2614,6 +2641,7 @@ set_phase "define"
 assert_eq "3416" "$(get_tracked_observations)" "tracked observations preserved: off → define"
 set_phase "implement"
 assert_eq "3416" "$(get_tracked_observations)" "tracked observations preserved: define → implement"
+complete_implement
 set_phase "off"
 assert_eq "3416" "$(get_tracked_observations)" "tracked observations preserved: implement → off"
 
@@ -2749,6 +2777,7 @@ set_phase "implement"
 assert_eq "true" "$(has_completion_snapshot)" "snapshot survives transition to implement"
 
 # Test: restore_completion_snapshot restores milestones
+complete_implement
 set_phase "complete"
 reset_completion_status
 assert_eq "false" "$(get_completion_field plan_validated)" "milestones reset before restore"
@@ -2939,6 +2968,7 @@ assert_eq "implement" "$RESULT" "phase unchanged after blocked set_phase"
 # Test: set_phase allowed with valid intent file
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+complete_implement
 create_phase_intent "review"
 run_with_auth set_phase "review"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
@@ -2964,6 +2994,7 @@ assert_file_exists "$TEST_DIR/.claude/state/phase-intent.json" "non-matching int
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_autonomy_level "auto"
+complete_implement
 run_with_auth set_phase "review"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
 assert_eq "review" "$RESULT" "forward auto-transition allowed in auto mode"
@@ -3001,6 +3032,7 @@ assert_file_not_exists "$TEST_DIR/.claude/state/autonomy-intent.json" "autonomy 
 # Test: phase + autonomy intents coexist (independent files, independent consumption)
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+complete_implement
 create_phase_intent "review"
 create_autonomy_intent "autonomy:auto"
 # Consume phase intent
@@ -3084,6 +3116,7 @@ assert_file_not_exists "$TEST_DIR/.claude/state/autonomy-intent.json" "/complete
 setup_test_project
 export CLAUDE_PROJECT_DIR="$TEST_DIR"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+complete_implement
 echo '{"prompt": "/review"}' | bash "$REPO_DIR/plugin/scripts/user-phase-gate.sh"
 run_with_auth set_phase "review"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
@@ -3343,6 +3376,7 @@ RESULT=$(get_tests_passed_at)
 assert_eq "abc123def" "$RESULT" "set_tests_passed_at stores commit hash"
 
 # Test: tests_last_passed_at preserved across phase transition (implement -> review)
+complete_implement
 set_phase "review"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_tests_passed_at)
 assert_eq "abc123def" "$RESULT" "tests_last_passed_at preserved: implement -> review"
@@ -3352,6 +3386,7 @@ setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh"
 set_phase "implement"
 set_tests_passed_at "xyz789"
+complete_implement
 set_phase "review"
 source "$TEST_DIR/.claude/hooks/workflow-state.sh"
 # Complete all review milestones so hard gate allows leaving
@@ -3369,6 +3404,7 @@ setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh"
 set_phase "implement"
 set_tests_passed_at "will-be-cleared"
+complete_implement
 set_phase "off"
 RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_tests_passed_at)
 assert_eq "" "$RESULT" "tests_last_passed_at cleared on off"
@@ -3401,6 +3437,7 @@ assert_eq "https://github.com/test/repo/issues/42" "$RESULT1" "first mapping pre
 assert_eq "https://github.com/test/repo/issues/99" "$RESULT2" "second mapping stored correctly"
 
 # Test: issue mappings preserved across phase transition
+complete_implement
 set_phase "review"
 RESULT=$(get_issue_url "1234")
 assert_eq "https://github.com/test/repo/issues/42" "$RESULT" "issue mapping preserved across phase transition"
@@ -3484,6 +3521,52 @@ done
 # Test: no wf: prefixed files remain
 WF_FILES=$(find "$PLUGIN_COMMANDS" -name "wf:*" 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "0" "$WF_FILES" "no wf: prefixed files in plugin/commands"
+
+# ============================================================
+# TEST SUITE: Fail-Closed Milestone Gate
+# ============================================================
+echo ""
+echo "=== Fail-Closed Milestone Gate ==="
+
+# _check_milestones fail-closed when section missing
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+set_phase "discuss"
+
+# Section does NOT exist (reset_discuss_status not called)
+MISSING=$(_check_milestones "discuss" "plan_written")
+assert_contains "$MISSING" "plan_written" "check_milestones returns plan_written when section absent"
+
+# Also test with implement section (fresh project to avoid discuss exit gate)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+set_phase "implement"
+MISSING=$(_check_milestones "implement" "plan_read" "tests_passing" "all_tasks_complete")
+assert_contains "$MISSING" "plan_read" "check_milestones returns plan_read when implement section absent"
+
+# Phase gate should block when section missing
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+set_phase "discuss"
+# Do NOT call reset_discuss_status — section doesn't exist
+OUTPUT=$(set_phase "implement" 2>&1) || true
+CURRENT=$(get_phase)
+assert_eq "discuss" "$CURRENT" "phase gate blocks when discuss section missing"
+
+# Regression: phase gate still blocks when section exists but fields incomplete
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh"
+set_phase "discuss"
+reset_discuss_status
+OUTPUT=$(set_phase "implement" 2>&1) || true
+CURRENT=$(get_phase)
+assert_eq "discuss" "$CURRENT" "phase gate blocks when discuss milestones incomplete"
+
+# Regression: phase gate allows when milestones complete
+set_discuss_field "plan_written" "true"
+set_phase "implement"
+CURRENT=$(get_phase)
+assert_eq "implement" "$CURRENT" "phase gate allows when discuss milestones complete"
 
 # ============================================================
 # RESULTS

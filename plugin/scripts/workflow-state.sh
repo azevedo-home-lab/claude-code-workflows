@@ -401,8 +401,8 @@ set_phase() {
 
     mkdir -p "$STATE_DIR"
 
-    # Hard gate checks: block phase transitions if milestones are incomplete.
-    # Only enforced when reset_*_status was called (status object exists).
+    # Hard gate checks: block phase transitions if milestones are incomplete
+    # or if the status section was never initialized (fail-closed).
     # The state write MUST NOT run if a gate blocks.
     if [ -f "$STATE_FILE" ]; then
         local current
@@ -640,12 +640,13 @@ _section_exists() {
     jq -e --arg s "$section" 'has($s)' "$STATE_FILE" >/dev/null 2>&1 && echo "true" || echo "false"
 }
 
-# Check milestones for a section, return missing fields or empty string
+# Check milestones for a section, return missing fields or empty string.
+# If section does not exist, returns ALL fields as missing (fail-closed).
 # Usage: _check_milestones "implement" "plan_read" "tests_passing" "all_tasks_complete"
 _check_milestones() {
     local section="$1"; shift
     if [ "$(_section_exists "$section")" != "true" ]; then
-        echo ""
+        echo " $*"
         return
     fi
     local missing=""
