@@ -35,3 +35,24 @@ Specific recommendations:
 
 If no documentation updates needed, explain why (e.g., "changes are
 internal refactoring with no user-facing impact").
+
+## Stale Reference Detection
+
+In addition to checking for docs that need updating, scan documentation files
+for references to removed or renamed code artifacts:
+
+- Function/variable names that appear in docs but no longer exist in the codebase
+- File paths referenced in docs that no longer exist
+- Configuration keys that were deprecated or removed
+
+**Scope:** Only scan docs in the changed files list or in the same directory as
+changed files. Do NOT sweep the entire docs/ tree.
+
+For each stale reference found, add to the recommendations table:
+
+| Doc File | Action | Reason |
+|---|---|---|
+| docs/specs/old-design.md | Add deprecation note | References `save_completion_snapshot` — removed in v1.11.0 |
+
+Recommend deprecation notes for historical docs (specs, plans) and content
+updates for living docs (README, guides).
