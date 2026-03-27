@@ -23,7 +23,7 @@ REDIRECT_OPS='(>[^&]|>>)'
 INPLACE_EDITORS='(sed[[:space:]]+-i|perl[[:space:]]+-i|ruby[[:space:]]+-i)'
 STREAM_WRITERS='(tee[[:space:]])'
 HEREDOCS='(cat[[:space:]].*<<|bash[[:space:]].*<<|sh[[:space:]].*<<|python[3]?[[:space:]].*<<)'
-FILE_OPS='(cp[[:space:]]|mv[[:space:]]|rm[[:space:]]|install[[:space:]]|patch[[:space:]]|ln[[:space:]]|touch[[:space:]]|truncate[[:space:]])'
+FILE_OPS='((^|[;&|[:space:]])(cp|mv|rm|install|patch|ln|touch|truncate)[[:space:]])'
 DOWNLOADS='(curl[[:space:]].*-o[[:space:]]|wget[[:space:]].*-O[[:space:]])'
 ARCHIVE_OPS='(tar[[:space:]].*-?x|unzip[[:space:]])'
 BLOCK_OPS='(dd[[:space:]].*of=)'
@@ -73,6 +73,16 @@ fi
 if echo "$COMMAND" | grep -qE '^[[:space:]]*(source[[:space:]]|\.[ /]).*workflow-state\.sh'; then
     if ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
         if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: workflow state command" >&2; fi
+        exit 0
+    fi
+fi
+
+# Allow workflow-cmd.sh calls ONLY when they are the sole command.
+# workflow-cmd.sh is the orchestrator's only path to transition phases in auto
+# autonomy mode — blocking it traps the workflow in the current phase forever.
+if echo "$COMMAND" | grep -qE '(^|[[:space:]/])workflow-cmd\.sh[[:space:]]'; then
+    if ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
+        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: workflow-cmd.sh call" >&2; fi
         exit 0
     fi
 fi
@@ -188,17 +198,35 @@ case "$PHASE" in
     *)                    exit 0 ;;
 esac
 
-# COMPLETE phase: allow gh commands (API operations) and rm for .claude/tmp/ cleanup
-if [ "$PHASE" = "complete" ]; then
-    if echo "$COMMAND" | grep -qE '^[[:space:]]*(gh)[[:space:]]' && \
-       ! echo "$COMMAND" | grep -qE '(&&|\|\||;)' && \
-       ! echo "$COMMAND" | grep -qE "$PIPE_SHELL" && \
-       ! echo "$COMMAND" | grep -qE "$PROC_SUB" && \
-       ! echo "$COMMAND" | grep -qE "$XARGS_EXEC" && \
-       ! echo "$COMMAND" | grep -qE '\|[[:space:]]*(tee|sed|dd|cp|mv|install|python[3]?|node|ruby|perl|awk)\b'; then
+# gh command handling — split by phase:
+#   DEFINE/DISCUSS: read-only gh ops only (view, list, api GET) — no mutations
+#   COMPLETE:       all gh ops allowed (need to create issues, PRs for handover)
+# Guard: no shell chaining, no pipe to file writers (applies to both tiers).
+_gh_safe_chain() {
+    ! echo "$COMMAND" | grep -qE '(&&|\|\||;)' && \
+    ! echo "$COMMAND" | grep -qE "$PIPE_SHELL" && \
+    ! echo "$COMMAND" | grep -qE "$PROC_SUB" && \
+    ! echo "$COMMAND" | grep -qE "$XARGS_EXEC" && \
+    ! echo "$COMMAND" | grep -qE '\|[[:space:]]*(tee|sed|dd|cp|mv|install|python[3]?|node|ruby|perl|awk)\b'
+}
+
+if echo "$COMMAND" | grep -qE '^[[:space:]]*(gh)[[:space:]]'; then
+    if [ "$PHASE" = "complete" ] && _gh_safe_chain; then
+        # COMPLETE: all gh ops allowed (issue create, pr create, etc.)
         if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: gh command in COMPLETE" >&2; fi
         exit 0
+    elif [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ] || [ "$PHASE" = "error" ]; then
+        # DEFINE/DISCUSS: read-only gh ops only
+        if echo "$COMMAND" | grep -qE '^[[:space:]]*gh[[:space:]]+(repo[[:space:]]+view|issue[[:space:]]+view|issue[[:space:]]+list|pr[[:space:]]+view|pr[[:space:]]+list|release[[:space:]]+view|api[[:space:]])' && \
+           _gh_safe_chain; then
+            if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: gh read-only in $PHASE" >&2; fi
+            exit 0
+        fi
     fi
+fi
+
+# COMPLETE phase: allow rm for .claude/tmp/ cleanup
+if [ "$PHASE" = "complete" ]; then
     if echo "$COMMAND" | grep -qE '^[[:space:]]*rm[[:space:]]' && \
        echo "$COMMAND" | grep -qE '\.claude/tmp/' && \
        ! echo "$COMMAND" | grep -qE '\.\.' && \

@@ -5,6 +5,8 @@ disable-model-invocation: true
 <!-- Do NOT invoke this command via the Skill tool. Use the native /command path only. -->
 !`WARN=$(.claude/hooks/workflow-cmd.sh check_soft_gate "implement"); if [ -n "$WARN" ]; then echo "SOFT_GATE_WARNING: $WARN"; else WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "implement" && .claude/hooks/workflow-cmd.sh reset_implement_status && .claude/hooks/workflow-cmd.sh set_active_skill "" && echo "Phase set to IMPLEMENT — code edits are now allowed."; fi`
 
+Present the output to the user.
+
 If the output shows `SOFT_GATE_WARNING`, ask the user: "Proceed anyway? (yes/no)". If yes, run the phase transition manually. If no, stop.
 
 **You are now in IMPLEMENT phase.** Before proceeding:
@@ -56,12 +58,29 @@ for path in ['.claude-plugin/marketplace.json', '.claude-plugin/plugin.json']:
 
 Run `scripts/check-version-sync.sh` to validate both files match. This is not an IMPLEMENT exit gate — COMPLETE Step 5 will verify it.
 
-5. Run the full test suite and verify all pass. Then mark milestone:
+5. Run the full test suite and verify all pass:
+```bash
+bash tests/run-tests.sh   # or equivalent for this project
+```
+   If tests fail: fix them before proceeding. Do not mark `tests_passing` with failing tests.
+   If tests pass:
 ```bash
 .claude/hooks/workflow-cmd.sh set_implement_field "tests_passing" "true"
 .claude/hooks/workflow-cmd.sh set_tests_passed_at "$(git rev-parse HEAD)"
 ```
 6. Proceed to `/review` (auto) or wait for the user to run `/review` (off/ask)
+
+**Step expectations — what each step must produce before you move on:**
+
+| Step | What you do | Evidence required before next step | Milestone |
+|------|-------------|-------------------------------------|-----------|
+| Read plan | Read the plan file | Plan file read in this session | `plan_read=true` |
+| Implement | Execute all plan tasks via subagent-driven-development | Every task committed, files exist on disk | `all_tasks_complete=true` |
+| Version bump | Dispatch versioning agent | Both plugin.json files updated and in sync | — |
+| Tests | Run full test suite | Test output shown — pass count visible | `tests_passing=true` |
+| Transition | Call `/review` (auto) or wait | All 3 milestones set | — |
+
+**If tests fail:** fix the code before marking `tests_passing`. Do not proceed to REVIEW with failing tests.
 
 **HARD GATE: You cannot transition to /review without completing all 3 milestones (plan_read, all_tasks_complete, tests_passing). set_phase will refuse.**
 

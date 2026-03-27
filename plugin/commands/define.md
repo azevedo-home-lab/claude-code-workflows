@@ -5,6 +5,8 @@ disable-model-invocation: true
 <!-- Do NOT invoke this command via the Skill tool. Use the native /command path only. -->
 !`WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "define" && .claude/hooks/workflow-cmd.sh set_active_skill "" && echo "Phase set to DEFINE — code edits are blocked."`
 
+Present the output to the user.
+
 **You are in DEFINE phase.** Code edits are blocked — define the problem and outcomes first.
 
 **You are now in DEFINE phase (Diamond 1 — Problem Space).**
@@ -82,6 +84,16 @@ Register the decision record path:
 ```
 
 Confirm to the user: "Problem and outcomes saved to the decision record. Use `/discuss` to proceed to solution design."
+
+**Step expectations — what each step must produce before you move on:**
+
+| Step | What you do | Evidence required before next step |
+|------|-------------|-------------------------------------|
+| Diverge | Ask discovery questions, dispatch 3 agents | Agents returned, findings synthesized |
+| Converge | Agree on problem statement with user | User confirmed: "yes, that's the right problem" |
+| Outcomes | Structure measurable outcomes | Each outcome has description, type, verification method, acceptance criteria |
+| Decision record | Write to `docs/plans/` | File exists on disk, `set_decision_record` called |
+| Transition | Call `/discuss` or wait | Decision record path registered in state |
 
 **Autonomy-aware behavior:**
 - **auto (▶▶▶):** Auto-transition to `/discuss` after problem is defined.

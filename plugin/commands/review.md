@@ -5,6 +5,8 @@ disable-model-invocation: true
 <!-- Do NOT invoke this command via the Skill tool. Use the native /command path only. -->
 !`WARN=$(.claude/hooks/workflow-cmd.sh check_soft_gate "review"); if [ -n "$WARN" ]; then echo "SOFT_GATE_WARNING: $WARN"; else WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "review" && .claude/hooks/workflow-cmd.sh reset_review_status && .claude/hooks/workflow-cmd.sh set_active_skill "review-pipeline" && echo "Phase set to REVIEW — running review pipeline."; fi`
 
+Present the output to the user.
+
 If the output shows `SOFT_GATE_WARNING`, ask the user: "Proceed anyway? (yes/no)". If yes, run the phase transition manually. If no, stop.
 
 Before proceeding:
@@ -124,5 +126,16 @@ Wait for the user's response. If they choose option 2 (acknowledge):
 **Autonomy-aware behavior:**
 - **off (▶):** After each review agent returns, present its findings individually and wait for user review before dispatching the next agent. Do not batch all 5 agents in parallel — dispatch one at a time, presenting results between each.
 - **ask (▶▶):** Dispatch all 5 agents in parallel, present consolidated findings, wait for user response.
+
+**Step expectations — what each step must produce before you move on:**
+
+| Step | What you do | Evidence required before next step | Milestone |
+|------|-------------|-------------------------------------|-----------|
+| Verify tests | Check `tests_passing` from IMPLEMENT | If not set: run tests now and show output | `verification_complete=true` |
+| Detect changes | Run git diff + ls-files | File list visible | — |
+| 5 agents | Dispatch all 5 in parallel | All agents returned (or noted if timed out) | `agents_dispatched=true` |
+| Verification agent | Dispatch verifier on agent findings | Verifier returned | — |
+| Present findings | Show consolidated Critical/Warning/Suggestion table | User sees the full table — never compress to "N issues" | `findings_presented=true` |
+| Acknowledge | User chooses fix or proceed | User response received | `findings_acknowledged=true` |
 
 **Auto-transition:** If autonomy is auto: fix ALL findings — critical, warnings, and suggestions. Only stop if there are critical findings or decisions that require user judgment. Do not acknowledge findings without fixing them unless the user has explicitly accepted them. After all findings are fixed, invoke `/complete` now. Do not wait for the user.

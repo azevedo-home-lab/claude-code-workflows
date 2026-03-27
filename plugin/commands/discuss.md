@@ -5,6 +5,8 @@ disable-model-invocation: true
 <!-- Do NOT invoke this command via the Skill tool. Use the native /command path only. -->
 !`WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "discuss" && .claude/hooks/workflow-cmd.sh reset_discuss_status && .claude/hooks/workflow-cmd.sh set_active_skill "" && echo "Phase set to DISCUSS — code edits blocked until plan is ready."`
 
+Present the output to the user.
+
 **You are now in DISCUSS phase (Diamond 2 — Solution Space).** Code edits are blocked — design the solution and write the plan.
 
 Before proceeding:
@@ -103,6 +105,15 @@ After the plan is written and reviewed, mark the milestone:
 ```bash
 .claude/hooks/workflow-cmd.sh set_discuss_field "plan_written" "true"
 ```
+
+**Step expectations — what each step must produce before you move on:**
+
+| Step | What you do | Evidence required before next step | Milestone |
+|------|-------------|-------------------------------------|-----------|
+| Problem confirmed | Verify problem statement from DEFINE or brainstorm | User or decision record confirms the problem | `problem_confirmed=true` |
+| Diverge | Dispatch 3 research agents | Agents returned, findings presented with sources and downsides | `research_done=true` |
+| Converge | User narrows to approach, dispatch 2 agents | User selected approach, decision record enriched | `approach_selected=true` |
+| Plan | Write plan with `superpowers:writing-plans`, run reviewer | Plan file exists on disk, reviewer passed | `plan_written=true` |
 
 **Review transparency:** When the spec review loop or plan review loop finds issues, always present a summary to the user: what the reviewer found, what you fixed, and the final verdict. Never silently fix and move on — the user must see what was caught.
 

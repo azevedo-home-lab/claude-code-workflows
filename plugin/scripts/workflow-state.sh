@@ -62,7 +62,7 @@ _update_state() {
 RESTRICTED_WRITE_WHITELIST='(\.claude/state/|docs/superpowers/specs/|docs/superpowers/plans/|docs/plans/)'
 
 # Docs-allowed tier: COMPLETE phase
-COMPLETE_WRITE_WHITELIST='(\.claude/state/|\.claude/commands/|docs/|^[^/]*\.md$)'
+COMPLETE_WRITE_WHITELIST='(\.claude/state/|docs/|^[^/]*\.md$)'
 
 # ---------------------------------------------------------------------------
 # Shared hook helpers
@@ -301,7 +301,10 @@ _check_phase_gates() {
         local missing=""
         missing=$(_check_milestones "discuss" "plan_written")
         if [ -n "$missing" ]; then
-            echo "HARD GATE: Cannot leave DISCUSS — plan not written. Complete the implementation plan before transitioning." >&2
+            echo "HARD GATE: Cannot leave DISCUSS — plan not written." >&2
+            echo "  Why: The plan is the contract between DISCUSS and IMPLEMENT." >&2
+            echo "  Unset milestones:$missing" >&2
+            echo "  Fix: Complete the implementation plan and mark plan_written=true." >&2
             return 1
         fi
     fi
@@ -311,7 +314,28 @@ _check_phase_gates() {
         local missing=""
         missing=$(_check_milestones "implement" "plan_read" "tests_passing" "all_tasks_complete")
         if [ -n "$missing" ]; then
-            echo "HARD GATE: Cannot leave IMPLEMENT — incomplete milestones:$missing. Complete all implementation steps before transitioning." >&2
+            echo "HARD GATE: Cannot leave IMPLEMENT — incomplete milestones." >&2
+            echo "  Why: These milestones prove the plan was executed and tests actually passed." >&2
+            echo "  Unset milestones:$missing" >&2
+            echo "  Fix each missing milestone:" >&2
+            echo "    all_tasks_complete — verify every plan task done, files exist on disk" >&2
+            echo "    tests_passing      — run the test suite and show output before setting this" >&2
+            return 1
+        fi
+    fi
+
+    # REVIEW skip gate: agent cannot jump to COMPLETE without REVIEW having run.
+    # Only fires when transitioning INTO complete (not when leaving complete).
+    # User bypasses this (user_initiated=true skips _check_phase_gates entirely).
+    if [ "$new_phase" = "complete" ] && [ "$current" != "complete" ]; then
+        local review_done=""
+        review_done=$(_check_milestones "review" "findings_acknowledged")
+        if [ -n "$review_done" ]; then
+            echo "HARD GATE: Cannot enter COMPLETE — REVIEW phase was not completed." >&2
+            echo "  Why: REVIEW is mandatory before COMPLETE. Skipping it means unreviewed" >&2
+            echo "       code may ship with quality, security, or architecture issues." >&2
+            echo "  Fix: Transition to review first, complete it, then proceed to complete." >&2
+            echo "  Override: Only the user can skip this by running /complete directly." >&2
             return 1
         fi
     fi
@@ -321,7 +345,10 @@ _check_phase_gates() {
         local missing=""
         missing=$(_check_milestones "completion" "plan_validated" "outcomes_validated" "results_presented" "docs_checked" "committed" "pushed" "tech_debt_audited" "handover_saved")
         if [ -n "$missing" ]; then
-            echo "HARD GATE: Cannot leave COMPLETE — incomplete pipeline steps:$missing. Complete all completion steps before transitioning." >&2
+            echo "HARD GATE: Cannot leave COMPLETE — pipeline not finished." >&2
+            echo "  Why: Each pipeline step produces artifacts needed by the next session." >&2
+            echo "  Unset milestones:$missing" >&2
+            echo "  Fix: Complete all remaining pipeline steps in complete.md." >&2
             return 1
         fi
     fi
@@ -356,12 +383,16 @@ set_phase() {
 
     # Authorization: require intent file or forward-only auto-transition
     # WF_SKIP_AUTH is test-only — never set in production
+    local user_initiated=false
     if [ "${WF_SKIP_AUTH:-}" != "1" ]; then
         local authorized=false
 
-        # Check 1: Valid phase intent file from UserPromptSubmit hook
+        # Check 1: Valid phase intent file from UserPromptSubmit hook — user-initiated.
+        # This is the ONLY path that authorizes 'off' — /off must come from the user.
+        # Agents cannot set phase to 'off'.
         if _check_phase_intent "$new_phase"; then
             authorized=true
+            user_initiated=true
         fi
 
         # Check 2: Forward-only auto-transition (no token needed)
@@ -379,23 +410,47 @@ set_phase() {
         fi
 
         if [ "$authorized" = false ]; then
-            echo "BLOCKED: Phase transition to '$new_phase' requires user authorization. Only the user can change the workflow phase." >&2
+            local current_autonomy
+            current_autonomy=$(get_autonomy_level 2>/dev/null || echo "unknown")
+            echo "BLOCKED: Phase transition to '$new_phase' requires user authorization." >&2
+            echo "  Current autonomy: $current_autonomy" >&2
+            echo "  Auto-transition is only allowed in 'auto' autonomy mode." >&2
+            echo "" >&2
+            echo "  Agent instructions:" >&2
+            echo "    - Do NOT retry set_phase — it will keep failing." >&2
+            echo "    - Present your completed work to the user." >&2
+            echo "    - Tell the user to run /$new_phase to proceed." >&2
+            echo "    - In 'ask' mode: user approves each phase transition." >&2
+            echo "    - In 'auto' mode: agent may transition when phase milestones are complete." >&2
             return 1
         fi
     fi
 
     mkdir -p "$STATE_DIR"
 
-    # Hard gate checks: block phase transitions if milestones are incomplete
-    # or if the status section was never initialized (fail-closed).
-    # The state write MUST NOT run if a gate blocks.
-    if [ -f "$STATE_FILE" ]; then
+    # Hard gate checks: block phase transitions if milestones are incomplete.
+    # User-initiated transitions (via /command intent file) always bypass gates —
+    # the user's explicit command is law.
+    # WF_SKIP_AUTH skips only authorization (who may call this), NOT the gates
+    # (is the work done). Tests use WF_SKIP_AUTH=1 to bypass auth while still
+    # exercising the gate logic.
+    if [ "$user_initiated" = false ] && [ -f "$STATE_FILE" ]; then
         local current
         current=$(get_phase)
         if ! _check_phase_gates "$current" "$new_phase"; then
             return 1
         fi
     fi
+
+    # Reset incoming phase milestones — always, regardless of how we entered.
+    # This prevents stale milestone flags from a previous session carrying over.
+    # Done BEFORE reading preserved state so the reset applies to the new state.
+    case "$new_phase" in
+        discuss)   reset_discuss_status ;;
+        implement) reset_implement_status ;;
+        review)    reset_review_status ;;
+        complete)  reset_completion_status ;;
+    esac
 
     # Read existing state to preserve fields across transitions
     local preserved_skill="" preserved_decision="" preserved_autonomy=""
