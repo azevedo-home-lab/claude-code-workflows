@@ -484,6 +484,81 @@ $STALL_MSG"
     fi
 fi
 
+# Check 9: Within-phase step ordering — fires on every match (all autonomy modes)
+STEP_MSG=""
+
+if [ "$PHASE" = "complete" ]; then
+    if [ "$(_section_exists "completion")" = "true" ]; then
+        if [ "$TOOL_NAME" = "Bash" ]; then
+            BASH_CMD=$(extract_bash_command)
+            if echo "$BASH_CMD" | grep -qE 'git[[:space:]]+commit'; then
+                if [ "$(get_completion_field "results_presented")" != "true" ]; then
+                    STEP_MSG="[Workflow Coach — COMPLETE] Committing before validation is complete. Run Steps 1-3 (plan validation, outcome validation, present results) first."
+                elif [ "$(get_completion_field "docs_checked")" != "true" ]; then
+                    STEP_MSG="[Workflow Coach — COMPLETE] Committing before documentation check. Run Step 4 first."
+                fi
+            fi
+            if echo "$BASH_CMD" | grep -qE 'git[[:space:]]+push'; then
+                if [ "$(get_completion_field "committed")" != "true" ]; then
+                    STEP_MSG="[Workflow Coach — COMPLETE] Pushing before committing. Run Step 5 first."
+                fi
+            fi
+        fi
+        if echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
+            if [ "$(get_completion_field "tech_debt_audited")" != "true" ]; then
+                STEP_MSG="[Workflow Coach — COMPLETE] Writing handover before tech debt audit. Run Step 7 first."
+            fi
+        fi
+    fi
+elif [ "$PHASE" = "discuss" ]; then
+    if [ "$(_section_exists "discuss")" = "true" ]; then
+        if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+            if echo "$FILE_PATH" | grep -qE '(docs/superpowers/plans/|docs/plans/)'; then
+                if [ "$(get_discuss_field "research_done")" != "true" ]; then
+                    STEP_MSG="[Workflow Coach — DISCUSS] Writing plan before research is complete. Complete the diverge phase first."
+                elif [ "$(get_discuss_field "approach_selected")" != "true" ]; then
+                    STEP_MSG="[Workflow Coach — DISCUSS] Writing plan before approach is selected. Complete the converge phase first."
+                fi
+            fi
+        fi
+    fi
+elif [ "$PHASE" = "implement" ]; then
+    if [ "$(_section_exists "implement")" = "true" ]; then
+        if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+            if [ -n "$FILE_PATH" ] && ! echo "$FILE_PATH" | grep -qE '(test|spec|docs/|plans/|specs/|\.md$)'; then
+                if [ "$(get_implement_field "plan_read")" != "true" ]; then
+                    STEP_MSG="[Workflow Coach — IMPLEMENT] Writing code before reading the plan. Read the plan first and mark plan_read milestone."
+                fi
+            fi
+        fi
+    fi
+elif [ "$PHASE" = "review" ]; then
+    if [ "$(_section_exists "review")" = "true" ]; then
+        if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+            if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
+                if [ "$(get_review_field "agents_dispatched")" != "true" ]; then
+                    STEP_MSG="[Workflow Coach — REVIEW] Writing findings before all agents have run. Dispatch review agents first."
+                fi
+            fi
+        fi
+        if [ "$TOOL_NAME" = "AskUserQuestion" ]; then
+            if [ "$(get_review_field "findings_presented")" != "true" ]; then
+                STEP_MSG="[Workflow Coach — REVIEW] Asking for acknowledgment before presenting findings. Present findings first."
+            fi
+        fi
+    fi
+fi
+
+if [ -n "$STEP_MSG" ]; then
+    if [ -n "$L3_MSG" ]; then
+        L3_MSG="$L3_MSG
+
+$STEP_MSG"
+    else
+        L3_MSG="$STEP_MSG"
+    fi
+fi
+
 # Append Layer 3 message if any
 if [ -n "$L3_MSG" ]; then
     if [ -n "$MESSAGES" ]; then

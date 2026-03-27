@@ -31,6 +31,7 @@ case "$1" in
     reset_review_status|get_review_field|set_review_field|\
     reset_completion_status|get_completion_field|set_completion_field|\
     reset_implement_status|get_implement_field|set_implement_field|\
+    reset_discuss_status|get_discuss_field|set_discuss_field|\
     increment_coaching_counter|reset_coaching_counter|\
     add_coaching_fired|has_coaching_fired|check_coaching_refresh|\
     set_pending_verify|get_pending_verify|\

@@ -1,7 +1,7 @@
 ---
 description: Design the solution and write the implementation plan (Diamond 2 — Solution Space)
 ---
-!`WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "discuss" && .claude/hooks/workflow-cmd.sh set_active_skill "" && echo "Phase set to DISCUSS — code edits blocked until plan is ready."`
+!`WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "discuss" && .claude/hooks/workflow-cmd.sh reset_discuss_status && .claude/hooks/workflow-cmd.sh set_active_skill "" && echo "Phase set to DISCUSS — code edits blocked until plan is ready."`
 
 **You are in DISCUSS phase.** Code edits are blocked — design the solution and write the plan.
 
@@ -27,6 +27,11 @@ fi
 
 If no decision record exists, brainstorming will naturally cover problem discovery (lighter than a full DEFINE phase). Create the decision record with a Problem section from what you learn, then proceed to solution design.
 
+Once the problem statement is confirmed (from DEFINE's decision record or from brainstorming), mark the milestone:
+```bash
+.claude/hooks/workflow-cmd.sh set_discuss_field "problem_confirmed" "true"
+```
+
 ## Workflow
 
 Use `superpowers:brainstorming` with **solution-design context**. Focus on how to solve the defined problem. Update the skill tracker:
@@ -44,6 +49,11 @@ Once the problem statement is confirmed (from DEFINE's decision record or from b
 3. **Prior art scanner** — Read `plugin/agents/prior-art-scanner.md`, then dispatch as `general-purpose`. Context: "Problem: [PROBLEM_STATEMENT]. Project: [PROJECT_NAME from git remote]. Search for previous related implementations." **Always pass `project` parameter to claude-mem tools.** Derive repo name: `git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`
 
 Present findings to user. Every approach must have stated downsides. Unsourced claims are opinions, not research.
+
+After presenting diverge findings, mark the milestone:
+```bash
+.claude/hooks/workflow-cmd.sh set_discuss_field "research_done" "true"
+```
 
 ### Converge Phase
 
@@ -74,6 +84,11 @@ After user selects an approach, enrich the decision record with:
 - Link to implementation plan
 ```
 
+After updating the decision record with the chosen approach, mark the milestone:
+```bash
+.claude/hooks/workflow-cmd.sh set_discuss_field "approach_selected" "true"
+```
+
 ## Implementation Plan
 
 Use `superpowers:writing-plans` to create the step-by-step implementation plan. Update the skill tracker:
@@ -83,6 +98,11 @@ Use `superpowers:writing-plans` to create the step-by-step implementation plan. 
 ```
 
 Every plan step must trace back to the chosen approach. If a step can't be justified by the decision, it's scope creep.
+
+After the plan is written and reviewed, mark the milestone:
+```bash
+.claude/hooks/workflow-cmd.sh set_discuss_field "plan_written" "true"
+```
 
 **Review transparency:** When the spec review loop or plan review loop finds issues, always present a summary to the user: what the reviewer found, what you fixed, and the final verdict. Never silently fix and move on — the user must see what was caught.
 

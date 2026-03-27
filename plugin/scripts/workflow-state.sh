@@ -310,6 +310,16 @@ has_completion_snapshot() {
 _check_phase_gates() {
     local current="$1" new_phase="$2"
 
+    # DISCUSS exit gate: leaving discuss → must have plan_written
+    if [ "$current" = "discuss" ] && [ "$new_phase" != "discuss" ]; then
+        local missing=""
+        missing=$(_check_milestones "discuss" "plan_written")
+        if [ -n "$missing" ]; then
+            echo "HARD GATE: Cannot leave DISCUSS — plan not written. Complete the implementation plan before transitioning." >&2
+            return 1
+        fi
+    fi
+
     # IMPLEMENT exit gate: leaving implement → must have completed implementation milestones
     if [ "$current" = "implement" ] && [ "$new_phase" != "implement" ]; then
         local missing=""
@@ -660,6 +670,13 @@ set_review_field() { _set_section_field "review" "$1" "$2"; }
 reset_completion_status() { _reset_section "completion" "plan_validated" "outcomes_validated" "results_presented" "docs_checked" "committed" "pushed" "tech_debt_audited" "handover_saved"; }
 get_completion_field() { _get_section_field "completion" "$1"; }
 set_completion_field() { _set_section_field "completion" "$1" "$2"; }
+
+# ---------------------------------------------------------------------------
+# Discuss status (public API)
+# ---------------------------------------------------------------------------
+reset_discuss_status() { _reset_section "discuss" "problem_confirmed" "research_done" "approach_selected" "plan_written"; }
+get_discuss_field() { _get_section_field "discuss" "$1"; }
+set_discuss_field() { _set_section_field "discuss" "$1" "$2"; }
 
 # ---------------------------------------------------------------------------
 # Implement status (public API)

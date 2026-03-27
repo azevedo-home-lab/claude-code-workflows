@@ -1824,6 +1824,77 @@ RESULT=$(echo '{"tool_name":"AskUserQuestion","tool_input":{"question":"which op
     CLAUDE_PROJECT_DIR="$TEST_DIR" bash "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
 assert_contains "$RESULT" "recommend" "coaching L3: warns about options without recommendation"
 
+# --- Check 9: Within-phase step ordering ---
+
+# Test: COMPLETE — coaching fires when git commit before results_presented
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_completion_status
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"test commit message that is long enough\""}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "validation" "Check 9: coaching fires on git commit before results_presented"
+
+# Test: COMPLETE — no coaching when results_presented is true
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_completion_status
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "results_presented" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_completion_field "docs_checked" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"a sufficiently long commit message for testing purposes here\""}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_not_contains "$OUTPUT" "validation" "Check 9: silent when results_presented is true"
+
+# Test: COMPLETE — coaching fires on save_observation before tech_debt_audited
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_completion_status
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"mcp__plugin_claude-mem_mcp-search__save_observation","tool_input":{"narrative":"test"},"tool_response":{"content":[{"type":"text","text":"{\"id\":999}"}]}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "tech debt" "Check 9: coaching fires on save_observation before tech_debt_audited"
+
+# Test: DISCUSS — coaching fires on plan write before research_done
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_discuss_status
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"docs/superpowers/plans/test-plan.md"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "research" "Check 9: coaching fires on plan write before research_done"
+
+# Test: DISCUSS — coaching fires on plan write before approach_selected
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_discuss_status
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_discuss_field "research_done" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"docs/superpowers/plans/test-plan.md"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "approach" "Check 9: coaching fires on plan write before approach_selected"
+
+# Test: DISCUSS — no coaching on plan write when both milestones true
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_discuss_status
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_discuss_field "research_done" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_discuss_field "approach_selected" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Write","tool_input":{"file_path":"docs/superpowers/plans/test-plan.md"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_not_contains "$OUTPUT" "approach is selected" "Check 9: silent on plan write when approach_selected=true"
+assert_not_contains "$OUTPUT" "research is complete" "Check 9: silent on plan write when research_done=true"
+
+# Test: IMPLEMENT — coaching fires on source edit before plan_read
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_implement_status
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_message_shown
+cp "$HOOKS_DIR/post-tool-navigator.sh" "$TEST_DIR/.claude/hooks/"
+OUTPUT=$(echo '{"tool_name":"Edit","tool_input":{"file_path":"plugin/scripts/some-source.sh"}}' | "$TEST_DIR/.claude/hooks/post-tool-navigator.sh" 2>&1 || true)
+assert_contains "$OUTPUT" "plan" "Check 9: coaching fires on source edit before plan_read"
+
 # --- Debug mode tests ---
 echo ""
 echo "--- Debug mode (post-tool-navigator) ---"
@@ -3255,6 +3326,45 @@ assert_contains "$RESULT" "pushed" "COMPLETE exit gate requires pushed field"
 set_completion_field "pushed" "true"
 RESULT=$(set_phase "off" 2>&1)
 assert_not_contains "$RESULT" "HARD GATE" "COMPLETE exit gate passes with pushed field set"
+
+# --- DISCUSS milestone API + exit gate ---
+
+# Test: reset_discuss_status creates discuss section
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_discuss_status
+CONTENT=$(cat "$TEST_DIR/.claude/state/workflow.json")
+assert_contains "$CONTENT" '"problem_confirmed": false' "reset_discuss_status creates problem_confirmed"
+assert_contains "$CONTENT" '"research_done": false' "reset_discuss_status creates research_done"
+assert_contains "$CONTENT" '"approach_selected": false' "reset_discuss_status creates approach_selected"
+assert_contains "$CONTENT" '"plan_written": false' "reset_discuss_status creates plan_written"
+
+# Test: set/get discuss fields
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_discuss_field "research_done" "true"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_discuss_field "research_done")
+assert_eq "true" "$RESULT" "set/get discuss field works"
+
+# Test: DISCUSS exit gate blocks when plan_written is false
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_discuss_status
+OUTPUT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement" 2>&1 || true)
+assert_contains "$OUTPUT" "HARD GATE" "DISCUSS exit gate blocks without plan_written"
+
+# Test: DISCUSS exit gate allows when plan_written is true
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_discuss_field "plan_written" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "implement" "$RESULT" "DISCUSS exit gate allows with plan_written=true"
+
+# Test: DISCUSS exit gate only checks plan_written (not other milestones)
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && reset_discuss_status
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_discuss_field "plan_written" "true"
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "implement"
+RESULT=$(source "$TEST_DIR/.claude/hooks/workflow-state.sh" && get_phase)
+assert_eq "implement" "$RESULT" "DISCUSS exit gate ignores non-plan milestones"
 
 # ============================================================
 # TEST SUITE: Command Files
