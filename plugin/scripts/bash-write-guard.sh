@@ -7,7 +7,7 @@
 
 # Workflow Manager: blocks Bash write operations in DEFINE, DISCUSS, and COMPLETE phases
 # Matcher: Bash
-# Catches: redirections, sed -i, tee, heredocs, python file writes
+# Catches: redirections, sed -i, tee, heredocs, python/node/ruby/perl file writes, pipe-to-shell, gh API ops
 #
 # Whitelist tiers:
 #   Restrictive (DEFINE/DISCUSS): .claude/state/, docs/superpowers/specs/, docs/superpowers/plans/, docs/plans/
@@ -30,8 +30,10 @@ BLOCK_OPS='(dd[[:space:]].*of=)'
 SYNC_OPS='(rsync[[:space:]])'
 EXEC_WRAPPERS='(eval[[:space:]]|bash[[:space:]]+-c|sh[[:space:]]+-c)'
 ECHO_REDIRECT='(echo[[:space:]].*>)'
+PIPE_SHELL='(\|[[:space:]]*(bash|sh|zsh|dash|ksh)(\b|$))'
+GH_OPS='(gh[[:space:]])'
 
-WRITE_PATTERN="$REDIRECT_OPS|$INPLACE_EDITORS|$STREAM_WRITERS|$HEREDOCS|$FILE_OPS|$DOWNLOADS|$ARCHIVE_OPS|$BLOCK_OPS|$SYNC_OPS|$EXEC_WRAPPERS|$ECHO_REDIRECT"
+WRITE_PATTERN="$REDIRECT_OPS|$INPLACE_EDITORS|$STREAM_WRITERS|$HEREDOCS|$FILE_OPS|$DOWNLOADS|$ARCHIVE_OPS|$BLOCK_OPS|$SYNC_OPS|$EXEC_WRAPPERS|$ECHO_REDIRECT|$PIPE_SHELL|$GH_OPS"
 
 # No state file = no enforcement (first run, hooks not yet activated)
 if [ ! -f "$STATE_FILE" ]; then
@@ -106,7 +108,7 @@ if echo "$COMMAND" | grep -qE '(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+
             SAFE=false
             break
         fi
-    done < <(echo "$COMMAND" | head -1 | sed -E 's/-m "[^"]*"/-m MSG/g; s/-m '"'"'[^'"'"']*'"'"'/-m MSG/g; s/-m [^ ;|&]+/-m MSG/g' | sed 's/&&/\n/g; s/||/\n/g; s/;/\n/g')
+    done < <(echo "$COMMAND" | head -1 | sed -E 's/-m "[^"]*"/-m MSG/g; s/-m '"'"'[^'"'"']*'"'"'/-m MSG/g; s/-m [^ ;|&]+/-m MSG/g' | sed 's/&&/\n/g; s/||/\n/g; s/;/\n/g; s/|/\n/g')
     if [ "$SAFE" = true ]; then
         if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: safe git chain with commit" >&2; fi
         exit 0
@@ -126,6 +128,30 @@ if echo "$COMMAND" | grep -qE 'python[3]?[[:space:]]+-c'; then
     fi
 fi
 
+# Node.js write detection
+NODE_WRITE=false
+if echo "$COMMAND" | grep -qE 'node[[:space:]]+(--eval|-e)[[:space:]]'; then
+    if echo "$COMMAND" | grep -qiE 'fs\.|writeFile|appendFile|createWriteStream|child_process|exec\(|spawn\('; then
+        NODE_WRITE=true
+    fi
+fi
+
+# Ruby write detection
+RUBY_WRITE=false
+if echo "$COMMAND" | grep -qE 'ruby[[:space:]]+-e[[:space:]]'; then
+    if echo "$COMMAND" | grep -qiE 'File\.|IO\.|open\(|system\(|exec\(|`'; then
+        RUBY_WRITE=true
+    fi
+fi
+
+# Perl write detection
+PERL_WRITE=false
+if echo "$COMMAND" | grep -qE 'perl[[:space:]]+-e[[:space:]]'; then
+    if echo "$COMMAND" | grep -qiE 'open\(|system\(|unlink|rename'; then
+        PERL_WRITE=true
+    fi
+fi
+
 # ---------------------------------------------------------------------------
 # Defense-in-depth: block writes to workflow state and intent files in ALL active phases
 # Only triggers when a write operation targets these files (not on reads like cat/jq).
@@ -135,7 +161,7 @@ fi
 
 STATE_FILE_PATTERN='\.claude/(state/workflow\.json|state/phase-intent\.json|state/autonomy-intent\.json)'
 if echo "$COMMAND" | grep -qE "$STATE_FILE_PATTERN"; then
-    if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ]; then
+    if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ] || [ "$NODE_WRITE" = "true" ] || [ "$RUBY_WRITE" = "true" ] || [ "$PERL_WRITE" = "true" ]; then
         if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: Direct writes to workflow state files are not allowed." >&2; fi
         emit_deny "BLOCKED: Direct writes to workflow state files are not allowed."
         exit 0
@@ -158,7 +184,21 @@ case "$PHASE" in
     *)              exit 0 ;;
 esac
 
-if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ]; then
+# COMPLETE phase: allow gh commands (API operations) and rm for .claude/tmp/ cleanup
+if [ "$PHASE" = "complete" ]; then
+    if echo "$COMMAND" | grep -qE '^[[:space:]]*(gh)[[:space:]]'; then
+        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: gh command in COMPLETE" >&2; fi
+        exit 0
+    fi
+    if echo "$COMMAND" | grep -qE '^[[:space:]]*rm[[:space:]]' && \
+       echo "$COMMAND" | grep -qE '\.claude/tmp/' && \
+       ! echo "$COMMAND" | grep -qE '\.\.'; then
+        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: rm .claude/tmp/ in COMPLETE" >&2; fi
+        exit 0
+    fi
+fi
+
+if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ] || [ "$NODE_WRITE" = "true" ] || [ "$RUBY_WRITE" = "true" ] || [ "$PERL_WRITE" = "true" ]; then
     # Extract the write target path from the command for whitelist checking
     # For redirections: extract path after > or >>
     # For cp/mv: extract the last argument
