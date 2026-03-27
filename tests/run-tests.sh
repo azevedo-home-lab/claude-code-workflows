@@ -2745,46 +2745,59 @@ SET_ERR=$(set_autonomy_level auto 2>&1) && SET_EXIT=0 || SET_EXIT=$?
 chmod 755 "$STATE_DIR"
 assert_eq "1" "$SET_EXIT" "failure propagation: set_autonomy_level returns non-zero on write failure"
 
-# ============================================================
-# TEST SUITE: Completion Snapshot (Loop-back Exception)
-# ============================================================
 echo ""
-echo "=== Completion Snapshot ==="
+echo "=== Snapshot Removal Verification ==="
 
 setup_test_project
 source "$TEST_DIR/.claude/hooks/workflow-state.sh"
 
-# Test: has_completion_snapshot returns false when no snapshot
+# Test: snapshot functions no longer exist (sourced functions are gone)
 set_phase "complete"
-assert_eq "false" "$(has_completion_snapshot)" "has_completion_snapshot false when no snapshot"
+if type save_completion_snapshot >/dev/null 2>&1; then
+    FAIL=$((FAIL + 1))
+    echo -e "  ${RED}FAIL${NC} save_completion_snapshot should not exist"
+else
+    PASS=$((PASS + 1))
+    echo -e "  ${GREEN}PASS${NC} save_completion_snapshot removed"
+fi
 
-# Test: save/restore cycle
+if type restore_completion_snapshot >/dev/null 2>&1; then
+    FAIL=$((FAIL + 1))
+    echo -e "  ${RED}FAIL${NC} restore_completion_snapshot should not exist"
+else
+    PASS=$((PASS + 1))
+    echo -e "  ${GREEN}PASS${NC} restore_completion_snapshot removed"
+fi
+
+if type has_completion_snapshot >/dev/null 2>&1; then
+    FAIL=$((FAIL + 1))
+    echo -e "  ${RED}FAIL${NC} has_completion_snapshot should not exist"
+else
+    PASS=$((PASS + 1))
+    echo -e "  ${GREEN}PASS${NC} has_completion_snapshot removed"
+fi
+
+# Test: phase transition works without snapshot logic
+set_phase "complete"
 reset_completion_status
 set_completion_field "plan_validated" "true"
 set_completion_field "outcomes_validated" "true"
-save_completion_snapshot
-assert_eq "true" "$(has_completion_snapshot)" "has_completion_snapshot true after save"
-
-# Test: snapshot survives phase transition to implement
-# Complete all milestones so the hard gate allows leaving COMPLETE
 set_completion_field "results_presented" "true"
 set_completion_field "docs_checked" "true"
 set_completion_field "committed" "true"
 set_completion_field "pushed" "true"
 set_completion_field "tech_debt_audited" "true"
 set_completion_field "handover_saved" "true"
-set_phase "implement"
-assert_eq "true" "$(has_completion_snapshot)" "snapshot survives transition to implement"
+set_phase "off"
+CURRENT=$(get_phase)
+assert_eq "off" "$CURRENT" "phase transition works without snapshot"
 
-# Test: restore_completion_snapshot restores milestones
-complete_implement
-set_phase "complete"
-reset_completion_status
-assert_eq "false" "$(get_completion_field plan_validated)" "milestones reset before restore"
-restore_completion_snapshot
-assert_eq "true" "$(get_completion_field plan_validated)" "plan_validated restored from snapshot"
-assert_eq "true" "$(get_completion_field outcomes_validated)" "outcomes_validated restored from snapshot"
-assert_eq "false" "$(has_completion_snapshot)" "snapshot cleared after restore"
+# Test: workflow-cmd.sh rejects snapshot commands
+OUTPUT=$("$TEST_DIR/.claude/hooks/workflow-cmd.sh" save_completion_snapshot 2>&1) || true
+assert_contains "$OUTPUT" "Unknown command" "workflow-cmd.sh rejects save_completion_snapshot"
+
+OUTPUT=$("$TEST_DIR/.claude/hooks/workflow-cmd.sh" has_completion_snapshot 2>&1) || true
+assert_contains "$OUTPUT" "Unknown command" "workflow-cmd.sh rejects has_completion_snapshot"
 
 # ============================================================
 # TEST SUITE: workflow-cmd.sh Allowlist

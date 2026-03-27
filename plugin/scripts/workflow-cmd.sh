@@ -41,7 +41,6 @@ case "$1" in
     get_tracked_observations|set_tracked_observations|\
     add_tracked_observation|remove_tracked_observation|\
     set_issue_mapping|get_issue_url|get_issue_mappings|\
-    save_completion_snapshot|restore_completion_snapshot|has_completion_snapshot|\
     emit_deny)
         "$@"
         ;;

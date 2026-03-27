@@ -3,11 +3,7 @@ description: Validate outcomes, commit, audit tech debt, and save handover
 ---
 !`WARN=$(.claude/hooks/workflow-cmd.sh check_soft_gate "complete"); if [ -n "$WARN" ]; then echo "SOFT_GATE_WARNING: $WARN"; else WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "complete" && .claude/hooks/workflow-cmd.sh reset_completion_status && .claude/hooks/workflow-cmd.sh set_active_skill "completion-pipeline" && echo "Phase set to COMPLETE — running completion pipeline."; fi`
 
-!`if [ "$(.claude/hooks/workflow-cmd.sh has_completion_snapshot)" = "true" ]; then .claude/hooks/workflow-cmd.sh restore_completion_snapshot && echo "LOOP_BACK: Resuming from IMPLEMENT excursion — milestones restored."; fi`
-
 If the output shows `SOFT_GATE_WARNING`, ask the user: "Review hasn't been run. Proceed anyway?" If no, stop. If yes, run the phase transition manually.
-
-If the output shows `LOOP_BACK`, re-run Steps 1-3 (validation) to verify the fix, then skip to the first incomplete milestone in Steps 4-8.
 
 Before proceeding:
 1. Read `plugin/docs/reference/professional-standards.md` — apply the Universal Standards and COMPLETE Phase Standards throughout this phase.
@@ -159,11 +155,12 @@ Then enrich the decision record with the **Outcome Verification** section:
 - Recommend the right next phase: "This is a code fix — I recommend `/implement` to address it, then `/review` to validate"
 - Don't let the user skip without understanding consequences: "Acknowledging this gap means X. Are you comfortable shipping with that?"
 - User decides: fix (jump to `/implement`), re-review, or acknowledge
-- If the user chooses `/implement` to fix: save a completion snapshot first:
-  ```bash
-  .claude/hooks/workflow-cmd.sh save_completion_snapshot
-  ```
-  Then proceed to `/implement`. When the user returns to `/complete`, the snapshot will be detected and milestones restored.
+- If validation finds critical issues:
+  1. Document findings in the decision record's Open Issues section
+  2. Save as claude-mem observations (one per category — Security, Robustness, Feature, etc.)
+  3. Create GitHub issues for critical/high findings (autonomy-gated: auto → auto-create, ask → ask per-category, off → ask per-item)
+  4. Continue the COMPLETE pipeline — commit what we have, the tech debt audit in Step 7 will include these findings
+  5. Next session picks them up from tracked observations and GitHub issues
 
 #### Step 3 Review Gate
 

@@ -290,20 +290,6 @@ get_issue_mappings() {
     jq -r '.issue_mappings // {}' "$STATE_FILE" 2>/dev/null
 }
 
-# ---------------------------------------------------------------------------
-# Completion snapshot (loop-back exception from COMPLETE → IMPLEMENT → COMPLETE)
-# ---------------------------------------------------------------------------
-
-save_completion_snapshot() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.completion_snapshot = (.completion // {})'; }
-restore_completion_snapshot() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.completion = (.completion_snapshot // {}) | del(.completion_snapshot)'; }
-
-has_completion_snapshot() {
-    if [ ! -f "$STATE_FILE" ]; then echo "false"; return; fi
-    local result
-    result=$(jq -r 'if (.completion_snapshot != null and .completion_snapshot != {}) then "true" else "false" end' "$STATE_FILE" 2>/dev/null) || result="false"
-    echo "$result"
-}
-
 # Returns non-zero if a hard gate blocks the phase transition.
 # Gate error message is sent to stderr.
 # Pure validation — no side effects.
@@ -354,7 +340,6 @@ _read_preserved_state() {
     preserved_autonomy=$(get_autonomy_level)
     preserved_obs_id=$(get_last_observation_id)
     preserved_tracked=$(get_tracked_observations)
-    preserved_snapshot=$(jq -c '.completion_snapshot // null' "$STATE_FILE" 2>/dev/null) || preserved_snapshot="null"
     preserved_issue_mappings=$(jq -c '.issue_mappings // null' "$STATE_FILE" 2>/dev/null) || preserved_issue_mappings="null"
     preserved_tests_passed=$(get_tests_passed_at)
     preserved_debug=$(get_debug)
@@ -414,7 +399,7 @@ set_phase() {
 
     # Read existing state to preserve fields across transitions
     local preserved_skill="" preserved_decision="" preserved_autonomy=""
-    local preserved_obs_id="" preserved_tracked="" preserved_snapshot="null"
+    local preserved_obs_id="" preserved_tracked=""
     local preserved_issue_mappings="null"
     local preserved_tests_passed=""
     local preserved_debug=""
@@ -451,10 +436,6 @@ set_phase() {
 
     # Build the new state: preserve active_skill, decision_record, and autonomy_level,
     # reset message_shown, fresh coaching, clean up review if leaving review
-    local snapshot_json="${preserved_snapshot:-null}"
-    # Treat empty string as null for jq
-    if [ -z "$snapshot_json" ]; then snapshot_json="null"; fi
-
     local ts
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -464,7 +445,6 @@ set_phase() {
           --arg autonomy "${preserved_autonomy}" \
           --arg obs_id "$preserved_obs_id" \
           --argjson tracked "$tracked_json" \
-          --argjson snapshot "$snapshot_json" \
           --argjson issue_maps "${preserved_issue_mappings:-null}" \
           --arg tests_passed "$preserved_tests_passed" \
           --arg debug "$preserved_debug" \
@@ -479,7 +459,6 @@ set_phase() {
           + (if $autonomy != "" then {autonomy_level: $autonomy} else {} end)
           + (if $obs_id != "" and $obs_id != "null" then {last_observation_id: ($obs_id | tonumber)} else {} end)
           + (if ($tracked | length) > 0 then {tracked_observations: $tracked} else {} end)
-          + (if $snapshot != null then {completion_snapshot: $snapshot} else {} end)
           + (if $issue_maps != null then {issue_mappings: $issue_maps} else {} end)
           + (if $tests_passed != "" then {tests_last_passed_at: $tests_passed} else {} end)
           + (if $debug == "true" then {debug: true} else {} end)' \
