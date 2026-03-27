@@ -30,10 +30,14 @@ BLOCK_OPS='(dd[[:space:]].*of=)'
 SYNC_OPS='(rsync[[:space:]])'
 EXEC_WRAPPERS='(eval[[:space:]]|bash[[:space:]]+-c|sh[[:space:]]+-c)'
 ECHO_REDIRECT='(echo[[:space:]].*>)'
-PIPE_SHELL='(\|[[:space:]]*(bash|sh|zsh|dash|ksh)(\b|$))'
+# Matches: | bash, | env bash, | /bin/bash, | /usr/bin/env bash, | fish, | csh, | tcsh
+PIPE_SHELL='(\|[[:space:]]*(/[^[:space:]]*/)?((env[[:space:]]+(/[^[:space:]]*/)?)?'
+PIPE_SHELL+='(bash|sh|zsh|dash|ksh|fish|csh|tcsh))(\b|$))'
+PROC_SUB='((bash|sh|zsh|dash|ksh|fish|csh|tcsh|source|\.)[[:space:]]+<\()'
+XARGS_EXEC='(\|[[:space:]]*xargs[[:space:]]+(bash|sh|rm|mv|cp|tee|sed))'
 GH_OPS='(gh[[:space:]])'
 
-WRITE_PATTERN="$REDIRECT_OPS|$INPLACE_EDITORS|$STREAM_WRITERS|$HEREDOCS|$FILE_OPS|$DOWNLOADS|$ARCHIVE_OPS|$BLOCK_OPS|$SYNC_OPS|$EXEC_WRAPPERS|$ECHO_REDIRECT|$PIPE_SHELL|$GH_OPS"
+WRITE_PATTERN="$REDIRECT_OPS|$INPLACE_EDITORS|$STREAM_WRITERS|$HEREDOCS|$FILE_OPS|$DOWNLOADS|$ARCHIVE_OPS|$BLOCK_OPS|$SYNC_OPS|$EXEC_WRAPPERS|$ECHO_REDIRECT|$PIPE_SHELL|$PROC_SUB|$XARGS_EXEC|$GH_OPS"
 
 # No state file = no enforcement (first run, hooks not yet activated)
 if [ ! -f "$STATE_FILE" ]; then
