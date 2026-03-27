@@ -1393,6 +1393,43 @@ source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "discuss"
 OUTPUT=$(run_bash_guard "rm .claude/tmp/artifact.md")
 assert_contains "$OUTPUT" "deny" "blocks rm .claude/tmp/ in DISCUSS"
 
+echo ""
+echo "=== gh Exception Bypass Vectors ==="
+
+# gh exception bypass vectors — COMPLETE phase
+setup_test_project
+source "$TEST_DIR/.claude/hooks/workflow-state.sh" && set_phase "complete"
+
+# pipe-to-shell through gh exception
+OUTPUT=$(run_bash_guard "gh issue list | bash")
+assert_contains "$OUTPUT" "deny" "gh pipe bash blocked in complete"
+OUTPUT=$(run_bash_guard "gh issue list | env bash")
+assert_contains "$OUTPUT" "deny" "gh pipe env bash blocked in complete"
+OUTPUT=$(run_bash_guard "gh issue list | /bin/bash")
+assert_contains "$OUTPUT" "deny" "gh pipe /bin/bash blocked in complete"
+
+# pipe-to-write-tool through gh exception
+OUTPUT=$(run_bash_guard "gh issue list | tee /tmp/evil")
+assert_contains "$OUTPUT" "deny" "gh pipe tee blocked in complete"
+OUTPUT=$(run_bash_guard "gh issue list | xargs bash")
+assert_contains "$OUTPUT" "deny" "gh pipe xargs bash blocked in complete"
+OUTPUT=$(run_bash_guard "gh issue list | xargs rm")
+assert_contains "$OUTPUT" "deny" "gh pipe xargs rm blocked in complete"
+
+# gh piped to non-write tools — should ALLOW
+OUTPUT=$(run_bash_guard "gh pr list | jq .")
+assert_not_contains "$OUTPUT" "deny" "gh pipe jq allowed in complete"
+
+# legitimate gh commands still work
+OUTPUT=$(run_bash_guard "gh pr view 123")
+assert_not_contains "$OUTPUT" "deny" "gh pr view allowed in complete"
+OUTPUT=$(run_bash_guard "gh pr list")
+assert_not_contains "$OUTPUT" "deny" "gh pr list allowed in complete"
+OUTPUT=$(run_bash_guard "gh issue list")
+assert_not_contains "$OUTPUT" "deny" "gh issue list allowed in complete"
+OUTPUT=$(run_bash_guard "gh api repos/owner/repo")
+assert_not_contains "$OUTPUT" "deny" "gh api allowed in complete"
+
 # ============================================================
 # TEST SUITE: install.sh (migration tool)
 # ============================================================
