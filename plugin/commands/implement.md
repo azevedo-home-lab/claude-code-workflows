@@ -5,6 +5,8 @@ disable-model-invocation: true
 <!-- Do NOT invoke this command via the Skill tool. Use the native /command path only. -->
 !`WARN=$(.claude/hooks/workflow-cmd.sh check_soft_gate "implement"); if [ -n "$WARN" ]; then echo "SOFT_GATE_WARNING: $WARN"; else WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_phase "implement" && .claude/hooks/workflow-cmd.sh reset_implement_status && .claude/hooks/workflow-cmd.sh set_active_skill "" && echo "Phase set to IMPLEMENT — code edits are now allowed."; fi`
 
+Present the output to the user.
+
 If the output shows `SOFT_GATE_WARNING`, ask the user: "Proceed anyway? (yes/no)". If yes, run the phase transition manually. If no, stop.
 
 **You are now in IMPLEMENT phase.** Before proceeding:

@@ -5,6 +5,8 @@ disable-model-invocation: true
 <!-- Do NOT invoke this command via the Skill tool. Use the native /command path only. -->
 !`WF_SKIP_AUTH=1 .claude/hooks/workflow-cmd.sh set_autonomy_level "$ARGUMENTS" && echo "Autonomy level set to $ARGUMENTS"`
 
+Present the output to the user.
+
 Respond based on the level that was set:
 
 - **off**: Say: "▶ **Supervised** — step-by-step mode. I'll work within phase rules and pause after each plan step for your review."
