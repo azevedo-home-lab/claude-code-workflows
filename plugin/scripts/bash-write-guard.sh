@@ -33,7 +33,7 @@ ECHO_REDIRECT='(echo[[:space:]].*>)'
 # Matches: | bash, | env bash, | /bin/bash, | /usr/bin/env bash, | fish, | csh, | tcsh
 PIPE_SHELL='(\|[[:space:]]*(/[^[:space:]]*/)?((env[[:space:]]+(/[^[:space:]]*/)?)?'
 PIPE_SHELL+='(bash|sh|zsh|dash|ksh|fish|csh|tcsh))(\b|$))'
-PROC_SUB='((bash|sh|zsh|dash|ksh|fish|csh|tcsh|source|\.)[[:space:]]+<\()'
+PROC_SUB='((/[^[:space:]]*/)?((bash|sh|zsh|dash|ksh|fish|csh|tcsh)|source|\.)[[:space:]]+<\()'
 XARGS_EXEC='(\|[[:space:]]*xargs[[:space:]]+(bash|sh|rm|mv|cp|tee|sed))'
 GH_OPS='(gh[[:space:]])'
 
@@ -195,7 +195,7 @@ if [ "$PHASE" = "complete" ]; then
        ! echo "$COMMAND" | grep -qE "$PIPE_SHELL" && \
        ! echo "$COMMAND" | grep -qE "$PROC_SUB" && \
        ! echo "$COMMAND" | grep -qE "$XARGS_EXEC" && \
-       ! echo "$COMMAND" | grep -qE '\|[[:space:]]*(tee|sed|dd|cp|mv|install)\b'; then
+       ! echo "$COMMAND" | grep -qE '\|[[:space:]]*(tee|sed|dd|cp|mv|install|python[3]?|node|ruby|perl|awk)\b'; then
         if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: gh command in COMPLETE" >&2; fi
         exit 0
     fi
