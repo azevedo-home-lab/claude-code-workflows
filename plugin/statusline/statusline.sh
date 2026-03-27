@@ -242,11 +242,11 @@ if [ -f "$CCPROXY_STATE" ] && [ -f "$CCPROXY_PID_FILE" ]; then
   if [[ "$CCPROXY_PID_VAL" =~ ^[0-9]+$ ]] && kill -0 "$CCPROXY_PID_VAL" 2>/dev/null; then
     # Read both lines in one pass (atomic: head -1 / sed -n '2p' would open file twice)
     { IFS= read -r ACTIVE_PROVIDER; IFS= read -r CCPROXY_PORT; } < "$CCPROXY_STATE" 2>/dev/null || true
-    # Validate port is numeric; clear if not (prevents garbage display)
-    [[ "$CCPROXY_PORT" =~ ^[0-9]{1,5}$ ]] || CCPROXY_PORT=""
-    # Sanitize against printf '%b' backslash injection (matches existing pattern)
+    # Validate port is a valid TCP port (1-65535); clear if not
+    { [[ "$CCPROXY_PORT" =~ ^[0-9]{1,5}$ ]] && [ "$CCPROXY_PORT" -ge 1 ] && [ "$CCPROXY_PORT" -le 65535 ]; } || CCPROXY_PORT=""
+    # Sanitize ACTIVE_PROVIDER against printf '%b' backslash injection (matches existing pattern)
+    # Port is already validated numeric — no sanitization needed
     ACTIVE_PROVIDER="${ACTIVE_PROVIDER//\\/\\\\}"
-    CCPROXY_PORT="${CCPROXY_PORT//\\/\\\\}"
     case "$ACTIVE_PROVIDER" in
       codex)  PROVIDER_LABEL="Codex"  ; PROVIDER_COLOR="$YELLOW" ;;
       claude) PROVIDER_LABEL="Claude" ; PROVIDER_COLOR="$GREEN"  ;;
