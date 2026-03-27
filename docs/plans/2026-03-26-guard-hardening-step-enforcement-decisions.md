@@ -63,3 +63,21 @@ Four open issues from the v1.9.0 session need resolution:
   - Low-severity bypass vectors (`xargs rm`, `chmod`/`mkdir`) left open
   - DEFINE phase has no step milestones (simplest phase, not worth the overhead)
   - No hard gates on within-phase steps (deliberate — could be added later if coaching proves insufficient)
+
+## Review Findings (REVIEW phase)
+
+### Critical
+- None
+
+### Warnings (fixed)
+- [QUAL] `gh` chain guard blocked legitimate pipes (`gh issue list | jq`). Fixed: removed `|` from gh chain guard, kept `&&`/`||`/`;`.
+- [QUAL] Pipe split over-splits safe git chains. Accepted: fails closed (denies rather than allows), low priority.
+- [ARCH] Plan references `plugin/version.txt` which doesn't exist. Accepted: plan template error, version bumped correctly in both JSON files.
+
+### Suggestions (accepted as tech debt)
+- [QUAL] DRY opportunity: 4 runtime write detection blocks share identical structure. Could extract helper function.
+- [QUAL] Extract `is_write_tool()` helper in post-tool-navigator for repeated Write/Edit/MultiEdit checks.
+- [HYG] Test file is 2750+ lines — consider splitting into per-component test files.
+- [HYG] Legacy numeric autonomy mapping (1/2/3 → off/ask/auto) is dead code but harmless.
+- [GOV] Docs don't carry license headers (matches existing convention).
+- [ARCH] Negative test assertions use non-exact message fragments (fragile but passing).
