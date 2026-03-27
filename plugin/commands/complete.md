@@ -180,282 +180,38 @@ Mark milestone:
 .claude/hooks/workflow-cmd.sh set_completion_field "results_presented" "true"
 ```
 
-### Step 4: Smart Documentation Detection
+### Steps 4-6: Commit Pipeline
 
-Dispatch a **Docs detector agent** — read `plugin/agents/docs-detector.md`, then dispatch as `general-purpose`:
+Dispatch a **commit-push-agent** — read `plugin/agents/commit-push-agent.md`, then dispatch as `general-purpose`:
 
-Context: "Changed files: [LIST from git diff --name-only main...HEAD plus unstaged/untracked]."
+Context: "Decision record: [DECISION_RECORD_PATH]. Changed files: [LIST from git diff --name-only main...HEAD plus unstaged/untracked]. Autonomy level: [LEVEL]."
 
-Present recommendations and ask: "Update these now? (yes / no / skip)"
-- If **yes** → make the documentation updates
-- If **no/skip** → proceed without docs update
+Wait for the agent's result. Handle structured responses:
 
-#### Step 4 Review Gate
+- If `PUSH_PENDING`: Ask the user "Push [N] commits to remote? (yes / no)". If yes, run `git push origin HEAD` and report. If no, note deferred.
+- If `BRANCH_INTEGRATION_NEEDED`: Use `superpowers:finishing-a-development-branch` to present integration options.
 
-After presenting doc recommendations (whether updates were made or skipped), dispatch a **review agent** — read `plugin/agents/docs-reviewer.md`, then dispatch as `general-purpose` — to verify completeness:
-
-Context: "Changed files: [LIST FROM git diff]. Recommendations made: [LIST]."
-
-If REDO: fix and re-dispatch. Max 3 iterations, then surface to user.
-**After the gate passes (or on each iteration):** present a summary to the user: "Step 4 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
-
-Mark milestone:
-```bash
-.claude/hooks/workflow-cmd.sh set_completion_field "docs_checked" "true"
-```
-
-### Step 5: Commit & Push
-
-Stage all changed files relevant to the task and commit:
-
-1. Run `git status` and `git diff --stat`
-2. Stage the relevant files (prefer specific files over `git add -A`)
-2b. **Version verification:** Verify the version bump was done during IMPLEMENT.
-
-Run `scripts/check-version-sync.sh` to validate both version files match.
-Then verify the version is greater than the last release tag:
-```bash
-CURRENT=$(jq -r '.plugins[0].version // .version' .claude-plugin/marketplace.json)
-LAST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -1 | sed 's/^v//')
-echo "Current: $CURRENT, Last tag: ${LAST_TAG:-none}"
-```
-
-If version bump was not done (version matches or is less than last tag), flag as validation failure:
-> "Version bump missing — loop back to `/implement` and run the versioning step."
-
-Include version files in the commit staging if they were modified.
-3. Draft a concise conventional commit message explaining why
-4. Commit using conventional commit format. Use your current model name (from the "You are powered by the model named..." line in your environment context) in the Co-Authored-By line:
-
-       Co-Authored-By: <your model name> <noreply@anthropic.com>
-If clean working tree: skip and note "Nothing to commit."
-
-#### Push to Remote
-
-After committing, push to the remote:
-
-1. Check if there are commits to push:
-```bash
-AHEAD=$(git rev-list --count @{u}..HEAD 2>/dev/null || git rev-list --count origin/$(git symbolic-ref --short HEAD)..HEAD 2>/dev/null || echo "unknown")
-echo "Commits ahead of remote: $AHEAD"
-```
-
-2. If ahead > 0, ask: "Push to remote? (yes / no)"
-   - At **all autonomy levels**: always ask before pushing. Push is never automatic.
-   - If **yes**: push to remote:
-     ```bash
-     git push origin HEAD
-     ```
-   - If **no**: note "Push deferred — run `git push` manually when ready."
-
-3. If no upstream or unknown: skip push, note "No remote tracking branch — push skipped."
-
-4. After push (or skip), mark informational milestone:
-```bash
-.claude/hooks/workflow-cmd.sh set_completion_field "pushed" "true"
-```
-This is NOT an exit gate — just tracks whether push happened.
-
-#### Step 5 Review Gate
-
-After committing (or skipping), dispatch a **review agent** — read `plugin/agents/commit-reviewer.md`, then dispatch as `general-purpose` — to verify commit quality:
-
-Context: "Review the most recent commit."
-
-If REDO: fix (amend commit or create new commit) and re-dispatch. Max 3 iterations, then surface to user.
-**After the gate passes (or on each iteration):** present a summary to the user: "Step 5 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
-If step was skipped (nothing to commit): skip this gate.
-
-Mark milestone (also mark if skipped — clean tree means committed is N/A):
-```bash
-.claude/hooks/workflow-cmd.sh set_completion_field "committed" "true"
-```
-
-### Step 6: Branch Integration & Worktree Cleanup
-
-Check if work was done on a feature branch or in a worktree:
-
-```bash
-CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
-MAIN_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|origin/||' || echo "main")
-IN_WORKTREE=$(git rev-parse --git-common-dir 2>/dev/null | grep -q "\.git/worktrees" && echo "true" || echo "false")
-echo "Current branch: $CURRENT_BRANCH"
-echo "Main branch: $MAIN_BRANCH"
-echo "In worktree: $IN_WORKTREE"
-```
-
-**If on a feature branch (not main/master):**
-
-Use `superpowers:finishing-a-development-branch` to present integration options:
-1. **Create PR and merge** — create a pull request, review it, merge to main
-2. **Merge directly** — fast-forward or merge commit to main locally
-3. **Leave on branch** — keep changes on the feature branch for later
-
-Recommend option 1 (PR) for non-trivial changes, option 2 for small fixes.
-
-After merge, push main to remote if the user approves.
-
-**If in a worktree:**
-
-After the branch is merged, clean up:
-```bash
-# From the main project directory (not the worktree)
-WORKTREE_PATH=$(git rev-parse --show-toplevel)
-MAIN_PROJECT=$(git rev-parse --git-common-dir | sed 's|/\.git/worktrees/.*||')
-echo "Worktree at: $WORKTREE_PATH"
-echo "Main project at: $MAIN_PROJECT"
-echo "Clean up worktree? (yes / no)"
-```
-If **yes**: first verify the branch was merged:
-```bash
-# Verify branch was merged before cleanup
-UNMERGED=$(git log origin/$MAIN_BRANCH..$CURRENT_BRANCH --oneline 2>/dev/null)
-if [ -n "$UNMERGED" ]; then
-    echo "WARNING: Branch has unmerged commits:"
-    echo "$UNMERGED"
-    echo "Proceed with cleanup anyway? (yes / no)"
-fi
-```
-If no unmerged commits (or user confirms anyway): `git worktree remove <path>` and `git branch -d <branch>`
-If user declines: note that worktree is still active with unmerged work
-If **no**: note that worktree is still active
-
-**If on main already:** skip this step.
+All milestones (`docs_checked`, `committed`, `pushed`) are set by the agent.
 
 ### Step 7: Tech Debt Audit
 
-**First, review tracked observations from prior sessions:**
+Dispatch a **tech-debt-agent** — read `plugin/agents/tech-debt-agent.md`, then dispatch as `general-purpose`:
 
-```bash
-TRACKED=$(.claude/hooks/workflow-cmd.sh get_tracked_observations)
-echo "Tracked observations: ${TRACKED:-none}"
-```
+Context: "Decision record: [DECISION_RECORD_PATH]. Tracked observations: [LIST from get_tracked_observations]. Validation findings: [SUMMARY of Steps 1-3 results]. Autonomy level: [LEVEL]."
 
-If the tracked list is non-empty, fetch them via `get_observations([IDs])` and for each:
-- **Resolved this session?** → mark as RESOLVED in the table below (will be removed from tracked list in Step 8)
-- **Still open?** → mark as OPEN in the table below (will be kept in tracked list in Step 8)
+Wait for the agent's result. Present the categorized tech debt table to the user.
 
-Build two in-memory lists: `KEEP_IDS` (still-open observation IDs) and `RESOLVED_IDS` (completed this session). These are used by Step 8 — **do not modify tracked_observations here**.
+The `tech_debt_audited` milestone is set by the agent.
 
-#### Collect and Categorize Findings
+### Step 8: Handover
 
-Gather all findings from these sources:
-- Decision record's "accepted trade-offs" and "tech debt acknowledged" entries
-- Review phase findings (if review was run — check the decision record's Review Findings section)
-- Steps 1-3 validation results (boundary tester, devil's advocate findings)
+Dispatch a **handover-agent** — read `plugin/agents/handover-agent.md`, then dispatch as `general-purpose`:
 
-Group findings into these categories:
+Context: "Decision record: [DECISION_RECORD_PATH]. Project name: [derived from git remote]. Handoff data at .claude/tmp/tech-debt-handoff.json."
 
-| Category | GitHub Label | What goes here |
-|----------|-------------|---------------|
-| Security | `security` | Bypass vectors, injection risks, secret exposure, auth gaps |
-| Robustness | `robustness` | Race conditions, error handling, fail-open/closed, resilience |
-| Feature | `feature` | Missing capabilities, incomplete implementations |
-| Tech Debt | `tech-debt` | Code quality, duplication, pattern inconsistency |
-| Documentation | `documentation` | Stale references, missing docs, README drift |
+Wait for the agent's result. Report the handover observation ID to the user.
 
-**Skip empty categories.** Only present categories that have findings.
-
-#### Present Categorized Table
-
-For each non-empty category, present a table with concrete improvement proposals:
-
-**[Category] ([N] items):**
-
-| Item | Impact | Proposed Fix | Effort | Priority |
-|---|---|---|---|---|
-| <description> | <what could go wrong> | <specific fix> | S/M/L | High/Medium/Low |
-
-Don't just list debt — recommend what to do about it. The user should leave this step with actionable next steps, not just a list of problems.
-
-#### Save Category Observations
-
-For each non-empty category, save a single claude-mem observation:
-- **Title:** `Open Issue — [Category]: [summary] (YYYY-MM-DD)`
-- **Type:** `discovery`
-- **Project:** derived from git remote (`git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`)
-- **Narrative:** All items in that category with details, effort estimates, priority, and related observation IDs
-
-Autonomy gating for observations:
-- **auto (▶▶▶):** Auto-save all category observations
-- **ask (▶▶):** Auto-save all category observations
-- **off (▶):** Ask per-category "Save observation? (y/n)"
-
-#### GitHub Issue Creation
-
-After saving observations, create GitHub issues per category:
-
-- **auto (▶▶▶):** Auto-create for High/Medium priority categories. Skip Low.
-- **ask (▶▶):** Ask per-category "Create GitHub issue? (y/n)"
-- **off (▶):** Ask per-item "Create GitHub issue? (y/n)"
-
-For each issue to create:
-1. Check `gh` is available: `gh auth status 2>&1`. If not, skip gracefully: "Skipping GitHub issue creation — gh CLI not available."
-2. Ensure label exists: `gh label create "<label>" --description "<desc>" 2>/dev/null || true`
-3. Create: `gh issue create --title "[Category] Summary" --body "<all items with details, effort, priority>" --label "<category-label>"`
-4. Capture the issue URL from output
-5. Store mapping: `.claude/hooks/workflow-cmd.sh set_issue_mapping "<obs_id>" "<issue_url>"`
-6. Report: "Created issue: <url>"
-
-The issue mapping makes observation IDs clickable in the status line (links to GitHub issues via OSC 8 hyperlinks).
-
-#### Temp File Cleanup
-
-After issue creation, clean up agent artifacts:
-
-```bash
-rm .claude/tmp/* 2>/dev/null || true
-echo "Cleaned up .claude/tmp/"
-```
-
-#### Step 7 Review Gate
-
-After presenting the categorized tech debt table, dispatch a **review agent** — read `plugin/agents/tech-debt-reviewer.md`, then dispatch as `general-purpose` — to verify proposal quality:
-
-Context: "Decision record: [DECISION_RECORD_PATH]. Categorized tech debt table: [TABLE]."
-
-If REDO: fix and re-dispatch. Max 3 iterations, then surface to user.
-**After the gate passes (or on each iteration):** present a summary to the user: "Step 7 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
-
-Mark milestone:
-```bash
-.claude/hooks/workflow-cmd.sh set_completion_field "tech_debt_audited" "true"
-```
-
-### Step 8: Handover (Claude-Mem Observation)
-
-Dispatch a **Handover writer agent** — read `plugin/agents/handover-writer.md`, then dispatch as `general-purpose`:
-
-Context: "Prepare a claude-mem handover observation. Project name: [derived from git remote get-url origin]. Decision record: [DECISION_RECORD_PATH]. Include commit hash, verification results, key decisions, gotchas, files modified, tech debt."
-
-Save via the `save_observation` MCP tool. **Set `project` to the GitHub repo name.** Derive it: `git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`
-
-#### Step 8 Review Gate
-
-After saving the handover observation, dispatch a **review agent** — read `plugin/agents/handover-reviewer.md`, then dispatch as `general-purpose` — to verify handover quality:
-
-Context: "Review the handover observation just saved."
-
-If REDO: fix and re-save the observation, then re-dispatch. Max 3 iterations, then surface to user.
-**After the gate passes (or on each iteration):** present a summary to the user: "Step 8 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
-
-After saving the handover observation, build the final tracked observations list atomically:
-
-1. Take `KEEP_IDS` from Step 7 (still-open items)
-2. Add the handover observation ID
-3. Add any new tech debt observation IDs saved during this step
-4. Write the complete list in a single call:
-
-```bash
-.claude/hooks/workflow-cmd.sh set_tracked_observations "<KEEP_IDS>,<HANDOVER_ID>,<NEW_TECH_DEBT_IDS>"
-```
-
-This atomic replace ensures crash safety — if the session dies before this line, the previous tracked list is fully intact.
-
-Mark milestone:
-```bash
-.claude/hooks/workflow-cmd.sh set_completion_field "handover_saved" "true"
-```
+The `handover_saved` milestone is set by the agent.
 
 ### Step 9: Phase Transition
 
