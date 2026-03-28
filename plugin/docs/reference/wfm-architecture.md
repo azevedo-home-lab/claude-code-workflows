@@ -90,7 +90,7 @@ Agent → off    → always blocked (only user can close the workflow)
 **Used by:** the agent (via Bash tool calls) and command files (`implement.md`, `discuss.md`, etc.)
 
 ```bash
-.claude/hooks/workflow-cmd.sh set_phase "implement"
+.claude/hooks/workflow-cmd.sh agent_set_phase "implement"
 .claude/hooks/workflow-cmd.sh set_implement_field "tests_passing" "true"
 .claude/hooks/workflow-cmd.sh get_phase
 ```
@@ -108,8 +108,8 @@ Agent → off    → always blocked (only user can close the workflow)
 User types /implement
     → user-phase-gate.sh fires
     → writes .claude/state/phase-intent.json = {"intent": "implement"}
-    → agent calls workflow-cmd.sh set_phase "implement"
-    → set_phase reads intent file, sees match, authorizes, deletes file
+    → agent calls workflow-cmd.sh agent_set_phase "implement"
+    → agent_set_phase reads intent file, sees match, authorizes, deletes file
 ```
 
 ---
@@ -162,8 +162,8 @@ User types /implement
     └─ user-phase-gate.sh writes intent file
 
 Agent reads /implement command file
-    └─ calls workflow-cmd.sh set_phase "implement"
-           └─ workflow-state.sh: set_phase()
+    └─ calls workflow-cmd.sh agent_set_phase "implement"
+           └─ workflow-state.sh: agent_set_phase()
                   ├─ reads intent file → authorized, user_initiated=true
                   ├─ gates bypassed (user-initiated)
                   └─ writes workflow.json: phase=implement
@@ -177,8 +177,8 @@ Agent tries to run a bash write
 Agent finishes a tool call
     └─ post-tool-navigator.sh fires coaching messages
 
-Agent calls workflow-cmd.sh set_phase "review"
-    └─ workflow-state.sh: set_phase()
+Agent calls workflow-cmd.sh agent_set_phase "review"
+    └─ workflow-state.sh: agent_set_phase()
            ├─ no intent file → not user-initiated
            ├─ autonomy=auto, review > implement → authorized
            ├─ _check_phase_gates: IMPLEMENT milestones all true? → pass
@@ -204,7 +204,7 @@ User runs /implement
 An agent cannot jump from IMPLEMENT directly to COMPLETE. `_check_phase_gates` checks that `review.findings_acknowledged=true` before allowing entry to COMPLETE.
 
 ```
-Agent calls set_phase "complete" (skipping review)
+Agent calls agent_set_phase "complete" (skipping review)
     → HARD GATE: findings_acknowledged not set
     → BLOCKED with explanation
     → Agent must run /review first
