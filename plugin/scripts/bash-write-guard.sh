@@ -15,9 +15,6 @@
 
 set -euo pipefail
 
-# Prevent double-run when both settings.json and plugin hooks.json register this hook
-[ "${_BWG_RUNNING:-}" = "1" ] && exit 0
-export _BWG_RUNNING=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/workflow-state.sh"

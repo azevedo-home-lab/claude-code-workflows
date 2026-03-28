@@ -34,15 +34,6 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/workflow-gate.sh"
           }
         ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/bash-write-guard.sh"
-          }
-        ]
       }
     ],
     "PostToolUse": [
