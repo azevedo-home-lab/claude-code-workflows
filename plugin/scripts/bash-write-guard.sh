@@ -228,7 +228,10 @@ esac
 #   COMPLETE:       all gh ops allowed (need to create issues, PRs for handover)
 # Guard: no shell chaining, no pipe to file writers (applies to both tiers).
 _gh_safe_chain() {
-    ! echo "$COMMAND" | grep -qE '(&&|\|\||;)' && \
+# Strip harmless "|| true" suffixes before chain check
+      local _gh_stripped
+      _gh_stripped=$(echo "$COMMAND" | sed -E 's/\|\|[[:space:]]*(true|echo[[:space:]][^;&|]*)$//')
+      ! echo "$_gh_stripped" | grep -qE '(&&|\|\||;)' && \
     ! echo "$COMMAND" | grep -qE "$PIPE_SHELL" && \
     ! echo "$COMMAND" | grep -qE "$PROC_SUB" && \
     ! echo "$COMMAND" | grep -qE "$XARGS_EXEC" && \
