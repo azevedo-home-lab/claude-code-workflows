@@ -223,7 +223,7 @@ case "$PHASE" in
 esac
 
 # gh command handling — split by phase:
-#   DEFINE/DISCUSS: read-only gh ops only (view, list, api GET) — no mutations
+#   DEFINE/DISCUSS: named read-only gh ops only (view, list) — no gh api (allows POST/PATCH)
 #   COMPLETE:       all gh ops allowed (need to create issues, PRs for handover)
 # Guard: no shell chaining, no pipe to file writers (applies to both tiers).
 _gh_safe_chain() {
@@ -241,7 +241,7 @@ if echo "$COMMAND" | grep -qE '^[[:space:]]*(gh)[[:space:]]'; then
         exit 0
     elif [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ] || [ "$PHASE" = "error" ]; then
         # DEFINE/DISCUSS: read-only gh ops only
-        if echo "$COMMAND" | grep -qE '^[[:space:]]*gh[[:space:]]+(repo[[:space:]]+view|issue[[:space:]]+view|issue[[:space:]]+list|pr[[:space:]]+view|pr[[:space:]]+list|release[[:space:]]+view|api[[:space:]])' && \
+        if echo "$COMMAND" | grep -qE '^[[:space:]]*gh[[:space:]]+(repo[[:space:]]+view|issue[[:space:]]+view|issue[[:space:]]+list|pr[[:space:]]+view|pr[[:space:]]+list|release[[:space:]]+(view|list))' && \
            _gh_safe_chain; then
             if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: gh read-only in $PHASE" >&2; fi
             exit 0
