@@ -110,18 +110,27 @@ After the plan is written and reviewed, mark the milestone:
 
 ### Plan→Issue Linking
 
-After the plan passes review, check if this work maps to an existing GitHub issue. If it does, add a comment linking to the spec and plan for traceability:
+After the plan passes review, commit the spec and plan files (use separate commands):
 
 ```bash
-# Check for issue mappings in workflow state
-ISSUE_MAPPINGS=$(.claude/hooks/workflow-cmd.sh get_field "issue_mappings" 2>/dev/null || echo "{}")
+git add <SPEC_PATH> <PLAN_PATH> <DECISION_RECORD_PATH>
+```
+```bash
+git commit -m "docs: add spec and plan for <feature>"
 ```
 
-If there are tracked observation IDs with GitHub issue mappings, or if the user mentioned a specific issue number, post a comment:
+Then get the commit hash for traceability:
+
+```bash
+COMMIT_HASH=$(git rev-parse --short HEAD)
+```
+
+Check if this work maps to an existing GitHub issue. If there are tracked observation IDs with GitHub issue mappings, or if the user mentioned a specific issue number, post a comment linking to the spec, plan, and commit:
 
 ```bash
 gh issue comment <ISSUE_NUMBER> --body "## Design & Plan
 
+**Commit:** <COMMIT_HASH>
 **Spec:** \`<SPEC_PATH>\`
 **Plan:** \`<PLAN_PATH>\`
 **Decision record:** \`<DECISION_RECORD_PATH>\`
