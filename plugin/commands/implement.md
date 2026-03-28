@@ -82,7 +82,7 @@ bash tests/run-tests.sh   # or equivalent for this project
 
 **If tests fail:** fix the code before marking `tests_passing`. Do not proceed to REVIEW with failing tests.
 
-**HARD GATE: You cannot transition to /review without completing all 3 milestones (plan_read, all_tasks_complete, tests_passing). set_phase will refuse.**
+**HARD GATE: You cannot transition to /review without completing all 3 milestones (plan_read, all_tasks_complete, tests_passing). agent_set_phase will refuse.**
 
 **Review transparency:** When spec compliance reviewers or code quality reviewers find issues during implementation, always present a summary to the user: what the reviewer found, what you fixed, and the final verdict. Never silently fix and move on — the user must see what was caught.
 
