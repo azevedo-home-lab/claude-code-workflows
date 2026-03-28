@@ -255,6 +255,14 @@ get_issue_mappings() {
     jq -r '.issue_mappings // {}' "$STATE_FILE" 2>/dev/null
 }
 
+clear_issue_mapping() {
+    local obs_id="$1"
+    if [ -z "$obs_id" ]; then return 1; fi
+    if [ ! -f "$STATE_FILE" ]; then return 0; fi
+    _update_state 'if .issue_mappings then .issue_mappings |= del(.[$id]) else . end' \
+        --arg id "$obs_id"
+}
+
 # Returns non-zero if a hard gate blocks the phase transition.
 # Gate error message is sent to stderr.
 # Pure validation — no side effects.

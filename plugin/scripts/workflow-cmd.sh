@@ -42,7 +42,7 @@ case "$1" in
     get_last_observation_id|set_last_observation_id|\
     get_tracked_observations|set_tracked_observations|\
     add_tracked_observation|remove_tracked_observation|\
-    set_issue_mapping|get_issue_url|get_issue_mappings|\
+    set_issue_mapping|get_issue_url|get_issue_mappings|clear_issue_mapping|\
     emit_deny)
         "$@"
         ;;
