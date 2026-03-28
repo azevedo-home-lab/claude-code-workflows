@@ -77,6 +77,7 @@ bash tests/run-tests.sh   # or equivalent for this project
 | Read plan | Read the plan file | Plan file read in this session | `plan_read=true` |
 | Implement | Execute all plan tasks via subagent-driven-development | Every task committed, files exist on disk | `all_tasks_complete=true` |
 | Version bump | Dispatch versioning agent | Both plugin.json files updated and in sync | — |
+| Version bump | Dispatch versioning agent | Both plugin.json files updated and in sync | — (COMPLETE verifies, cannot fix) |
 | Tests | Run full test suite | Test output shown — pass count visible | `tests_passing=true` |
 | Transition | Call `/review` (auto) or wait | All 3 milestones set | — |
 
