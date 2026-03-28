@@ -78,7 +78,7 @@ Agent → off    → always blocked (only user can close the workflow)
 ### `workflow-state.sh`
 **Type:** Library — not a hook itself, sourced by everything else.
 
-**Contains:** `get_phase`, `set_phase`, `_check_phase_gates`, `_check_phase_intent`, milestone getters/setters, whitelist constants.
+**Contains:** `get_phase`, `agent_set_phase`, `_check_phase_gates`, milestone getters/setters, whitelist constants.
 
 **Used by:** every other script in `.claude/hooks/`
 
@@ -97,19 +97,18 @@ Agent → off    → always blocked (only user can close the workflow)
 
 ---
 
-### `user-phase-gate.sh`
-**Type:** `UserPromptSubmit` hook — fires on every user message, before the agent sees it.
+### `user-set-phase.sh`
+**Type:** User-only script — called from `!backtick` in command files, never via Bash tool.
 
-**What it does:** If the user types `/discuss`, `/implement`, `/review`, `/complete`, or `/off` — writes an intent file to `.claude/state/phase-intent.json`. For `/autonomy` commands — writes to `autonomy-intent.json`.
+**What it does:** Writes phase state directly to `workflow.json`. No authorization checks, no gate checks. The user's intent is expressed by typing the slash command.
 
-**Why it matters:** This is the **only** path that authorizes user-initiated phase transitions. The agent cannot write intent files. Claude Code cannot trigger this hook — only real user input does.
+**Security:** `bash-write-guard.sh` blocks any Bash tool call that attempts to execute this script. Only `!backtick` pre-processing (which happens before Claude sees the prompt) can reach it.
 
 ```
 User types /implement
-    → user-phase-gate.sh fires
-    → writes .claude/state/phase-intent.json = {"intent": "implement"}
-    → agent calls workflow-cmd.sh agent_set_phase "implement"
-    → agent_set_phase reads intent file, sees match, authorizes, deletes file
+    → !backtick in implement.md calls user-set-phase.sh "implement"
+    → user-set-phase.sh writes workflow.json directly
+    → Claude receives the command file content as its phase briefing
 ```
 
 ---
@@ -136,7 +135,8 @@ Whitelists:
 Always allowed (any phase):
   - workflow-cmd.sh calls (single command, no chaining)
   - workflow-state.sh sourcing (single command, no chaining)
-  - gh commands (no pipe to file writers, no chaining)
+  - gh read-only in DEFINE/DISCUSS (view, list only — no gh api)
+  - gh all ops in COMPLETE (no pipe to file writers, no chaining)
   - git commit (standalone only)
 
 Allowed in COMPLETE only:
@@ -159,14 +159,10 @@ Allowed in COMPLETE only:
 
 ```
 User types /implement
-    └─ user-phase-gate.sh writes intent file
+    └─ !backtick calls user-set-phase.sh "implement"
+           └─ writes workflow.json directly (no checks, no gates)
 
-Agent reads /implement command file
-    └─ calls workflow-cmd.sh agent_set_phase "implement"
-           └─ workflow-state.sh: agent_set_phase()
-                  ├─ reads intent file → authorized, user_initiated=true
-                  ├─ gates bypassed (user-initiated)
-                  └─ writes workflow.json: phase=implement
+Agent reads /implement command file (the phase briefing)
 
 Agent tries to write a file
     └─ workflow-gate.sh: phase=implement → allowed
@@ -179,8 +175,7 @@ Agent finishes a tool call
 
 Agent calls workflow-cmd.sh agent_set_phase "review"
     └─ workflow-state.sh: agent_set_phase()
-           ├─ no intent file → not user-initiated
-           ├─ autonomy=auto, review > implement → authorized
+           ├─ autonomy=auto, review > implement → authorized (forward-only)
            ├─ _check_phase_gates: IMPLEMENT milestones all true? → pass
            └─ writes workflow.json: phase=review
 ```
@@ -189,15 +184,9 @@ Agent calls workflow-cmd.sh agent_set_phase "review"
 
 ## Milestone Resets
 
-When entering a phase, `set_phase` automatically resets that phase's milestones to false — regardless of how you entered (user command, agent auto-transition, or direct call). This prevents stale flags from a previous session carrying over.
+Phase milestones are NOT preserved across `agent_set_phase` or `user-set-phase.sh` transitions — the jq template rebuilds state from scratch, dropping all milestone sections. There is no need for explicit resets; milestones do not survive phase transitions.
 
-```
-User runs /implement
-    → set_phase("implement") called
-    → reset_implement_status() runs automatically
-    → plan_read=false, all_tasks_complete=false, tests_passing=false
-    → clean slate guaranteed
-```
+Command files call `reset_*_status` after `user-set-phase.sh` to initialize the incoming phase's milestone section with all fields set to false.
 
 ## REVIEW Skip Protection
 

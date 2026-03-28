@@ -71,7 +71,7 @@ esac
 # Select whitelist based on phase
 case "$PHASE" in
     define|discuss|error) WHITELIST="$RESTRICTED_WRITE_WHITELIST" ;;
-    complete)             WHITELIST="$COMPLETE_WRITE_WHITELIST" ;;
+    complete)             WHITELIST="$COMPLETE_WRITE_WHITELIST" ;;  # .claude/commands/ excluded — see workflow-state.sh
     *)                    exit 0 ;;
 esac
 

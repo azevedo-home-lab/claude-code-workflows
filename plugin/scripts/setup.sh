@@ -41,7 +41,6 @@ mkdir -p "$STATE_DIR"
 find "$STATE_DIR" -name '*.tmp.*' -mmin +5 -delete 2>/dev/null || true
 
 # Clean up stale intent files from previous sessions
-rm -f "$STATE_DIR/phase-intent.json" "$STATE_DIR/autonomy-intent.json"
 
 # Write default workflow.json if it doesn't exist
 if [ ! -f "$STATE_FILE" ]; then
@@ -147,7 +146,7 @@ HOOKS_DIR="$PROJECT_DIR/.claude/hooks"
 mkdir -p "$HOOKS_DIR"
 
 # Create symlinks for all plugin hook scripts (idempotent)
-for script in user-phase-gate.sh workflow-gate.sh bash-write-guard.sh post-tool-navigator.sh workflow-state.sh workflow-cmd.sh; do
+for script in user-set-phase.sh workflow-gate.sh bash-write-guard.sh post-tool-navigator.sh workflow-state.sh workflow-cmd.sh; do
   if [ -f "$PLUGIN_ROOT/scripts/$script" ] && [ ! -e "$HOOKS_DIR/$script" ]; then
     ln -s "../../plugin/scripts/$script" "$HOOKS_DIR/$script"
   fi
@@ -156,12 +155,6 @@ done
 # Register hooks in settings.json via jq (idempotent — only adds missing hooks)
 PROJECT_SETTINGS="$PROJECT_DIR/.claude/settings.json"
 if [ -f "$PROJECT_SETTINGS" ]; then
-  # Ensure UserPromptSubmit hook exists
-  HAS_UPS=$(jq 'has("hooks") and (.hooks | has("UserPromptSubmit"))' "$PROJECT_SETTINGS" 2>/dev/null)
-  if [ "$HAS_UPS" != "true" ]; then
-    jq '.hooks.UserPromptSubmit = [{"hooks": [{"type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/user-phase-gate.sh", "timeout": 5}]}]' \
-      "$PROJECT_SETTINGS" > "$PROJECT_SETTINGS.tmp" && mv "$PROJECT_SETTINGS.tmp" "$PROJECT_SETTINGS" || true
-  fi
 
   # Ensure PreToolUse hooks exist
   HAS_PTU=$(jq 'has("hooks") and (.hooks | has("PreToolUse"))' "$PROJECT_SETTINGS" 2>/dev/null)

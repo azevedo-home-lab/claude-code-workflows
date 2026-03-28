@@ -12,20 +12,22 @@ Thank you for your interest in contributing.
 
 2. Prerequisites:
    - Bash 4+
-   - Python 3 (for JSON manipulation in hooks)
+   - jq (for JSON manipulation in hooks)
    - Git
    - [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) (for testing the full workflow)
 
-3. Run the test suite:
+3. Install the plugin and verify hooks are active:
    ```bash
-   bash tests/run-tests.sh
+   claude  # start Claude Code in the project directory
+   /define  # verify phase transitions work
+   /off
    ```
 
 ## Making Changes
 
 1. Fork the repository and create a feature branch
 2. Make your changes
-3. Ensure all tests pass: `bash tests/run-tests.sh`
+3. Verify the workflow pipeline works end-to-end
 4. Add tests for new functionality
 5. Add GPL v3 license headers to new source files
 6. Submit a pull request
@@ -39,13 +41,11 @@ Thank you for your interest in contributing.
 
 ## Testing
 
-Tests live in `tests/run-tests.sh`. The test suite:
-- Creates temporary project directories
-- Installs hooks into them
-- Tests phase transitions, edit blocking, whitelisting, and statusline output
-- Cleans up after itself
-
-When adding new features, add corresponding test cases following the existing patterns.
+Testing is done via manual end-to-end verification:
+- Phase transitions (`/define` -> `/discuss` -> `/implement` -> `/review` -> `/complete`)
+- Write blocking in non-implement phases
+- Guard-system self-protection (enforcement files blocked in all phases)
+- Agent auto-transition in `auto` autonomy mode
 
 ## Pull Request Process
 

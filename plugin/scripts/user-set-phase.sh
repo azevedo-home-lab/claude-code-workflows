@@ -66,6 +66,10 @@ if [ -n "$preserved_tracked" ]; then
     tracked_json=$(jq -n --arg csv "$preserved_tracked" '$csv | split(",") | map(select(. != "") | (tonumber? // empty))')
 fi
 
+# STATE SCHEMA CONTRACT: This jq template is intentionally duplicated in
+# agent_set_phase() in workflow-state.sh. The duplication is deliberate —
+# these two paths must never share code to maintain security separation.
+# If the state schema changes, update BOTH locations.
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 ( set -o pipefail

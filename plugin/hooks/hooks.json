@@ -25,17 +25,6 @@
         ]
       }
     ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/user-phase-gate.sh",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Write|Edit|MultiEdit|NotebookEdit",

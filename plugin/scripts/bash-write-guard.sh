@@ -190,8 +190,9 @@ fi
 # The user can always use !backtick to make legitimate changes to these files.
 # ---------------------------------------------------------------------------
 
-# Block direct calls to user-set-phase.sh — !backtick only, never a Bash tool call.
-if echo "$COMMAND" | grep -qE 'user-set-phase\.sh'; then
+# Block execution of user-set-phase.sh — !backtick only, never a Bash tool call.
+# Matches execution contexts (direct call, source, bash -c) but not read-only ops (cat, git diff).
+if echo "$COMMAND" | grep -qE '(^|[;&|[:space:]])(\\./|source[[:space:]]|bash[[:space:]]|sh[[:space:]]|/)[^[:space:]]*user-set-phase\.sh'; then
     if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: user-set-phase.sh called via Bash tool" >&2; fi
     emit_deny "BLOCKED: user-set-phase.sh is the user-only phase transition path. It cannot be called via Bash tool — only from !backtick command files."
     exit 0

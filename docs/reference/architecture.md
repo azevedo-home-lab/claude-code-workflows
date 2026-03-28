@@ -264,11 +264,11 @@ Soft gates warn when skipping recommended steps but never block.
 your-project/
 ├── .claude/
 │   ├── hooks/
+│   │   ├── user-set-phase.sh       # User-only phase transition (!backtick)
 │   │   ├── workflow-state.sh       # State utility
 │   │   ├── workflow-cmd.sh         # Shell-independent wrapper
 │   │   ├── workflow-gate.sh        # Write/Edit gate
 │   │   ├── bash-write-guard.sh     # Bash write gate
-│   │   ├── user-phase-gate.sh      # User prompt phase authorization
 │   │   └── post-tool-navigator.sh  # Phase guidance messages
 │   ├── commands/
 │   │   ├── define.md               # /define command
