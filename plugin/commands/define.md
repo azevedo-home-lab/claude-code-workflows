@@ -79,11 +79,42 @@ Create the decision record at `docs/plans/YYYY-MM-DD-<topic>-decisions.md` with 
 
 Only the structured, converged version is written to the decision record (raw diverge findings are conversation context, not persisted).
 
+Commit the decision record (use separate commands):
+
+```bash
+git add docs/plans/YYYY-MM-DD-<topic>-decisions.md
+```
+```bash
+git commit -m "docs: add decision record for <topic>"
+```
+
 Register the decision record path:
 
 ```bash
 .claude/hooks/workflow-cmd.sh set_decision_record "docs/plans/YYYY-MM-DD-<topic>-decisions.md"
 ```
+
+### Decision Record→Issue Linking
+
+Get the commit hash and link the decision record to the originating GitHub issue (if one exists):
+
+```bash
+COMMIT_HASH=$(git rev-parse --short HEAD)
+```
+
+If there are tracked observation IDs with GitHub issue mappings, or if the user mentioned a specific issue number, post a comment:
+
+```bash
+gh issue comment <ISSUE_NUMBER> --body "## Problem Defined
+
+**Commit:** <COMMIT_HASH>
+**Decision record:** \`<DECISION_RECORD_PATH>\`
+
+Problem: <one-line problem statement>
+Outcomes: <N> measurable outcomes defined"
+```
+
+If no issue is mapped, skip this step silently.
 
 Confirm to the user: "Problem and outcomes saved to the decision record. Use `/discuss` to proceed to solution design."
 
