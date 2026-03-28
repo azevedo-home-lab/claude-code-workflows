@@ -65,11 +65,32 @@ The agent sets these flags itself. Gates trust them.
 ## Who Can Transition Phases
 
 ```
-User /command  → always works (intent file bypasses gates)
+User /command  → always works (!backtick calls user-set-phase.sh, which writes state directly — no gates)
 Agent (auto)   → works if milestones complete + autonomy = auto
 Agent (ask)    → blocked — must tell user to run /command
 Agent → off    → always blocked (only user can close the workflow)
 ```
+
+---
+
+## Claude Code Permissions × WFM Autonomy
+
+WFM autonomy levels control what the *agent* should do. Claude Code's permission mode controls which *tool calls* auto-approve without prompting you. These are independent systems — both must be configured for unattended operation to work.
+
+**Evaluation order (highest to lowest precedence):**
+1. CC deny rules — always block
+2. CC allow rules — always permit
+3. CC permission mode — fallback for unmatched tools
+
+| CC Permission Mode | WFM `ask` autonomy | WFM `auto` autonomy | Notes |
+|---|---|---|---|
+| `default` | Works — Claude prompts on unlisted tools | Works partially — pipeline may stall if Write/Bash prompt appears | Add Write, Edit, Bash to allow list for unattended operation |
+| `acceptEdits` | Intended use — edits auto-approve, Bash prompts | Works for edit-heavy pipelines — Bash still prompts | Best match for interactive supervision |
+| `auto` | Over-permissive for supervised use | Intended use for unattended pipelines | All tools auto-approve |
+| `dontAsk` | All prompts auto-denied — pipeline blocked | All prompts auto-denied — pipeline blocked | Not usable with WFM in any autonomy mode |
+| `bypassPermissions` | **WFM enforcement does not apply** — hooks do not fire | **WFM enforcement does not apply** — hooks do not fire | Phase gates, write guards, and coaching are all bypassed |
+
+**Recommended setup for `/autonomy auto` (unattended):** Use `auto` or `acceptEdits` CC mode and ensure Write, Edit, Bash are in your allow list in `.claude/settings.json`.
 
 ---
 

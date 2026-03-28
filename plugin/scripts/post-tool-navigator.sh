@@ -472,6 +472,18 @@ if [ "$AUTONOMY_LEVEL" = "auto" ]; then
   .claude/hooks/workflow-cmd.sh reset_review_status
 Then read plugin/commands/review.md for phase instructions. Do not commit, push, or do other work. Auto autonomy requires completing the full pipeline: IMPLEMENT → REVIEW → COMPLETE."
         fi
+    elif [ "$PHASE" = "discuss" ]; then
+        DISCUSS_DONE=true
+        for field in problem_confirmed research_done approach_selected plan_written; do
+            VAL=$(get_discuss_field "$field" 2>/dev/null) || VAL=""
+            [ "$VAL" != "true" ] && DISCUSS_DONE=false && break
+        done
+        if [ "$DISCUSS_DONE" = "true" ]; then
+            STALL_MSG="[Workflow Coach — DISCUSS] ⚠ ALL MILESTONES COMPLETE. Auto-transition: run these commands now:
+  .claude/hooks/workflow-cmd.sh agent_set_phase \"implement\"
+  .claude/hooks/workflow-cmd.sh reset_implement_status
+Then read plugin/commands/implement.md for phase instructions. Auto autonomy requires completing the full pipeline: DISCUSS → IMPLEMENT."
+        fi
     elif [ "$PHASE" = "review" ]; then
         REVIEW_DONE=true
         for field in verification_complete agents_dispatched findings_presented findings_acknowledged; do

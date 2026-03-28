@@ -219,7 +219,7 @@ echo "Current: $CURRENT, Last tag: ${LAST_TAG:-none}"
 ```
 
 If version bump was not done (version matches or is less than last tag), flag as validation failure:
-> "Version bump missing — loop back to `/implement` and run the versioning step."
+> "Version bump missing — run the versioning step before committing."
 
 Include version files in the commit staging if they were modified.
 3. Draft a concise conventional commit message explaining why

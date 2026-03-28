@@ -49,7 +49,7 @@ Testing is done via manual end-to-end verification:
 
 ## Pull Request Process
 
-1. Ensure the test suite passes
+1. Verify manually: run the workflow through at least one full IMPLEMENT → REVIEW → COMPLETE cycle and confirm no regressions
 2. Update documentation if behavior changes
 3. One feature per PR — keep changes focused
 4. Describe what and why in the PR description

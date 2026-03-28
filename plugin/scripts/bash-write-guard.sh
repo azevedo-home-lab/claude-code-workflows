@@ -131,7 +131,7 @@ fi
 
 # Strip safe redirects before checking write patterns
 # 2>/dev/null, 2>&1, 1>&2 etc. are not file writes
-CLEAN_CMD=$(echo "$COMMAND" | sed -E 's/[0-9]+>\/dev\/null//g; s/[0-9]*>&[0-9]+//g')
+CLEAN_CMD=$(echo "$COMMAND" | sed -E 's/[0-9]+>\/dev\/null//g; s/[0-9]*>&[0-9]+//g; s/>>[[:space:]]*\/dev\/null//g; s/>[[:space:]]*\/dev\/null//g')
 
 # Multi-line python3 write detection — separate from WRITE_PATTERN because
 # the compound pattern (python -c + write indicator) can span lines.
