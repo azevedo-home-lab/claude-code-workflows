@@ -56,7 +56,7 @@ fi
 # This includes: hook scripts, workflow scripts, and command files.
 # The user can always use !backtick to make legitimate changes to these files.
 # ---------------------------------------------------------------------------
-GUARD_SYSTEM_PATTERN='(\.claude/hooks/|plugin/scripts/|plugin/commands/)'
+GUARD_SYSTEM_PATTERN='(\.claude/hooks/|[^a-z-]plugin/scripts/|[^a-z-]plugin/commands/)'
 if [ -n "$NORMALIZED_PATH" ] && echo "$NORMALIZED_PATH" | grep -qE "$GUARD_SYSTEM_PATTERN"; then
     if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse DENY: Write/Edit on enforcement file $NORMALIZED_PATH" >&2; fi
     emit_deny "BLOCKED: Edits to enforcement files (.claude/hooks/, plugin/scripts/, plugin/commands/) are not allowed in any phase. These files define the workflow rules. Use !backtick if you need to make legitimate changes."
