@@ -541,5 +541,15 @@ If `gh` is not available or not authenticated, skip gracefully: "Skipping issue 
 After presenting the summary, tell the user:
 
 ```
+<!-- CL-INJECT-START -->
+If the CL plugin is installed, check whether analysis should run:
+
+```bash
+CL_STATUS=$(bash "$(git rev-parse --show-toplevel)/cl-plugin/scripts/evolve.sh" --trigger=complete 2>/dev/null || echo "CL_UNAVAILABLE")
+echo "$CL_STATUS"
+```
+
+If the output is `CL_READY`, invoke `/evolve` to run the analysis pipeline before closing.
+<!-- CL-INJECT-END -->
 Run `/off` to close the workflow.
 ```
