@@ -32,19 +32,7 @@ esac
 # Debug mode (read after OFF exit to avoid unnecessary jq call)
 DEBUG_MODE=$(get_debug)
 
-# Allow everything in implement and review phases
-case "$PHASE" in
-    implement|review) if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse ALLOW: Write/Edit — phase=$PHASE allows all writes" >&2; fi; exit 0 ;;
-esac
-
-# Select whitelist based on phase
-case "$PHASE" in
-    define|discuss|error) WHITELIST="$RESTRICTED_WRITE_WHITELIST" ;;
-    complete)             WHITELIST="$COMPLETE_WRITE_WHITELIST" ;;
-    *)                    exit 0 ;;
-esac
-
-# Check if the target file is in a whitelisted path
+# Parse file path early — needed by guard-system check before phase-based early-exit.
 INPUT=$(cat)
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null) || FILE_PATH=""
 
@@ -60,6 +48,32 @@ NORMALIZED_PATH="$FILE_PATH"
 if [ -n "$PROJECT_ROOT" ]; then
     NORMALIZED_PATH="${FILE_PATH#"$PROJECT_ROOT"/}"
 fi
+
+# ---------------------------------------------------------------------------
+# Guard-system self-protection: block Write/Edit to enforcement files in ALL active phases.
+# Fires before implement|review early-exit — those phases do not bypass this.
+# Claude cannot modify the files that enforce the workflow on Claude.
+# This includes: hook scripts, workflow scripts, and command files.
+# The user can always use !backtick to make legitimate changes to these files.
+# ---------------------------------------------------------------------------
+GUARD_SYSTEM_PATTERN='(\.claude/hooks/|plugin/scripts/|plugin/commands/)'
+if [ -n "$NORMALIZED_PATH" ] && echo "$NORMALIZED_PATH" | grep -qE "$GUARD_SYSTEM_PATTERN"; then
+    if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse DENY: Write/Edit on enforcement file $NORMALIZED_PATH" >&2; fi
+    emit_deny "BLOCKED: Edits to enforcement files (.claude/hooks/, plugin/scripts/, plugin/commands/) are not allowed in any phase. These files define the workflow rules. Use !backtick if you need to make legitimate changes."
+    exit 0
+fi
+
+# Allow everything in implement and review phases
+case "$PHASE" in
+    implement|review) if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse ALLOW: Write/Edit — phase=$PHASE allows all writes" >&2; fi; exit 0 ;;
+esac
+
+# Select whitelist based on phase
+case "$PHASE" in
+    define|discuss|error) WHITELIST="$RESTRICTED_WRITE_WHITELIST" ;;
+    complete)             WHITELIST="$COMPLETE_WRITE_WHITELIST" ;;
+    *)                    exit 0 ;;
+esac
 
 # Allow writes to whitelisted paths
 if [ -n "$NORMALIZED_PATH" ]; then

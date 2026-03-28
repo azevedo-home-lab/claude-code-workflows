@@ -167,7 +167,7 @@ if echo "$COMMAND" | grep -qE 'perl[[:space:]]+-e[[:space:]]'; then
 fi
 
 # ---------------------------------------------------------------------------
-# Defense-in-depth: block writes to workflow state and intent files in ALL active phases
+# Defense-in-depth: block writes to workflow state files in ALL active phases.
 # Only triggers when a write operation targets these files (not on reads like cat/jq).
 # Fires before the implement/review early-exit to catch forgery attempts.
 # NOTE: PreToolUse blocking is unreliable — this is a speed bump, not a wall.
@@ -178,6 +178,30 @@ if echo "$COMMAND" | grep -qE "$STATE_FILE_PATTERN"; then
     if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ] || [ "$NODE_WRITE" = "true" ] || [ "$RUBY_WRITE" = "true" ] || [ "$PERL_WRITE" = "true" ]; then
         if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: Direct writes to workflow state files are not allowed." >&2; fi
         emit_deny "BLOCKED: Direct writes to workflow state files are not allowed."
+        exit 0
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# Guard-system self-protection: block writes to enforcement files in ALL active phases.
+# Fires before the implement|review early-exit — those phases do not bypass this.
+# Claude cannot modify the files that enforce the workflow on Claude.
+# This includes: hook scripts, workflow scripts, and command files.
+# The user can always use !backtick to make legitimate changes to these files.
+# ---------------------------------------------------------------------------
+
+# Block direct calls to user-set-phase.sh — !backtick only, never a Bash tool call.
+if echo "$COMMAND" | grep -qE 'user-set-phase\.sh'; then
+    if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: user-set-phase.sh called via Bash tool" >&2; fi
+    emit_deny "BLOCKED: user-set-phase.sh is the user-only phase transition path. It cannot be called via Bash tool — only from !backtick command files."
+    exit 0
+fi
+
+GUARD_SYSTEM_PATTERN='(\.claude/hooks/|plugin/scripts/|plugin/commands/)'
+if echo "$COMMAND" | grep -qE "$GUARD_SYSTEM_PATTERN"; then
+    if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ] || [ "$NODE_WRITE" = "true" ] || [ "$RUBY_WRITE" = "true" ] || [ "$PERL_WRITE" = "true" ]; then
+        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: write to enforcement file blocked" >&2; fi
+        emit_deny "BLOCKED: Writes to enforcement files (.claude/hooks/, plugin/scripts/, plugin/commands/) are not allowed in any phase. These files define the workflow rules. Use !backtick if you need to make legitimate changes."
         exit 0
     fi
 fi
