@@ -40,7 +40,7 @@ speculate.
 
 IMPORTANT: You are testing against LIVE project files. You MUST NOT modify
 the workflow state file (.claude/state/workflow.json) or run any state-
-modifying commands (set_phase, reset_*_status, etc.) against the real
+modifying commands (agent_set_phase, reset_*_status, etc.) against the real
 project directory.
 
 For destructive tests: create a temp directory with `mktemp -d`, copy

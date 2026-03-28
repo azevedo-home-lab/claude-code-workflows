@@ -125,14 +125,14 @@ To recover: run /off to reset the workflow, or manually delete .claude/state/wor
                 implement)
                     MESSAGES="$MESSAGES
 ▶▶▶ Unattended (auto) — when all milestones are complete (plan_read, tests_passing, all_tasks_complete), auto-transition: run these commands now:
-  .claude/hooks/workflow-cmd.sh set_phase \"review\"
+  .claude/hooks/workflow-cmd.sh agent_set_phase \"review\"
   .claude/hooks/workflow-cmd.sh reset_review_status
 Then read plugin/commands/review.md for phase instructions. Do NOT commit, push, or do other work after milestones are done."
                     ;;
                 review)
                     MESSAGES="$MESSAGES
 ▶▶▶ Unattended (auto) — when all review milestones are complete, auto-transition: run these commands now:
-  .claude/hooks/workflow-cmd.sh set_phase \"complete\"
+  .claude/hooks/workflow-cmd.sh agent_set_phase \"complete\"
   .claude/hooks/workflow-cmd.sh reset_completion_status
 Then read plugin/commands/complete.md for phase instructions. Do NOT wait for user."
                     ;;
@@ -468,7 +468,7 @@ if [ "$AUTONOMY_LEVEL" = "auto" ]; then
         IMPL_MISSING=$(_check_milestones "implement" "plan_read" "tests_passing" "all_tasks_complete" 2>/dev/null) || IMPL_MISSING="skip"
         if [ -z "$IMPL_MISSING" ]; then
             STALL_MSG="[Workflow Coach — IMPLEMENT] ⚠ ALL MILESTONES COMPLETE. Auto-transition: run these commands now:
-  .claude/hooks/workflow-cmd.sh set_phase \"review\"
+  .claude/hooks/workflow-cmd.sh agent_set_phase \"review\"
   .claude/hooks/workflow-cmd.sh reset_review_status
 Then read plugin/commands/review.md for phase instructions. Do not commit, push, or do other work. Auto autonomy requires completing the full pipeline: IMPLEMENT → REVIEW → COMPLETE."
         fi
@@ -480,7 +480,7 @@ Then read plugin/commands/review.md for phase instructions. Do not commit, push,
         done
         if [ "$REVIEW_DONE" = "true" ]; then
             STALL_MSG="[Workflow Coach — REVIEW] ⚠ ALL REVIEW MILESTONES COMPLETE. Auto-transition: run these commands now:
-  .claude/hooks/workflow-cmd.sh set_phase \"complete\"
+  .claude/hooks/workflow-cmd.sh agent_set_phase \"complete\"
   .claude/hooks/workflow-cmd.sh reset_completion_status
 Then read plugin/commands/complete.md for phase instructions. Auto autonomy requires completing the full pipeline: REVIEW → COMPLETE."
         fi
