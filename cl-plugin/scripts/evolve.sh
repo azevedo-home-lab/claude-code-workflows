@@ -9,6 +9,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+if [ -z "$PROJECT_DIR" ]; then
+  echo "CL: ERROR — cannot determine project root. Set CLAUDE_PROJECT_DIR or run from within a git repo." >&2
+  exit 1
+fi
 STATE_DIR="$PROJECT_DIR/.claude/state"
 STATE_FILE="$STATE_DIR/cl-state.json"
 LOCK_FILE="$STATE_DIR/cl-state.lock"
@@ -75,7 +79,7 @@ increment_counter() {
   local count
   count=$(read_state "completion_count")
   count=$((count + 1))
-  update_state ".completion_count = $count"
+  jq --argjson v "$count" '.completion_count = $v' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
   echo "$count"
 }
 

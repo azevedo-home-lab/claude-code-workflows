@@ -105,9 +105,14 @@ PROPOSALS_JSON=<proposals array from agent response, e.g. []>
 # Get the highest observation ID from fetched observations
 NEW_LAST_OBS_ID=<max id from observation-fetcher results>
 
-# Validate NEW_LAST_OBS_ID is a bare integer before interpolating into shell command
+# Validate NEW_LAST_OBS_ID is a bare integer and not a regression
 if ! [[ "$NEW_LAST_OBS_ID" =~ ^[0-9]+$ ]]; then
   echo "CL: ERROR — invalid last_obs_id value: $NEW_LAST_OBS_ID" >&2
+  bash "$EVOLVE_SH" --unlock
+  exit 1
+fi
+if [ "$NEW_LAST_OBS_ID" -lt "$LAST_OBS_ID" ]; then
+  echo "CL: ERROR — new last_obs_id ($NEW_LAST_OBS_ID) is less than current ($LAST_OBS_ID). Aborting to prevent re-processing loop." >&2
   bash "$EVOLVE_SH" --unlock
   exit 1
 fi

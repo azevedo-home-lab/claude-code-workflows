@@ -25,7 +25,7 @@ if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
 fi
 
 # Check gh auth (non-blocking)
-if ! gh auth status &>/dev/null 2>&1; then
+if ! gh auth status &>/dev/null; then
   echo "WARNING: gh CLI not authenticated. Issue creation will fail until you run: gh auth login" >&2
 fi
 
