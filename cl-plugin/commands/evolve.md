@@ -93,6 +93,12 @@ Check the agent's response:
 - If `proposals_generated: 0`: print "Patterns detected but no actionable proposals generated."
 - If proposals generated: print summary for each proposal (pattern_name, confidence, target)
 
+Capture the full response for state update:
+```bash
+# Claude: capture the full JSON array from the proposal-generator response
+PROPOSALS_JSON=<proposals array from agent response, e.g. []>
+```
+
 ## Step 5: Update state
 
 ```bash

@@ -5,7 +5,7 @@ description: Detects recurring patterns in observations using frequency
 tools:
   - Read
   - Bash
-model: inherit
+model: claude-haiku-4-5-20251001
 ---
 
 You are the Pattern Detector for the Continuous Learning pipeline.

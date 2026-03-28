@@ -5,7 +5,7 @@ description: Generates actionable proposals from detected patterns using
 tools:
   - Read
   - Bash
-model: inherit
+model: claude-sonnet-4-6
 ---
 
 You are the Proposal Generator for the Continuous Learning pipeline.

@@ -48,6 +48,13 @@ Observations → observation-fetcher → pattern-detector (Haiku)
 - Haiku for clustering (cheap), Sonnet for proposals (accurate)
 - Sentinel injection (`<!-- CL-INJECT-START/END -->`) in complete.md is reversible via uninstall.sh
 
+## Known Deviations from Plan
+
+| Deviation | Reason | Accepted |
+|-----------|--------|----------|
+| `evolve.md` Step 5 writes state directly via `jq` (not via `evolve.sh --update`) | Using `--argjson` safely requires access to `$STATE_FILE` directly; routing through `--update` would require passing a raw jq expression, which is the injection vector we fixed | Yes — safety improvement |
+| `stats.total_proposals_approved/rejected` initialized but never incremented | Approve/reject flow runs through `proposals.md` + claude-mem; wiring back to `evolve.sh` deferred | Yes — tech debt, tracked |
+
 ## Configuration Override
 
 Place custom `analysis-prompt.md` or `proposal-prompt.md` in `cl-plugin/config/` to

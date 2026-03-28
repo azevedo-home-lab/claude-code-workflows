@@ -33,8 +33,8 @@ fi
 echo "Initializing state..."
 bash "$PLUGIN_ROOT/scripts/evolve.sh" --init
 
-# Gitignore guard
-if ! grep -qxF '.claude/state/' "$PROJECT_DIR/.gitignore" 2>/dev/null; then
+# Gitignore guard (accept with or without trailing slash)
+if ! grep -qE '^\.claude/state/?$' "$PROJECT_DIR/.gitignore" 2>/dev/null; then
   printf '\n.claude/state/\n' >> "$PROJECT_DIR/.gitignore"
   echo "Added .claude/state/ to .gitignore"
 fi
@@ -77,7 +77,8 @@ fi
 MARKETPLACE="$PROJECT_DIR/.claude-plugin/marketplace.json"
 if [ -f "$MARKETPLACE" ] && ! jq -e '.plugins[] | select(.name=="continuous-learning")' "$MARKETPLACE" &>/dev/null; then
   echo "Registering in marketplace.json..."
-  jq '.plugins += [{"name":"continuous-learning","version":"0.1.0","source":"./cl-plugin","description":"Continuous Learning — detects patterns and proposes workflow improvements"}]' \
+  CL_VERSION=$(jq -r '.version' "$PLUGIN_ROOT/.claude-plugin/plugin.json")
+  jq --arg v "$CL_VERSION" '.plugins += [{"name":"continuous-learning","version":$v,"source":"./cl-plugin","description":"Continuous Learning — detects patterns and proposes workflow improvements"}]' \
     "$MARKETPLACE" > "$MARKETPLACE.tmp" && mv "$MARKETPLACE.tmp" "$MARKETPLACE"
   echo "Registered in marketplace.json"
 fi
@@ -89,5 +90,6 @@ echo "Symlinked /evolve command"
 
 echo ""
 echo "=== CL Plugin Ready ==="
-echo "Will analyze after every 5 /complete cycles."
+THRESH=$(jq -r '.trigger.completions_per_run // 5' "$PLUGIN_ROOT/config/cl-config.json")
+echo "Will analyze after every $THRESH /complete cycles."
 echo "Run /evolve to trigger manually."

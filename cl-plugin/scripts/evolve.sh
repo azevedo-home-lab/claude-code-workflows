@@ -53,7 +53,7 @@ acquire_lock() {
   # Stale locks are handled by age check only.
   if [ -f "$LOCK_FILE" ]; then
     local lock_age
-    lock_age=$(( $(date +%s) - $(stat -f %m "$LOCK_FILE" 2>/dev/null || stat -c %Y "$LOCK_FILE" 2>/dev/null || echo 9999) ))
+    lock_age=$(( $(date +%s) - $(stat -f %m "$LOCK_FILE" 2>/dev/null || stat -c %Y "$LOCK_FILE" 2>/dev/null || date +%s) ))
     if [ "$lock_age" -lt 600 ]; then
       echo "CL: Pipeline already running (lock is ${lock_age}s old). Exiting." >&2
       exit 0
