@@ -6,9 +6,7 @@
 # See LICENSE for details.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
-# Note: SCRIPT_DIR used only to anchor PROJECT_DIR detection above
 
 echo "=== CL Plugin Uninstall ==="
 

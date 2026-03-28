@@ -24,7 +24,6 @@ init_state() {
       last_run: null,
       last_obs_id: 0,
       completion_count: 0,
-      pending_proposals: [],
       stats: {
         total_runs: 0,
         total_proposals_generated: 0,

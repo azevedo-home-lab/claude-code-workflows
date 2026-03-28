@@ -35,7 +35,7 @@ Observations → observation-fetcher → pattern-detector (Haiku)
 
 | File | Purpose |
 |------|---------|
-| `cl-state.json` | Last run, last obs ID, counter, pending proposals, stats |
+| `cl-state.json` | Last run, last obs ID, completion counter, run stats |
 | `cl-state.lock` | Prevents concurrent pipeline runs |
 | `cl-active-rules.json` | Tracks approved rule names for ICRH mitigation |
 

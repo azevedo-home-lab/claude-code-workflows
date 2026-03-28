@@ -59,7 +59,7 @@ Create a GitHub issue for an approved proposal and update tracking state.
    gh issue create \
      --title "[proposal/learning] <pattern_name>" \
      --body-file "$BODY_FILE" \
-     --label "<labels joined by comma>"
+     --label "proposal" --label "learning"
    rm -f "$BODY_FILE"
    ```
 

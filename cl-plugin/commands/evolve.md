@@ -110,9 +110,11 @@ fi
 PROPOSALS_TMPFILE=$(mktemp)
 echo "$PROPOSALS_JSON" > "$PROPOSALS_TMPFILE"
 PROPOSALS_COUNT=$(jq 'length' "$PROPOSALS_TMPFILE")
-jq --argjson new_obs "$NEW_LAST_OBS_ID" \
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+jq --arg now "$NOW" \
+   --argjson new_obs "$NEW_LAST_OBS_ID" \
    --argjson count "$PROPOSALS_COUNT" \
-   ".last_run = \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" | .last_obs_id = \$new_obs | .completion_count = 0 | .stats.total_runs += 1 | .stats.total_proposals_generated += \$count" \
+   '.last_run = $now | .last_obs_id = $new_obs | .completion_count = 0 | .stats.total_runs += 1 | .stats.total_proposals_generated += $count' \
    "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
 rm -f "$PROPOSALS_TMPFILE"
 ```
