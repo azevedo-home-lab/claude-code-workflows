@@ -519,6 +519,25 @@ Load open issues: `get_observations([<TRACKED_IDS>])`
 
 This summary serves two purposes: (1) the user sees what happened and what's left, and (2) the next Claude Code session can reference the observation IDs to load full context.
 
+### Issue Closure
+
+After presenting the summary, close any GitHub issues that were resolved by this work:
+
+1. Check issue mappings: `.claude/hooks/workflow-cmd.sh get_field "issue_mappings"`
+2. Get the shipping commit hash: `git rev-parse --short HEAD`
+3. For each mapped issue that was fully resolved in this session:
+
+```bash
+gh issue close <ISSUE_NUMBER> --comment "Shipped in commit <HASH> on branch <BRANCH>.
+
+Spec: <SPEC_PATH>
+Plan: <PLAN_PATH>"
+```
+
+Only close issues where all tasks in the plan are completed. If the work is partial, add a progress comment instead of closing.
+
+If `gh` is not available or not authenticated, skip gracefully: "Skipping issue closure — gh CLI not available."
+
 After presenting the summary, tell the user:
 
 ```
