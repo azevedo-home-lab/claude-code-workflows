@@ -83,6 +83,15 @@ else
   BRANCH=""
 fi
 
+# CCProxy: override model display if proxy is active
+ACTIVE_PROVIDER_FILE="$HOME/.config/ccproxy/active-provider"
+if [ -f "$ACTIVE_PROVIDER_FILE" ]; then
+  CCPROXY_PROVIDER=$(head -1 "$ACTIVE_PROVIDER_FILE" 2>/dev/null)
+  if [ -n "$CCPROXY_PROVIDER" ] && [ "$CCPROXY_PROVIDER" != "claude" ]; then
+    MODEL="[ccproxy] ${CCPROXY_PROVIDER}"
+  fi
+fi
+
 # Assemble output
 OUTPUT=""
 
