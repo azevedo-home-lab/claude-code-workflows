@@ -1,11 +1,26 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 azevedo-home-lab
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# This file is part of Claude Code Workflows — CL Plugin.
+# See LICENSE for details.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+# Note: SCRIPT_DIR used only to anchor PROJECT_DIR detection above
 
 echo "=== CL Plugin Uninstall ==="
+
+# Confirmation prompt (unless --force passed)
+if [ "${1:-}" != "--force" ]; then
+  printf "This will remove the CL plugin from this project (complete.md, marketplace.json, state files). Proceed? (y/N) "
+  read -r CONFIRM
+  case "$CONFIRM" in
+    y|Y) ;;
+    *) echo "Aborted."; exit 0 ;;
+  esac
+fi
 
 # Strip sentinel from complete.md
 COMPLETE_MD="$PROJECT_DIR/plugin/commands/complete.md"

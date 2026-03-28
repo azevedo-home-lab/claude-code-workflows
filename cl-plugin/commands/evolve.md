@@ -99,7 +99,22 @@ Check the agent's response:
 # Get the highest observation ID from fetched observations
 NEW_LAST_OBS_ID=<max id from observation-fetcher results>
 
-bash "$EVOLVE_SH" --update ".last_run = \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" | .last_obs_id = $NEW_LAST_OBS_ID | .completion_count = 0 | .stats.total_runs += 1 | .stats.total_proposals_generated += $PROPOSALS_COUNT | .pending_proposals = $PROPOSALS_JSON"
+# Validate NEW_LAST_OBS_ID is a bare integer before interpolating into shell command
+if ! [[ "$NEW_LAST_OBS_ID" =~ ^[0-9]+$ ]]; then
+  echo "CL: ERROR — invalid last_obs_id value: $NEW_LAST_OBS_ID" >&2
+  bash "$EVOLVE_SH" --unlock
+  exit 1
+fi
+
+# Write proposals JSON to temp file and pass via --argjson to avoid shell injection
+PROPOSALS_TMPFILE=$(mktemp)
+echo "$PROPOSALS_JSON" > "$PROPOSALS_TMPFILE"
+PROPOSALS_COUNT=$(jq 'length' "$PROPOSALS_TMPFILE")
+jq --argjson new_obs "$NEW_LAST_OBS_ID" \
+   --argjson count "$PROPOSALS_COUNT" \
+   ".last_run = \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" | .last_obs_id = \$new_obs | .completion_count = 0 | .stats.total_runs += 1 | .stats.total_proposals_generated += \$count" \
+   "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+rm -f "$PROPOSALS_TMPFILE"
 ```
 
 ## Step 6: Release lock and report

@@ -4,6 +4,7 @@
     "completions_per_run": 5,
     "min_new_observations": 20
   },
+  "_note_models": "Model IDs below are reference only — agents dispatch via model:inherit. ANTHROPIC_API_KEY must be set as env var, never in this file.",
   "models": {
     "pattern_detector": "claude-haiku-4-5-20251001",
     "proposal_generator": "claude-sonnet-4-6"

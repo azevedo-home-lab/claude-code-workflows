@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 azevedo-home-lab
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# This file is part of Claude Code Workflows — CL Plugin.
+# See LICENSE for details.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -49,7 +54,7 @@ acquire_lock() {
   # Stale locks are handled by age check only.
   if [ -f "$LOCK_FILE" ]; then
     local lock_age
-    lock_age=$(( $(date +%s) - $(stat -f %m "$LOCK_FILE" 2>/dev/null || stat -c %Y "$LOCK_FILE" 2>/dev/null || echo 0) ))
+    lock_age=$(( $(date +%s) - $(stat -f %m "$LOCK_FILE" 2>/dev/null || stat -c %Y "$LOCK_FILE" 2>/dev/null || echo 9999) ))
     if [ "$lock_age" -lt 600 ]; then
       echo "CL: Pipeline already running (lock is ${lock_age}s old). Exiting." >&2
       exit 0

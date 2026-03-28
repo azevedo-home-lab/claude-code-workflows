@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Copyright (C) 2026 azevedo-home-lab
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# This file is part of Claude Code Workflows — CL Plugin.
+# See LICENSE for details.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,10 +18,10 @@ if ! command -v jq &>/dev/null; then
   exit 1
 fi
 
-# Check ANTHROPIC_API_KEY
+# Check ANTHROPIC_API_KEY (non-blocking — agents dispatch via Claude Code, not direct API)
 if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-  echo "ERROR: ANTHROPIC_API_KEY not set. CL plugin requires API access for pattern detection." >&2
-  exit 1
+  echo "WARNING: ANTHROPIC_API_KEY not set. Pattern detection agents may fail if Claude Code" >&2
+  echo "         is not already authenticated. Do NOT store this key in cl-config.json." >&2
 fi
 
 # Check gh auth (non-blocking)

@@ -5,7 +5,7 @@ Query claude-mem for observations tagged with type "proposal" for
 the current project.
 
 ```bash
-PROJECT=$(git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$//' | sed 's/.*[:/]\([^/]*\)$//')
+PROJECT=$(git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/')
 echo "Project: $PROJECT"
 ```
 

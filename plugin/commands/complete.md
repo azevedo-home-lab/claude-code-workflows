@@ -541,6 +541,9 @@ If `gh` is not available or not authenticated, skip gracefully: "Skipping issue 
 After presenting the summary, tell the user:
 
 ```
+Run `/off` to close the workflow.
+```
+
 <!-- CL-INJECT-START -->
 If the CL plugin is installed, check whether analysis should run:
 
@@ -551,5 +554,3 @@ echo "$CL_STATUS"
 
 If the output is `CL_READY`, invoke `/evolve` to run the analysis pipeline before closing.
 <!-- CL-INJECT-END -->
-Run `/off` to close the workflow.
-```
