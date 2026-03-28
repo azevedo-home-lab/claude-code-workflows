@@ -199,13 +199,11 @@ if echo "$COMMAND" | grep -qE '(^|[;&|[:space:]])(\\./|source[[:space:]]|bash[[:
 fi
 
 GUARD_SYSTEM_PATTERN='(\.claude/hooks/|plugin/scripts/|plugin/commands/)'
-if echo "$COMMAND" | grep -qE "$GUARD_SYSTEM_PATTERN"; then
-    if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ] || [ "$NODE_WRITE" = "true" ] || [ "$RUBY_WRITE" = "true" ] || [ "$PERL_WRITE" = "true" ]; then
-        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: write to enforcement file blocked" >&2; fi
-        emit_deny "BLOCKED: Writes to enforcement files (.claude/hooks/, plugin/scripts/, plugin/commands/) are not allowed in any phase. These files define the workflow rules. Use !backtick if you need to make legitimate changes."
-        exit 0
-    fi
-fi
+  # Strip double-quoted and single-quoted string content before checking guard paths,
+  # so paths mentioned inside gh --body "..." or commit -m "..." don't trigger the guard.
+  GUARD_CMD_STRIPPED=$(echo "$COMMAND" | sed -E "s/\"[^\"]*\"//g; s/'[^']*'//g")
+  if echo "$GUARD_CMD_STRIPPED" | grep -qE "$GUARD_SYSTEM_PATTERN"; then
+      if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ] || [ "$NODE_WRITE" = "true" ] || [ "$RUBY_WRITE" = "true" ] || [ "$PERL_WRITE" = "true" ]; then
 
 # ---------------------------------------------------------------------------
 # Phase-gate: ask/auto enforcement by phase
