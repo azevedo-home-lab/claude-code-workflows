@@ -233,4 +233,28 @@ else
   OUTPUT+="  ${DIM}│${RESET}  ${DIM}Claude-Mem ✗${RESET}"
 fi
 
+# CCProxy provider indicator — only shown when proxy is running
+CCPROXY_STATE="$HOME/.config/ccproxy/active-provider"
+CCPROXY_PID_FILE="$HOME/.config/ccproxy/ccproxy.pid"
+if [ -f "$CCPROXY_STATE" ] && [ -f "$CCPROXY_PID_FILE" ]; then
+  CCPROXY_PID_VAL=$(tr -d '[:space:]' < "$CCPROXY_PID_FILE" 2>/dev/null || true)
+  # Validate PID is a positive integer before kill -0 (negative PIDs signal process groups)
+  if [[ "$CCPROXY_PID_VAL" =~ ^[0-9]+$ ]] && kill -0 "$CCPROXY_PID_VAL" 2>/dev/null; then
+    # Read both lines in one pass (atomic: head -1 / sed -n '2p' would open file twice)
+    { IFS= read -r ACTIVE_PROVIDER; IFS= read -r CCPROXY_PORT; } < "$CCPROXY_STATE" 2>/dev/null || true
+    # Validate port is a valid TCP port (1-65535); clear if not
+    { [[ "$CCPROXY_PORT" =~ ^[0-9]{1,5}$ ]] && [ "$CCPROXY_PORT" -ge 1 ] && [ "$CCPROXY_PORT" -le 65535 ]; } || CCPROXY_PORT=""
+    # Sanitize ACTIVE_PROVIDER against printf '%b' backslash injection (matches existing pattern)
+    # Port is already validated numeric — no sanitization needed
+    ACTIVE_PROVIDER="${ACTIVE_PROVIDER//\\/\\\\}"
+    case "$ACTIVE_PROVIDER" in
+      codex)  PROVIDER_LABEL="Codex"  ; PROVIDER_COLOR="$YELLOW" ;;
+      claude) PROVIDER_LABEL="Claude" ; PROVIDER_COLOR="$GREEN"  ;;
+      *)      PROVIDER_LABEL="$ACTIVE_PROVIDER" ; PROVIDER_COLOR="$DIM" ;;
+    esac
+    OUTPUT+="  ${DIM}│${RESET}  ${PROVIDER_COLOR}⇄ ${PROVIDER_LABEL}${RESET}"
+    [ -n "$CCPROXY_PORT" ] && OUTPUT+=" ${DIM}:${CCPROXY_PORT}${RESET}"
+  fi
+fi
+
 printf '%b' "$OUTPUT"
