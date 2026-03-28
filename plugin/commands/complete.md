@@ -389,6 +389,10 @@ For each issue to create:
 
 The issue mapping makes observation IDs clickable in the status line (links to GitHub issues via OSC 8 hyperlinks).
 
+**CHECKPOINT — Report to user before proceeding:**
+Present a summary: "GitHub issues: [N created, N skipped, or 'gh not available']. Observation IDs saved: [list with mapped issue URLs]."
+Do NOT mark `tech_debt_audited` until this checkpoint summary is presented to the user.
+
 #### Temp File Cleanup
 
 After issue creation, clean up agent artifacts:
@@ -432,32 +436,26 @@ If REDO: fix and re-save the observation, then re-dispatch. Max 3 iterations, th
 After saving the handover observation, build the final tracked observations list atomically:
 
 1. Take `KEEP_IDS` from Step 7 (still-open items)
-2. Add the handover observation ID
-3. Add any new tech debt observation IDs saved during this step
+2. Add any new tech debt observation IDs saved in Step 7
+3. Do NOT add the handover observation ID — it is a one-time reference for the next session, not an ongoing issue. The summary in Step 9 tells the next session how to load it.
 4. Write the complete list in a single call:
 
 ```bash
-.claude/hooks/workflow-cmd.sh set_tracked_observations "<KEEP_IDS>,<HANDOVER_ID>,<NEW_TECH_DEBT_IDS>"
+.claude/hooks/workflow-cmd.sh set_tracked_observations "<KEEP_IDS>,<NEW_TECH_DEBT_IDS>"
 ```
 
-This atomic replace ensures crash safety — if the session dies before this line, the previous tracked list is fully intact.
+This atomic replace ensures crash safety — if the session dies before this line, the previous tracked list is fully intact. The tracked list should only contain open issues, not session handovers.
 
 Mark milestone:
 ```bash
 .claude/hooks/workflow-cmd.sh set_completion_field "handover_saved" "true"
 ```
 
-### Step 9: Phase Transition
+### Step 9: Present Summary and Close
 
 All 8 milestones must be marked true before the workflow can close.
 
-Inform the user that the completion pipeline is finished and they should run `/off` to close the workflow:
-
-```
-Workflow complete. All milestones verified. Run `/off` to close the workflow.
-```
-
-After the user runs `/off` and the phase transition succeeds, output a **handover summary** for the user and for the next Claude Code session:
+**Present the handover summary NOW — before asking the user to run `/off`.** The `/off` command clears workflow state, so this is the last chance to present a meaningful summary.
 
 ```
 ## Session Complete
@@ -471,9 +469,17 @@ After the user runs `/off` and the phase transition succeeds, output a **handove
 
 ### Open issues / next steps
 - <tech debt items from Step 7, prioritized>
+- <tracked observation IDs still open>
 
 ### For next session
 Load handover: `get_observations([<ID>])`
+Load open issues: `get_observations([<TRACKED_IDS>])`
 ```
 
-This message serves two purposes: (1) the user sees a clean summary of what happened, and (2) the next Claude Code session can reference the observation ID to load full context.
+This summary serves two purposes: (1) the user sees what happened and what's left, and (2) the next Claude Code session can reference the observation IDs to load full context.
+
+After presenting the summary, tell the user:
+
+```
+Run `/off` to close the workflow.
+```
