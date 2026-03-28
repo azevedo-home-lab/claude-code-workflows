@@ -40,8 +40,6 @@ mkdir -p "$STATE_DIR"
 # Clean up stale temp files from interrupted writes (older than 5 minutes)
 find "$STATE_DIR" -name '*.tmp.*' -mmin +5 -delete 2>/dev/null || true
 
-# Clean up stale intent files from previous sessions
-
 # Write default workflow.json if it doesn't exist
 if [ ! -f "$STATE_FILE" ]; then
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

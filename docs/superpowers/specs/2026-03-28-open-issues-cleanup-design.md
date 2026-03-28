@@ -85,6 +85,24 @@ Extend the `sed` at line 134 to also strip bare `>/dev/null` and `>>/dev/null` (
 
 ---
 
+## Review Findings (commit cde008e)
+
+### Critical
+None.
+
+### Warnings
+None (CQ-1 and CQ-2 were false positives — deduplication design is intentional, test suite was deleted in v1.12.0).
+
+### Suggestions
+- [HYG] `plugin/scripts/post-tool-navigator.sh:467-479` — Inconsistent milestone-check idiom: IMPLEMENT uses `_check_milestones`, DISCUSS/REVIEW use manual for-loop. Pre-existing; new DISCUSS block follows REVIEW pattern.
+
+### Tech Debt (hygiene findings — pre-existing, not introduced by this commit)
+- [HYG] `plugin/scripts/setup.sh:43` — Dead stub comment "Clean up stale intent files from previous sessions" with no implementation. `phase-intent.json` stale file confirmed on disk with `{"intent":"implement"}`.
+- [HYG] `plugin/scripts/workflow-state.sh:343` — Comment references removed features `WF_SKIP_AUTH` and `intent file` in `agent_set_phase` function.
+- [HYG] `plugin/scripts/bash-write-guard.sh:176` — `STATE_FILE_PATTERN` still guards `autonomy-intent.json` which no longer exists on disk and has no writer.
+
+---
+
 ## Deliverables
 
 1. `plugin/scripts/bash-write-guard.sh` — extend CLEAN_CMD strip (line 134)

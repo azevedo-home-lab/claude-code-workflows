@@ -340,7 +340,7 @@ _read_preserved_state() {
 # AGENT PHASE TRANSITION — called only via Bash tool by Claude in auto autonomy mode.
 # Enforces forward-only transitions and milestone gate checks.
 # User transitions use user-set-phase.sh (!backtick only) — NOT this function.
-# There is no bypass: no WF_SKIP_AUTH, no intent file, no user-override path here.
+# There is no bypass: no user-override path here. Agent path only.
 agent_set_phase() {
     local new_phase="$1"
 

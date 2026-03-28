@@ -173,7 +173,7 @@ fi
 # NOTE: PreToolUse blocking is unreliable — this is a speed bump, not a wall.
 # ---------------------------------------------------------------------------
 
-STATE_FILE_PATTERN='\.claude/(state/workflow\.json|state/phase-intent\.json|state/autonomy-intent\.json)'
+STATE_FILE_PATTERN='\.claude/(state/workflow\.json|state/phase-intent\.json)'
 if echo "$COMMAND" | grep -qE "$STATE_FILE_PATTERN"; then
     if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ] || [ "$NODE_WRITE" = "true" ] || [ "$RUBY_WRITE" = "true" ] || [ "$PERL_WRITE" = "true" ]; then
         if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: Direct writes to workflow state files are not allowed." >&2; fi
