@@ -106,6 +106,30 @@ After the plan is written and reviewed, mark the milestone:
 .claude/hooks/workflow-cmd.sh set_discuss_field "plan_written" "true"
 ```
 
+### Plan→Issue Linking
+
+After the plan passes review, check if this work maps to an existing GitHub issue. If it does, add a comment linking to the spec and plan for traceability:
+
+```bash
+# Check for issue mappings in workflow state
+ISSUE_MAPPINGS=$(.claude/hooks/workflow-cmd.sh get_field "issue_mappings" 2>/dev/null || echo "{}")
+```
+
+If there are tracked observation IDs with GitHub issue mappings, or if the user mentioned a specific issue number, post a comment:
+
+```bash
+gh issue comment <ISSUE_NUMBER> --body "## Design & Plan
+
+**Spec:** \`<SPEC_PATH>\`
+**Plan:** \`<PLAN_PATH>\`
+**Decision record:** \`<DECISION_RECORD_PATH>\`
+
+Approach: <chosen approach name>
+Tasks: <N> implementation tasks"
+```
+
+If no issue is mapped, skip this step silently — not all work originates from a GitHub issue.
+
 **Step expectations — what each step must produce before you move on:**
 
 | Step | What you do | Evidence required before next step | Milestone |
