@@ -524,7 +524,7 @@ check_soft_gate() {
         review)
             # Check if there are code changes
             local changes
-            changes=$(git diff --name-only main...HEAD 2>/dev/null; git diff --name-only 2>/dev/null)
+            changes=$(git diff --name-only origin/main...HEAD 2>/dev/null; git diff --name-only main...HEAD 2>/dev/null; git diff --name-only 2>/dev/null)
             if [ -z "$changes" ]; then
                 echo "No code changes detected. The review pipeline requires changed files to analyze. Proceed anyway?"
                 return
