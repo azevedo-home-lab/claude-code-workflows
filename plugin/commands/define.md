@@ -11,6 +11,8 @@ Present the output to the user.
 
 **You are now in DEFINE phase (Diamond 1 — Problem Space).**
 
+**Git in DEFINE/DISCUSS:** Spec and plan files (`docs/superpowers/specs/`, `docs/superpowers/plans/`) can be committed. Use **single git commands** — run `git add` and `git commit` as separate commands, not chained with `&&`. Chained commands with heredoc-style commit messages may be blocked by the write guard.
+
 Before proceeding:
 1. Read `plugin/docs/reference/professional-standards.md` — apply the Universal Standards and DEFINE Phase Standards throughout this phase.
 

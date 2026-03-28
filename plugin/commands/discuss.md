@@ -9,6 +9,8 @@ Present the output to the user.
 
 **You are now in DISCUSS phase (Diamond 2 — Solution Space).** Code edits are blocked — design the solution and write the plan.
 
+**Git in DEFINE/DISCUSS:** Spec and plan files (`docs/superpowers/specs/`, `docs/superpowers/plans/`) can be committed. Use **single git commands** — run `git add` and `git commit` as separate commands, not chained with `&&`. Chained commands with heredoc-style commit messages may be blocked by the write guard.
+
 Before proceeding:
 1. Read `plugin/docs/reference/professional-standards.md` — apply the Universal Standards and DISCUSS Phase Standards throughout this phase.
 
