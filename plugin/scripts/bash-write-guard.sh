@@ -245,15 +245,16 @@ fi
   fi
 
   # COMPLETE phase: allow rm for .claude/tmp/ cleanup
-  if [ "$PHASE" = "complete" ]; then
-      if echo "$COMMAND" | grep -qE '^[[:space:]]*rm[[:space:]]' && \
-         echo "$COMMAND" | grep -qE '\.claude/tmp/' && \
-         ! echo "$COMMAND" | grep -qE '\.\.' && \
-         ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
-          if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: rm .claude/tmp/ in COMPLETE" >&2; fi
-          exit 0
-      fi
-  fi
+    if [ "$PHASE" = "complete" ]; then
+        _rm_stripped=$(echo "$COMMAND" | sed -E 's/\|\|[[:space:]]*(true|echo[[:space:]][^;&|]*)$//')
+        if echo "$_rm_stripped" | grep -qE '^[[:space:]]*rm[[:space:]]' && \
+           echo "$_rm_stripped" | grep -qE '\.claude/tmp/' && \
+           ! echo "$_rm_stripped" | grep -qE '\.\.' && \
+           ! echo "$_rm_stripped" | grep -qE '(&&|\|\||;|\|)'; then
+            if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: rm .claude/tmp/ in COMPLETE" >&2; fi
+            exit 0
+        fi
+    fi
 
   # Guard-system path check — runs AFTER gh/rm early exits so that gh commands
   # in COMPLETE phase are not blocked by path mentions in --body text.
