@@ -1,0 +1,22 @@
+{
+  "version": "0.1.0",
+  "trigger": {
+    "completions_per_run": 5,
+    "min_new_observations": 20
+  },
+  "models": {
+    "pattern_detector": "claude-haiku-4-5-20251001",
+    "proposal_generator": "claude-sonnet-4-6"
+  },
+  "proposals": {
+    "max_per_run": 5
+  },
+  "analysis_prompt": "cl-plugin/config/analysis-prompt.md",
+  "proposal_prompt": "cl-plugin/config/proposal-prompt.md",
+  "observation_types": ["discovery", "decision", "bugfix", "feature"],
+  "observation_min_narrative_length": 50,
+  "github": {
+    "labels": ["proposal", "learning"],
+    "duplicate_check": true
+  }
+}
