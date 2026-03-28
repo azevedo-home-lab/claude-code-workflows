@@ -9,12 +9,14 @@
 # Always runs under bash (via shebang) regardless of the user's shell.
 #
 # Usage from command templates:
-#   scripts/workflow-cmd.sh set_phase "implement"
+#   scripts/workflow-cmd.sh agent_set_phase "implement"   ← agent auto-transition only
 #   scripts/workflow-cmd.sh set_completion_field "plan_validated" "true"
 #   scripts/workflow-cmd.sh get_phase
 #
+# User phase transitions use user-set-phase.sh (!backtick only) — NOT this file.
+#
 # Supports chaining multiple commands separated by &&:
-#   scripts/workflow-cmd.sh set_phase "implement" && scripts/workflow-cmd.sh set_active_skill ""
+#   scripts/workflow-cmd.sh agent_set_phase "implement" && scripts/workflow-cmd.sh set_active_skill ""
 
 set -euo pipefail
 
@@ -23,7 +25,7 @@ source "$SCRIPT_DIR/workflow-state.sh"
 
 # Execute the allowed function passed as arguments
 case "$1" in
-    get_phase|set_phase|get_autonomy_level|set_autonomy_level|\
+    get_phase|agent_set_phase|get_autonomy_level|set_autonomy_level|\
     get_active_skill|set_active_skill|\
     get_decision_record|set_decision_record|\
     get_message_shown|set_message_shown|\

@@ -99,37 +99,6 @@ _phase_ordinal() {
     esac
 }
 
-# Check for a valid phase intent file. Consumes the intent on success.
-# Returns 0 if authorized, 1 if blocked.
-# Intent files are written by user-phase-gate.sh (UserPromptSubmit hook).
-_check_phase_intent() {
-    local target_phase="$1"
-    local intent_file="$STATE_DIR/phase-intent.json"
-    [ -s "$intent_file" ] || return 1
-    local intent
-    intent=$(jq -r '.intent // ""' "$intent_file" 2>/dev/null) || return 1
-    if [ "$intent" = "$target_phase" ]; then
-        rm -f "$intent_file"
-        return 0
-    fi
-    return 1
-}
-
-# Check for a valid autonomy intent file. Consumes the intent on success.
-# Returns 0 if authorized, 1 if blocked.
-_check_autonomy_intent() {
-    local level="$1"
-    local intent_file="$STATE_DIR/autonomy-intent.json"
-    [ -s "$intent_file" ] || return 1
-    local intent
-    intent=$(jq -r '.intent // ""' "$intent_file" 2>/dev/null) || return 1
-    if [ "$intent" = "autonomy:$level" ]; then
-        rm -f "$intent_file"
-        return 0
-    fi
-    return 1
-}
-
 get_phase() {
     if [ ! -f "$STATE_FILE" ]; then
         echo "off"
@@ -168,14 +137,8 @@ set_autonomy_level() {
         off|ask|auto) ;;
         *) echo "ERROR: Invalid autonomy level: $level (valid: off, ask, auto)" >&2; return 1 ;;
     esac
-    # Authorization: require intent file from UserPromptSubmit hook
-    # WF_SKIP_AUTH is test-only — never set in production
-    if [ "${WF_SKIP_AUTH:-}" != "1" ]; then
-        if ! _check_autonomy_intent "$level"; then
-            echo "BLOCKED: Autonomy level change requires user authorization. Use /autonomy $level." >&2
-            return 1
-        fi
-    fi
+    # set_autonomy_level is always user-initiated — called from !backtick in autonomy.md.
+    # No authorization check needed here; the user's slash command is the authorization.
     if [ ! -f "$STATE_FILE" ]; then
         echo "WARNING: No workflow state file. Start a workflow phase first (e.g., /define)." >&2
         return 1
@@ -372,116 +335,71 @@ _read_preserved_state() {
     preserved_debug=$(get_debug)
 }
 
-set_phase() {
+# AGENT PHASE TRANSITION — called only via Bash tool by Claude in auto autonomy mode.
+# Enforces forward-only transitions and milestone gate checks.
+# User transitions use user-set-phase.sh (!backtick only) — NOT this function.
+# There is no bypass: no WF_SKIP_AUTH, no intent file, no user-override path here.
+agent_set_phase() {
     local new_phase="$1"
 
-    # Validate phase name
+    # Validate phase name.
+    # Agents cannot set phase to 'off' — only the user can end a cycle.
     case "$new_phase" in
-        off|define|discuss|implement|review|complete) ;;
-        *) echo "ERROR: Invalid phase: $new_phase (valid: off, define, discuss, implement, review, complete)" >&2; return 1 ;;
+        define|discuss|implement|review|complete) ;;
+        off) echo "BLOCKED: Agents cannot set phase to 'off'. Only the user can end a workflow cycle." >&2; return 1 ;;
+        *) echo "ERROR: Invalid phase: $new_phase (valid: define, discuss, implement, review, complete)" >&2; return 1 ;;
     esac
 
-    # Authorization: require intent file or forward-only auto-transition
-    # WF_SKIP_AUTH is test-only — never set in production
-    local user_initiated=false
-    if [ "${WF_SKIP_AUTH:-}" != "1" ]; then
-        local authorized=false
-
-        # Check 1: Valid phase intent file from UserPromptSubmit hook — user-initiated.
-        # This is the ONLY path that authorizes 'off' — /off must come from the user.
-        # Agents cannot set phase to 'off'.
-        if _check_phase_intent "$new_phase"; then
-            authorized=true
-            user_initiated=true
-        fi
-
-        # Check 2: Forward-only auto-transition (no token needed)
-        if [ "$authorized" = false ] && [ -f "$STATE_FILE" ]; then
-            local current_autonomy
-            current_autonomy=$(get_autonomy_level)
-            if [ "$current_autonomy" = "auto" ]; then
-                local current_ordinal new_ordinal
-                current_ordinal=$(_phase_ordinal "$(get_phase)")
-                new_ordinal=$(_phase_ordinal "$new_phase")
-                if [ "$new_ordinal" -gt "$current_ordinal" ] && [ "$new_phase" != "off" ]; then
-                    authorized=true
-                fi
-            fi
-        fi
-
-        if [ "$authorized" = false ]; then
-            local current_autonomy
-            current_autonomy=$(get_autonomy_level 2>/dev/null || echo "unknown")
-            echo "BLOCKED: Phase transition to '$new_phase' requires user authorization." >&2
-            echo "  Current autonomy: $current_autonomy" >&2
-            echo "  Auto-transition is only allowed in 'auto' autonomy mode." >&2
-            echo "" >&2
-            echo "  Agent instructions:" >&2
-            echo "    - Do NOT retry set_phase — it will keep failing." >&2
-            echo "    - Present your completed work to the user." >&2
-            echo "    - Tell the user to run /$new_phase to proceed." >&2
-            echo "    - In 'ask' mode: user approves each phase transition." >&2
-            echo "    - In 'auto' mode: agent may transition when phase milestones are complete." >&2
-            return 1
-        fi
+    # Authorization: forward-only auto-transition only.
+    # Agents may only advance the pipeline — never retreat, never skip to off.
+    if [ ! -f "$STATE_FILE" ]; then
+        echo "BLOCKED: No workflow state. The user must start a phase with a slash command first." >&2
+        return 1
     fi
 
-    mkdir -p "$STATE_DIR"
-
-    # Hard gate checks: block phase transitions if milestones are incomplete.
-    # User-initiated transitions (via /command intent file) always bypass gates —
-    # the user's explicit command is law.
-    # WF_SKIP_AUTH skips only authorization (who may call this), NOT the gates
-    # (is the work done). Tests use WF_SKIP_AUTH=1 to bypass auth while still
-    # exercising the gate logic.
-    if [ "$user_initiated" = false ] && [ -f "$STATE_FILE" ]; then
-        local current
-        current=$(get_phase)
-        if ! _check_phase_gates "$current" "$new_phase"; then
-            return 1
-        fi
+    local current_autonomy
+    current_autonomy=$(get_autonomy_level)
+    if [ "$current_autonomy" != "auto" ]; then
+        echo "BLOCKED: Phase transition to '$new_phase' requires user authorization." >&2
+        echo "  Current autonomy: $current_autonomy" >&2
+        echo "  Agent transitions are only allowed in 'auto' autonomy mode." >&2
+        echo "" >&2
+        echo "  Agent instructions:" >&2
+        echo "    - Do NOT retry agent_set_phase — it will keep failing." >&2
+        echo "    - Present your completed work to the user." >&2
+        echo "    - Tell the user to run /$new_phase to proceed." >&2
+        return 1
     fi
 
-    # Reset incoming phase milestones — always, regardless of how we entered.
-    # This prevents stale milestone flags from a previous session carrying over.
-    # Done BEFORE reading preserved state so the reset applies to the new state.
-    case "$new_phase" in
-        discuss)   reset_discuss_status ;;
-        implement) reset_implement_status ;;
-        review)    reset_review_status ;;
-        complete)  reset_completion_status ;;
-    esac
+    local current_ordinal new_ordinal
+    current_ordinal=$(_phase_ordinal "$(get_phase)")
+    new_ordinal=$(_phase_ordinal "$new_phase")
+    if [ "$new_ordinal" -le "$current_ordinal" ]; then
+        echo "BLOCKED: Agent may only advance the phase (forward-only)." >&2
+        echo "  Current: $(get_phase) (ordinal $current_ordinal)" >&2
+        echo "  Requested: $new_phase (ordinal $new_ordinal)" >&2
+        echo "  To go back or reset: the user must run the phase command directly." >&2
+        return 1
+    fi
 
-    # Read existing state to preserve fields across transitions
+    # Hard gate checks: milestones must be complete before advancing.
+    # Gates always run for agent transitions — agents cannot bypass them.
+    local current
+    current=$(get_phase)
+    if ! _check_phase_gates "$current" "$new_phase"; then
+        return 1
+    fi
+
+    # Read existing state to preserve fields across transitions.
+    # NOTE: Milestone sections (discuss, implement, review, completion) are intentionally
+    # NOT preserved — the jq template rebuilds state from scratch, dropping them.
+    # There is no need to reset them here; they do not survive phase transitions.
     local preserved_skill="" preserved_decision="" preserved_autonomy=""
     local preserved_obs_id="" preserved_tracked=""
     local preserved_issue_mappings="null"
     local preserved_tests_passed=""
     local preserved_debug=""
-    local current_phase="off"
-    if [ -f "$STATE_FILE" ]; then
-        current_phase=$(get_phase)
-        _read_preserved_state
-    fi
-
-    # If new phase is off, clear active_skill, decision_record, and autonomy_level (cycle complete)
-    # Note: last_observation_id is preserved — it's useful in the statusline even when workflow is OFF
-    if [ "$new_phase" = "off" ]; then
-        preserved_skill=""
-        preserved_decision=""
-        preserved_autonomy=""
-        preserved_tests_passed=""
-        preserved_debug="false"
-    fi
-
-    # Initialize autonomy_level to "ask" when transitioning from OFF to active phase.
-    # Note: this guard only fires on the very first set_phase call (no state file yet),
-    # because get_autonomy_level returns "ask" as default when a file exists.
-    # After set_phase("off") clears autonomy_level, the next get_autonomy_level still
-    # returns "ask" (default), so preserved_autonomy is never empty in normal cycling.
-    if [ "$current_phase" = "off" ] && [ "$new_phase" != "off" ] && [ -z "$preserved_autonomy" ]; then
-        preserved_autonomy="ask"
-    fi
+    _read_preserved_state
 
     # Build tracked observations as JSON array
     local tracked_json="[]"
@@ -489,8 +407,6 @@ set_phase() {
         tracked_json=$(jq -n --arg csv "$preserved_tracked" '$csv | split(",") | map(select(. != "") | (tonumber? // empty))')
     fi
 
-    # Build the new state: preserve active_skill, decision_record, and autonomy_level,
-    # reset message_shown, fresh coaching, clean up review if leaving review
     local ts
     ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -519,6 +435,8 @@ set_phase() {
           + (if $debug == "true" then {debug: true} else {} end)' \
           | _safe_write
     )
+
+    echo "Phase advanced to ${new_phase}."
 }
 
 get_message_shown() {
