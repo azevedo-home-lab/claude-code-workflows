@@ -180,6 +180,37 @@ sed -i '' 's/Decision record/Plan/g' "$FILE"
 sed -i '' 's/decision record/plan/g' "$FILE"
 echo "  OK"
 
+# --- workflow-state.sh: fix tests_passing gate for projects without test suites ---
+FILE="$PLUGIN_DIR/scripts/workflow-state.sh"
+echo "Updating $FILE (tests_passing gate fix)..."
+python3 -c "
+with open('$FILE') as f:
+    content = f.read()
+
+old = '''        missing=\$(_check_milestones \"implement\" \"plan_read\" \"tests_passing\" \"all_tasks_complete\")'''
+
+new = '''        # Check if a test suite exists; skip tests_passing milestone if not
+        local project_root
+        project_root=\"\${CLAUDE_PROJECT_DIR:-\$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"
+        local has_tests=false
+        if find \"\$project_root\" -maxdepth 3 -name 'run-tests.sh' -o -name 'pytest.ini' -o -name 'jest.config.*' -o -name 'vitest.config.*' -o -name 'Cargo.toml' -o -name 'go.mod' 2>/dev/null | grep -q .; then
+            has_tests=true
+        elif [ -d \"\$project_root/tests\" ] || [ -d \"\$project_root/test\" ] || [ -d \"\$project_root/__tests__\" ]; then
+            has_tests=true
+        fi
+
+        if [ \"\$has_tests\" = \"true\" ]; then
+            missing=\$(_check_milestones \"implement\" \"plan_read\" \"tests_passing\" \"all_tasks_complete\")
+        else
+            missing=\$(_check_milestones \"implement\" \"plan_read\" \"all_tasks_complete\")
+        fi'''
+
+content = content.replace(old, new)
+with open('$FILE', 'w') as f:
+    f.write(content)
+"
+echo "  OK"
+
 # --- plugin reference docs ---
 FILE="$PLUGIN_DIR/docs/reference/agent-dispatch.md"
 echo "Updating $FILE..."

@@ -285,7 +285,21 @@ _check_phase_gates() {
     # IMPLEMENT exit gate: leaving implement → must have completed implementation milestones
     if [ "$current" = "implement" ] && [ "$new_phase" != "implement" ]; then
         local missing=""
-        missing=$(_check_milestones "implement" "plan_read" "tests_passing" "all_tasks_complete")
+        # Check if a test suite exists; skip tests_passing milestone if not
+        local project_root
+        project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+        local has_tests=false
+        if find "$project_root" -maxdepth 3 -name 'run-tests.sh' -o -name 'pytest.ini' -o -name 'jest.config.*' -o -name 'vitest.config.*' -o -name 'Cargo.toml' -o -name 'go.mod' 2>/dev/null | grep -q .; then
+            has_tests=true
+        elif [ -d "$project_root/tests" ] || [ -d "$project_root/test" ] || [ -d "$project_root/__tests__" ]; then
+            has_tests=true
+        fi
+
+        if [ "$has_tests" = "true" ]; then
+            missing=$(_check_milestones "implement" "plan_read" "tests_passing" "all_tasks_complete")
+        else
+            missing=$(_check_milestones "implement" "plan_read" "all_tasks_complete")
+        fi
         if [ -n "$missing" ]; then
             echo "HARD GATE: Cannot leave IMPLEMENT — incomplete milestones." >&2
             echo "  Why: These milestones prove the plan was executed and tests actually passed." >&2
@@ -499,6 +513,20 @@ get_plan_path() {
 }
 
 # ---------------------------------------------------------------------------
+
+
+set_spec_path() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.spec_path = $v' --arg v "$1"; }
+
+get_spec_path() {
+    if [ ! -f "$STATE_FILE" ]; then
+        echo ""
+        return
+    fi
+    local val
+    val=$(jq -r '.spec_path // ""' "$STATE_FILE" 2>/dev/null) || val=""
+    echo "$val"
+}
+
 
 
 set_spec_path() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.spec_path = $v' --arg v "$1"; }
