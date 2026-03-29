@@ -26,44 +26,88 @@ graph TD
 
 See [README — Workflow](../../README.md#workflow) for the phase summary table.
 
-```mermaid
-graph TB
-    OFF["OFF"] --> DEFINE["DEFINE"] --> DISCUSS["DISCUSS"] --> IMPLEMENT["IMPLEMENT"] --> REVIEW["REVIEW"] --> COMPLETE["COMPLETE"]
+<table>
+<tr>
+<th>OFF</th>
+<th>→</th>
+<th>DEFINE</th>
+<th>→</th>
+<th>DISCUSS</th>
+<th>→</th>
+<th>IMPLEMENT</th>
+<th>→</th>
+<th>REVIEW</th>
+<th>→</th>
+<th>COMPLETE</th>
+</tr>
+<tr>
+<td>No enforcement</td>
+<td></td>
+<td>Brainstorming</td>
+<td></td>
+<td>Solution research</td>
+<td></td>
+<td>Read plan</td>
+<td></td>
+<td>Verify tests passed</td>
+<td></td>
+<td>Validate plan/outcomes</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>3 research agents</td>
+<td></td>
+<td>3 research agents</td>
+<td></td>
+<td>TDD: tests first</td>
+<td></td>
+<td>5 parallel agents</td>
+<td></td>
+<td>Docs check</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>Converge on problem</td>
+<td></td>
+<td>2 converge agents</td>
+<td></td>
+<td>Execute tasks</td>
+<td></td>
+<td>Verification agent</td>
+<td></td>
+<td>Commit &amp; push</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>Write Problem section</td>
+<td></td>
+<td>Write plan</td>
+<td></td>
+<td>Run test suite</td>
+<td></td>
+<td>Present findings</td>
+<td></td>
+<td>Tech debt + handover</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td><em>Gate: none</em></td>
+<td></td>
+<td><em>Gate: plan_written</em></td>
+<td></td>
+<td><em>Gate: plan_read, tests_passing*, all_tasks_complete</em></td>
+<td></td>
+<td><em>Gate: findings_acknowledged</em></td>
+<td></td>
+<td><em>Gate: all 9 milestones</em></td>
+</tr>
+</table>
 
-    OFF --- off1["No enforcement"]
-
-    DEFINE --- def1["Brainstorming"]
-    def1 --- def2["3 research agents"]
-    def2 --- def3["Converge on problem"]
-    def3 --- def4["Write Problem section"]
-    def4 --- def5["Gate: none"]
-
-    DISCUSS --- dis1["Solution research"]
-    dis1 --- dis2["3 research agents"]
-    dis2 --- dis3["2 converge agents"]
-    dis3 --- dis4["Write plan"]
-    dis4 --- dis5["Gate: plan_written"]
-
-    IMPLEMENT --- imp1["Read plan"]
-    imp1 --- imp2["TDD: tests first"]
-    imp2 --- imp3["Execute tasks"]
-    imp3 --- imp4["Run test suite"]
-    imp4 --- imp5["Gate: plan_read, tests_passing, all_tasks_complete"]
-
-    REVIEW --- rev1["Verify tests passed"]
-    rev1 --- rev2["5 parallel agents"]
-    rev2 --- rev3["Verification agent"]
-    rev3 --- rev4["Present findings"]
-    rev4 --- rev5["Gate: findings_acknowledged"]
-
-    COMPLETE --- com1["Validate plan/outcomes"]
-    com1 --- com2["Docs check"]
-    com2 --- com3["Commit & push"]
-    com3 --- com4["Tech debt + handover"]
-    com4 --- com5["Gate: all 9 milestones"]
-```
-
-Any `/phase` command can jump directly to any phase. Soft gates warn when skipping recommended steps but never block. `tests_passing` is skipped if no test suite is detected.
+\*`tests_passing` is skipped if no test suite is detected. Any `/phase` command can jump directly to any phase. Soft gates warn when skipping steps but never block.
 
 ## Autonomy Levels
 
