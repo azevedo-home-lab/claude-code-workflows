@@ -42,10 +42,17 @@ PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null 
 # Reject path traversal attempts — canonicalize to catch encoded/symlinked traversal
 # Uses python3 (already a dependency) because macOS realpath lacks -m (no-exist) flag
 if [ -n "$FILE_PATH" ]; then
-    CANONICAL_PATH=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$FILE_PATH" 2>/dev/null || echo "")
-    CANONICAL_ROOT=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$PROJECT_ROOT" 2>/dev/null || echo "$PROJECT_ROOT")
-    if [ -z "$CANONICAL_PATH" ] || [ "${CANONICAL_PATH#"$CANONICAL_ROOT"/}" = "$CANONICAL_PATH" ]; then
-        FILE_PATH=""  # Force deny — path resolves outside project root
+    if ! command -v python3 &>/dev/null; then
+        # Fail closed — without python3, fall back to literal .. check
+        if echo "$FILE_PATH" | grep -qE '\.\.'; then
+            FILE_PATH=""
+        fi
+    else
+        CANONICAL_PATH=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$FILE_PATH" 2>/dev/null || echo "")
+        CANONICAL_ROOT=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$PROJECT_ROOT" 2>/dev/null || echo "")
+        if [ -z "$CANONICAL_PATH" ] || [ -z "$CANONICAL_ROOT" ] || [ "${CANONICAL_PATH#"$CANONICAL_ROOT"/}" = "$CANONICAL_PATH" ]; then
+            FILE_PATH=""  # Force deny — path resolves outside project root
+        fi
     fi
 fi
 
