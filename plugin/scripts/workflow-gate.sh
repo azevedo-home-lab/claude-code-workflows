@@ -36,14 +36,21 @@ DEBUG_MODE=$(get_debug)
 INPUT=$(cat)
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null) || FILE_PATH=""
 
-# Reject path traversal attempts
-if [ -n "$FILE_PATH" ] && echo "$FILE_PATH" | grep -qE '\.\.'; then
-    FILE_PATH=""  # Force deny — traversal paths are never whitelisted
+# Determine project root early — needed for path traversal check
+PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+
+# Reject path traversal attempts — canonicalize to catch encoded/symlinked traversal
+# Uses python3 (already a dependency) because macOS realpath lacks -m (no-exist) flag
+if [ -n "$FILE_PATH" ]; then
+    CANONICAL_PATH=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$FILE_PATH" 2>/dev/null || echo "")
+    CANONICAL_ROOT=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$PROJECT_ROOT" 2>/dev/null || echo "$PROJECT_ROOT")
+    if [ -z "$CANONICAL_PATH" ] || [ "${CANONICAL_PATH#"$CANONICAL_ROOT"/}" = "$CANONICAL_PATH" ]; then
+        FILE_PATH=""  # Force deny — path resolves outside project root
+    fi
 fi
 
 # Normalize path: strip project root prefix for consistent matching
 # (Claude Code may pass absolute paths like /Users/.../project/README.md)
-PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 NORMALIZED_PATH="$FILE_PATH"
 if [ -n "$PROJECT_ROOT" ]; then
     NORMALIZED_PATH="${FILE_PATH#"$PROJECT_ROOT"/}"
