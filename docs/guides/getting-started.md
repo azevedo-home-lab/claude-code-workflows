@@ -50,14 +50,9 @@ Edit `CLAUDE.md` to fill in project-specific placeholders.
 
 ### The phases
 
-| Phase | Edits | Purpose |
-|-------|-------|---------|
-| **OFF** | Allowed | No enforcement — standard Claude Code behavior |
-| **DEFINE** | Blocked | Frame the problem: who is affected, what's the pain, what does success look like? Research agents challenge assumptions and structure measurable outcomes. Produces the Problem section of the decision record. |
-| **DISCUSS** | Blocked | Brainstorm and design the solution: research approaches, evaluate trade-offs, pick one. Write a step-by-step implementation plan. Produces the Approaches + Decision sections of the decision record. |
-| **IMPLEMENT** | Allowed | Execute the plan with TDD. Tests first, code second, commit at checkpoints. |
-| **REVIEW** | Allowed | Five parallel review agents (quality, security, architecture, governance, hygiene) analyze changes. Fix findings or acknowledge them. |
-| **COMPLETE** | Blocked | Validate outcomes against the plan. Update docs, commit, push. Create a handover record for future sessions. Audit tech debt. Return to OFF. |
+Six phases control what's allowed. See [Architecture — Phase Model](../reference/architecture.md#phase-model) for the full reference.
+
+The key rule: **code edits are blocked in DEFINE, DISCUSS, and COMPLETE.** You must plan before you code.
 
 ### Example: adding search to a products API
 
@@ -103,7 +98,7 @@ commits, pushes, creates a handover record for future sessions, and returns to O
 
 ## Next Steps
 
-- [Integration Guide](integration-guide.md) — How Superpowers skills work together
+- [Architecture](../reference/architecture.md) — How the pieces fit together
 - [Hooks Reference](../reference/hooks.md) — How the enforcement hooks work
-- [Command Reference](../quick-reference/commands.md) — All commands with descriptions
+- [Command Reference](../reference/commands.md) — All commands with descriptions
 - [Cross-Session Memory](claude-mem-guide.md) — Persistent memory across sessions
