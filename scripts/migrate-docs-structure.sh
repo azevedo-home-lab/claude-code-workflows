@@ -229,6 +229,7 @@ sed -i '' 's|docs/superpowers/specs/|docs/specs/|g' "$FILE"
 sed -i '' 's/get_decision_record/get_plan_path/g' "$FILE"
 sed -i '' 's/Decision record/Plan/g' "$FILE"
 sed -i '' 's/decision record/plan/g' "$FILE"
+sed -i '' 's/DECISION_RECORD_PATH/PLAN_PATH/g' "$FILE"
 echo "  OK"
 
 # --- workflow-state.sh: add spec_path preservation across phase transitions ---

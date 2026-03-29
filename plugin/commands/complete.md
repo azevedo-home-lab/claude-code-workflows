@@ -168,7 +168,7 @@ Then enrich the plan with the **Outcome Verification** section:
 
 After presenting validation results, dispatch a **review agent** — read `plugin/agents/results-reviewer.md`, then dispatch as `general-purpose` — to verify presentation quality:
 
-Context: "Review the validation results. Plan: [DECISION_RECORD_PATH]."
+Context: "Review the validation results. Plan: [PLAN_PATH]."
 
 If REDO: fix the issues and re-dispatch the reviewer. Max 3 iterations, then surface to user.
 **After the gate passes (or on each iteration):** present a summary to the user: "Step 3 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
@@ -452,7 +452,7 @@ echo "Cleaned up .claude/tmp/"
 
 After presenting the categorized tech debt table, dispatch a **review agent** — read `plugin/agents/tech-debt-reviewer.md`, then dispatch as `general-purpose` — to verify proposal quality:
 
-Context: "Plan: [DECISION_RECORD_PATH]. Categorized tech debt table: [TABLE]."
+Context: "Plan: [PLAN_PATH]. Categorized tech debt table: [TABLE]."
 
 If REDO: fix and re-dispatch. Max 3 iterations, then surface to user.
 **After the gate passes (or on each iteration):** present a summary to the user: "Step 7 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
@@ -466,7 +466,7 @@ Mark milestone:
 
 Dispatch a **Handover writer agent** — read `plugin/agents/handover-writer.md`, then dispatch as `general-purpose`:
 
-Context: "Prepare a claude-mem handover observation. Project name: [derived from git remote get-url origin]. Plan: [DECISION_RECORD_PATH]. Include commit hash, verification results, key decisions, gotchas, files modified, tech debt."
+Context: "Prepare a claude-mem handover observation. Project name: [derived from git remote get-url origin]. Plan: [PLAN_PATH]. Include commit hash, verification results, key decisions, gotchas, files modified, tech debt."
 
 Save via the `save_observation` MCP tool. **Set `project` to the GitHub repo name.** Derive it: `git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`
 
