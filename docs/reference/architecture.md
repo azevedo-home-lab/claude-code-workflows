@@ -40,7 +40,7 @@ See [README — Workflow](../../README.md#workflow) for the phase summary table.
 
 ### Enforcement
 
-| Category | | DEFINE | DISCUSS | IMPLEMENT | REVIEW | COMPLETE |
+| Category | Mechanism | DEFINE | DISCUSS | IMPLEMENT | REVIEW | COMPLETE |
 |---|---|--------|---------|-----------|--------|----------|
 | **Permissions** | Write/Edit | Blocked (specs/plans only) | Blocked (specs/plans only) | Allowed | Allowed | Blocked (docs only) |
 | | Bash writes | Blocked (specs/plans only) | Blocked (specs/plans only) | Allowed | Allowed | Blocked (docs only) |
