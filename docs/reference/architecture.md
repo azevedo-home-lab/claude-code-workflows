@@ -6,15 +6,17 @@ How Workflow Manager, Superpowers, and claude-mem work together in Claude Code.
 
 ```mermaid
 graph TD
-    User["User<br/>/define /discuss /implement ..."] --> CLI["Claude Code CLI"]
-    CLI -- "PreToolUse / PostToolUse hooks" --> WFM["Workflow Manager"]
-    CLI -- "Skills invoked by Claude" --> SP["Superpowers"]
-    CLI -- "MCP tools" --> CM["claude-mem"]
-
-    WFM -- "gates: block writes<br/>coaching: nudges + anti-laziness" --> CLI
-    SP -- "brainstorming, TDD,<br/>executing-plans, verification" --> CLI
-    CM -- "search prior context,<br/>save observations + handover" --> CLI
+    User["User"] --> CLI["Claude Code CLI"]
+    CLI <-- "hooks" --> WFM["Workflow Manager"]
+    CLI <-- "skills" --> SP["Superpowers"]
+    CLI <-- "MCP" --> CM["claude-mem"]
 ```
+
+| Component | Connection | What it does |
+|-----------|-----------|--------------|
+| **Workflow Manager** | PreToolUse + PostToolUse hooks | Gates block writes in DEFINE/DISCUSS/COMPLETE. Coaching fires phase objectives, contextual nudges, anti-laziness checks. |
+| **Superpowers** | Skills invoked by Claude | Brainstorming (DEFINE/DISCUSS), executing-plans + TDD (IMPLEMENT), verification (COMPLETE). |
+| **claude-mem** | MCP tools | Search prior context (DEFINE/DISCUSS), save observations + handover (COMPLETE). |
 
 ## Phase Model
 
