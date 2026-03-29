@@ -19,16 +19,6 @@
 | `/superpowers:executing-plans` | Implementation | Batch execution with review checkpoints |
 | `/superpowers:verification-before-completion` | Verification | Verify before claiming done |
 
-## Auto-Activated Skills
-
-| Skill | Triggers When |
-|-------|--------------|
-| TDD | Creating new functions/modules |
-| Systematic Debugging | Error logs or stack traces present |
-| Code Review | Refactoring existing code |
-| Verification | Before claiming completion |
-| Worktrees | Working on multiple features in parallel |
-
 ## claude-mem Commands
 
 | Command | What It Does |
@@ -37,15 +27,3 @@
 | `/claude-mem:make-plan` | Create implementation plan with context discovery |
 | `/claude-mem:do` | Execute a plan using subagents |
 
-## Quick Sequence
-
-```
-/define                          → Define problem + outcomes (optional)
-/discuss                         → Enter discussion
-/superpowers:brainstorming          → Clarify requirements
-/superpowers:writing-plans          → Generate plan
-/implement                       → Unlock code edits
-/superpowers:executing-plans        → Implement with checkpoints
-/superpowers:verification-before-completion → Verify
-/complete                        → Validate outcomes + commit
-```

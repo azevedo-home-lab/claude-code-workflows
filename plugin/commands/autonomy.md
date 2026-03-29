@@ -9,4 +9,4 @@ Respond based on the level that was set:
 
 - **off**: Say: "▶ **Supervised** — step-by-step mode. I'll work within phase rules and pause after each plan step for your review."
 - **ask**: Call `ExitPlanMode` if in plan mode. Say: "▶▶ **Semi-Auto** — writes enabled per phase rules. I'll wait for approval at phase transitions."
-- **auto**: Call `ExitPlanMode` if in plan mode. Say: "▶▶▶ **Unattended** — full autonomy. I'll auto-transition and auto-commit. Stopping only for user input or before git push."
+- **auto**: Call `ExitPlanMode` if in plan mode. Say: "▶▶▶ **Unattended** — full autonomy. I'll auto-transition and auto-commit. Stopping only for user input or before git push." Then check current phase milestones via Bash tool (`workflow-cmd.sh get_<phase>_field`). If all milestones for the current phase are met, auto-transition via Bash tool (`workflow-cmd.sh agent_set_phase "<next_phase>"`). If milestones are incomplete, resume the current phase's work where it left off. Do not wait for user input unless genuinely blocked or you have legitimate questions.

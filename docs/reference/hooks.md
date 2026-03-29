@@ -6,38 +6,7 @@ Two PreToolUse hooks and a PostToolUse coaching system enforce a plan-before-cod
 
 For system-level documentation (phases, enforcement layers, gates, milestones), see [Architecture](architecture.md).
 
-## Architecture
-
-```
-Layer 1: PreToolUse Hooks (Deterministic)       Layer 2: Superpowers Skills (Behavioral)
-┌──────────────────────────────────────┐        ┌──────────────────────────────────┐
-│ workflow-gate.sh                     │        │ /superpowers:brainstorming       │
-│   Blocks Write/Edit in DEFINE,       │        │ /superpowers:writing-plans       │
-│   DISCUSS, and COMPLETE              │
-│                                      │        │ /superpowers:executing-plans     │
-│ bash-write-guard.sh                  │        │ /superpowers:test-driven-development │
-│   Blocks Bash write ops in DEFINE,   │        │ /superpowers:verification-before-completion │
-│   DISCUSS, and COMPLETE              │        │ /superpowers:requesting-code-review │
-│ State: .claude/state/workflow.json   │        │                                  │
-└──────────────────────────────────────┘        └──────────────────────────────────┘
-```
-
-Hooks read state but never write it. Phase transitions are driven by user commands (`/implement`, `/discuss`, etc.) or agent auto-transitions (`agent_set_phase` in auto mode).
-
-## Permission Matrix
-
-See [Architecture — Phase Model](architecture.md#phase-model) for the full phase flow diagram.
-
-| Phase | Write/Edit/MultiEdit | Bash writes | Read/Grep/Glob/Agent | Git |
-|-------|---------------------|-------------|---------------------|-----|
-| OFF | Allowed | Allowed | Allowed | Allowed |
-| DEFINE | **BLOCKED** (except specs/plans) | **BLOCKED** (except specs/plans) | Allowed | Allowed |
-| DISCUSS | **BLOCKED** (except specs/plans) | **BLOCKED** (except specs/plans) | Allowed | Allowed |
-| IMPLEMENT | Allowed | Allowed | Allowed | Allowed |
-| REVIEW | Allowed | Allowed | Allowed | Allowed |
-| COMPLETE | **BLOCKED** (except docs) | **BLOCKED** (except docs) | Allowed | Allowed |
-
-New sessions default to OFF if no state file exists.
+Hooks read state but never write it. Phase transitions are driven by user commands (`/implement`, `/discuss`, etc.) or agent auto-transitions (`agent_set_phase` in auto mode). For write permissions per phase, see [Architecture — Write Blocking](architecture.md#write-blocking).
 
 ## Files
 
@@ -162,7 +131,7 @@ No manual `settings.json` configuration is required for end users.
 
 ## PostToolUse Implementation Details
 
-For the full three-layer coaching system description, see [Architecture — Three-Layer Enforcement](architecture.md#three-layer-enforcement).
+For the coaching system overview, see [Architecture — Enforcement](architecture.md#enforcement).
 
 Implementation specifics in `post-tool-navigator.sh`:
 
