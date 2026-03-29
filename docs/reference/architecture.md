@@ -28,73 +28,98 @@ See [README — Workflow](../../README.md#workflow) for the phase summary table.
 
 <table>
 <tr>
-<th style="width:18%">OFF</th>
-<th style="width:10%; text-align:center">→<br/><em>no gate</em></th>
-<th style="width:18%">DEFINE</th>
-<th style="width:10%; text-align:center">→<br/><em>soft</em></th>
-<th style="width:18%">DISCUSS</th>
-<th style="width:10%; text-align:center">→<br/><em>plan_written</em></th>
-<th style="width:18%">IMPLEMENT</th>
-<th style="width:10%; text-align:center">→<br/><em>plan_read,<br/>tests_passing*,<br/>all_tasks_complete</em></th>
-<th style="width:18%">REVIEW</th>
-<th style="width:10%; text-align:center">→<br/><em>findings_<br/>acknowledged</em></th>
-<th style="width:18%">COMPLETE</th>
+<th style="width:16%">OFF</th>
+<th style="width:8%; text-align:center">→<br/><em>none</em></th>
+<th style="width:16%">DEFINE</th>
+<th style="width:8%; text-align:center">→<br/><em>soft</em></th>
+<th style="width:16%">DISCUSS</th>
+<th style="width:8%; text-align:center">→<br/><em>plan_<br/>written</em></th>
+<th style="width:16%">IMPLEMENT</th>
+<th style="width:8%; text-align:center">→<br/><em>all<br/>milestones</em></th>
+<th style="width:16%">REVIEW</th>
+<th style="width:8%; text-align:center">→<br/><em>findings_<br/>ack'd</em></th>
+<th style="width:16%">COMPLETE</th>
 </tr>
 <tr>
-<td>No enforcement</td>
-<td></td>
-<td>Brainstorming</td>
-<td></td>
-<td>Solution research</td>
-<td></td>
-<td>Read plan</td>
-<td></td>
-<td>Verify tests passed</td>
-<td></td>
-<td>Validate plan/outcomes</td>
+<td colspan="11" style="background: #f5f5f5; padding: 8px; font-size: 11px;"><em><strong>No enforcement.</strong> Use /define to start workflow.</em></td>
 </tr>
-<tr>
+<tr style="background: #f0f8ff;">
 <td></td>
 <td></td>
-<td>3 research agents</td>
+<td colspan="3" style="text-align: center; font-weight: bold; padding: 8px;">Understand the problem space</td>
 <td></td>
-<td>3 research agents</td>
+<td colspan="3" style="text-align: center; font-weight: bold; padding: 8px;">Design the solution</td>
 <td></td>
-<td>TDD: tests first</td>
-<td></td>
-<td>5 parallel agents</td>
-<td></td>
-<td>Docs check</td>
+<td colspan="1" style="text-align: center; font-weight: bold; padding: 8px;">Execute &amp; verify</td>
 </tr>
 <tr>
 <td></td>
 <td></td>
-<td>Converge on problem</td>
+<td><strong>1. Brainstorm</strong><br/>User Q&amp;A:<br/>• Who is affected?<br/>• What's the pain?<br/>• Current state/workarounds?<br/>• Why now?</td>
 <td></td>
-<td>2 converge agents</td>
+<td><strong>1. Clarify scope</strong><br/>Ask:<br/>• What exactly needs to change?<br/>• What's out of scope?<br/>• Constraints?</td>
 <td></td>
-<td>Execute tasks</td>
+<td><strong>1. Read &amp; understand</strong><br/>• Read plan file<br/>• Set milestone: plan_read<br/>• Note any gaps</td>
 <td></td>
-<td>Verification agent</td>
+<td><strong>1. Verify tests</strong><br/>• Check tests_passing milestone from IMPLEMENT<br/>• If missing: run test suite now</td>
 <td></td>
-<td>Commit &amp; push</td>
+<td><strong>1. Validate outcomes</strong><br/>• Check plan goals met<br/>• Check measurable metrics</td>
 </tr>
 <tr>
 <td></td>
 <td></td>
-<td>Write Problem section</td>
+<td><strong>2. Domain Researcher</strong><br/>Search problem domain for context &amp; patterns</td>
 <td></td>
-<td>Write plan</td>
+<td><strong>2. Solution Researcher A</strong><br/>Research technical approaches to the problem</td>
 <td></td>
-<td>Run test suite</td>
+<td><strong>2. TDD: write tests</strong><br/>• Tests before code<br/>• Red-green-refactor cycle<br/>• Set milestone: tests_passing after run</td>
 <td></td>
-<td>Present findings</td>
+<td><strong>2. Code quality agent</strong><br/>Review for bugs, style, maintainability</td>
 <td></td>
-<td>Tech debt + handover</td>
+<td><strong>2. Update docs</strong><br/>• README accuracy<br/>• Architecture changes<br/>• Setup/install updates</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td><strong>3. Context Gatherer</strong><br/>Search project history &amp; claude-mem for prior related work</td>
+<td></td>
+<td><strong>3. Solution Researcher B</strong><br/>Research case studies &amp; lessons learned from approaches</td>
+<td></td>
+<td><strong>3. Implement tasks</strong><br/>Follow plan step-by-step<br/>Test after each logical chunk<br/>Commit at milestones</td>
+<td></td>
+<td><strong>3. Security agent</strong><br/>Review for vulnerabilities, auth, secrets</td>
+<td></td>
+<td><strong>3. Commit &amp; push</strong><br/>• Stage changes<br/>• Create PR or commit directly<br/>• Push to remote</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td><strong>4. Assumption Challenger</strong><br/>Challenge the problem framing. Is this the real problem?</td>
+<td></td>
+<td><strong>4. Prior Art Scanner</strong><br/>Search claude-mem &amp; codebase for prior implementations</td>
+<td></td>
+<td><strong>4. Run full test suite</strong><br/>• All tests pass<br/>• Coverage acceptable<br/>• Set milestone: all_tasks_complete</td>
+<td></td>
+<td><strong>4. Architecture agent</strong><br/>Review against design patterns &amp; plan compliance</td>
+<td></td>
+<td><strong>4. Tech debt audit</strong><br/>• List known tech debt<br/>• Quantify cleanup effort<br/>• Document for next iteration</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td><strong>5. Converge: outcomes</strong><br/>Dispatch Outcome Structurer &amp; Scope Boundary Checker. Agree on measurable outcomes &amp; scope boundaries. Create plan at docs/plans/YYYY-MM-DD-<topic>.md with Problem section. Mark: problem_confirmed</td>
+<td></td>
+<td><strong>5. Converge: approach</strong><br/>Dispatch Codebase Analyst &amp; Risk Assessor. Present 2-3 viable approaches with tradeoffs. User selects. Enrich plan with Approaches + Decision sections. Mark: approach_selected, plan_written</td>
+<td></td>
+<td><strong>5. Version bump</strong><br/>Update version per semver based on changes. Commit version bump.</td>
+<td></td>
+<td><strong>5. Verification agent</strong><br/>Verify findings from 4 agents above. Deduplicate. Assess severity (critical/warning/suggestion)</td>
+<td></td>
+<td><strong>5. Handover</strong><br/>Write claude-mem observation with:<br/>• What was built &amp; why<br/>• Key decisions &amp; gotchas<br/>• What's left for next session</td>
 </tr>
 </table>
 
-\*`tests_passing` is skipped if no test suite is detected. Any `/phase` command can jump directly to any phase. Soft gates warn when skipping steps but never block.
+\*`tests_passing` is skipped if no test suite is detected. Any `/phase` command can jump directly to any phase. Soft gates warn but never block.
 
 ## Autonomy Levels
 
