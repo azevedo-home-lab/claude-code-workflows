@@ -11,7 +11,7 @@ Present the output to the user.
 
 **You are now in DEFINE phase (Diamond 1 — Problem Space).**
 
-**Git in DEFINE/DISCUSS:** Spec and plan files (`docs/superpowers/specs/`, `docs/superpowers/plans/`) can be committed. Use **single git commands** — run `git add` and `git commit` as separate commands, not chained with `&&`. Chained commands with heredoc-style commit messages may be blocked by the write guard.
+**Git in DEFINE/DISCUSS:** Spec and plan files (`docs/plans/`, `docs/specs/`) can be committed. Use **single git commands** — run `git add` and `git commit` as separate commands, not chained with `&&`. Chained commands with heredoc-style commit messages may be blocked by the write guard.
 
 Before proceeding:
 1. Read `plugin/docs/reference/professional-standards.md` — apply the Universal Standards and DEFINE Phase Standards throughout this phase.
@@ -63,7 +63,7 @@ Define success metrics and scope boundaries (in-scope, out-of-scope, constraints
 
 ## Output
 
-Create the decision record at `docs/plans/YYYY-MM-DD-<topic>-decisions.md` with the **Problem** section populated:
+Create the plan at `docs/plans/YYYY-MM-DD-<topic>.md` with the **Problem** section populated:
 
 ```markdown
 # Decision Record: <topic>
@@ -77,26 +77,26 @@ Create the decision record at `docs/plans/YYYY-MM-DD-<topic>-decisions.md` with 
 - Scope: in / out / constraints
 ```
 
-Only the structured, converged version is written to the decision record (raw diverge findings are conversation context, not persisted).
+Only the structured, converged version is written to the plan (raw diverge findings are conversation context, not persisted).
 
-Commit the decision record (use separate commands):
+Commit the plan (use separate commands):
 
 ```bash
-git add docs/plans/YYYY-MM-DD-<topic>-decisions.md
+git add docs/plans/YYYY-MM-DD-<topic>.md
 ```
 ```bash
-git commit -m "docs: add decision record for <topic>"
+git commit -m "docs: add plan for <topic>"
 ```
 
-Register the decision record path:
+Register the plan path:
 
 ```bash
-.claude/hooks/workflow-cmd.sh set_decision_record "docs/plans/YYYY-MM-DD-<topic>-decisions.md"
+.claude/hooks/workflow-cmd.sh set_plan_path "docs/plans/YYYY-MM-DD-<topic>.md"
 ```
 
 ### Decision Record→Issue Linking
 
-Get the commit hash and link the decision record to the originating GitHub issue (if one exists):
+Get the commit hash and link the plan to the originating GitHub issue (if one exists):
 
 ```bash
 COMMIT_HASH=$(git rev-parse --short HEAD)
@@ -108,7 +108,7 @@ If there are tracked observation IDs with GitHub issue mappings, or if the user 
 gh issue comment <ISSUE_NUMBER> --body "## Problem Defined
 
 **Commit:** <COMMIT_HASH>
-**Decision record:** \`<DECISION_RECORD_PATH>\`
+**Plan:** \`<DECISION_RECORD_PATH>\`
 
 Problem: <one-line problem statement>
 Outcomes: <N> measurable outcomes defined"
@@ -116,7 +116,7 @@ Outcomes: <N> measurable outcomes defined"
 
 If no issue is mapped, skip this step silently.
 
-Confirm to the user: "Problem and outcomes saved to the decision record. Use `/discuss` to proceed to solution design."
+Confirm to the user: "Problem and outcomes saved to the plan. Use `/discuss` to proceed to solution design."
 
 **Step expectations — what each step must produce before you move on:**
 
@@ -125,12 +125,12 @@ Confirm to the user: "Problem and outcomes saved to the decision record. Use `/d
 | Diverge | Ask discovery questions, dispatch 3 agents | Agents returned, findings synthesized |
 | Converge | Agree on problem statement with user | User confirmed: "yes, that's the right problem" |
 | Outcomes | Structure measurable outcomes | Each outcome has description, type, verification method, acceptance criteria |
-| Decision record | Write to `docs/plans/` | File exists on disk, `set_decision_record` called |
-| Transition | Call `/discuss` or wait | Decision record path registered in state |
+| Plan | Write to `docs/plans/` | File exists on disk, `set_plan_path` called |
+| Transition | Call `/discuss` or wait | Plan path registered in state |
 
 **Autonomy-aware behavior:**
 - **auto (▶▶▶):** Auto-transition to `/discuss` after problem is defined.
-- **ask (▶▶):** Present the decision record and wait for the user to run `/discuss`.
-- **off (▶):** After each problem discovery exchange, summarize what was learned and wait for the user's direction before proceeding. Present the decision record and wait for explicit approval before any transition.
+- **ask (▶▶):** Present the plan and wait for the user to run `/discuss`.
+- **off (▶):** After each problem discovery exchange, summarize what was learned and wait for the user's direction before proceeding. Present the plan and wait for explicit approval before any transition.
 
 **Auto-transition:** If autonomy is auto, invoke `/discuss` now. Do not wait for the user.

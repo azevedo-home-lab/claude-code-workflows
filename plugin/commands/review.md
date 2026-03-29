@@ -65,7 +65,7 @@ Context: "Changed files: [LIST]"
 
 **Agent 3 — Architecture & Plan Compliance Reviewer** — read `plugin/agents/architecture-reviewer.md`, dispatch as `general-purpose`
 
-Before dispatching Agent 3, find the plan file path: check `docs/superpowers/plans/` and `docs/plans/` for the most recent `.md` file. If found, include it in the context.
+Before dispatching Agent 3, find the plan file path: check `docs/plans/` and `docs/plans/` for the most recent `.md` file. If found, include it in the context.
 
 Context: "Changed files: [LIST]. Plan file: [PLAN_PATH or 'no plan file found']"
 
@@ -89,7 +89,7 @@ Take the verified findings and:
 
 1. Deduplicate: same file+line from multiple agents → merge
 2. Rank by severity: Critical → Warning → Suggestion
-3. **Persist to decision record**: Read `get_decision_record` for the path. If a decision record exists, write the findings to its Review Findings section. If no decision record, skip persistence and note it.
+3. **Persist to plan**: Read `get_plan_path` for the path. If a plan exists, write the findings to its Review Findings section. If no plan, skip persistence and note it.
 
 4. Present the report:
 

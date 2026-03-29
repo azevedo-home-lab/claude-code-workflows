@@ -141,7 +141,7 @@ User types /implement
 
 ```
 Whitelists:
-  DEFINE/DISCUSS: .claude/state/, docs/superpowers/specs/, docs/plans/
+  DEFINE/DISCUSS: .claude/state/, docs/plans/
   COMPLETE:       .claude/state/, docs/, root *.md files
 ```
 

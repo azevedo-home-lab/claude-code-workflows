@@ -36,7 +36,7 @@ Follow this workflow:
 
 Dispatch a **Versioning agent** — read `plugin/agents/versioning-agent.md`, then dispatch as `general-purpose`:
 
-Context: "Decision record: [DECISION_RECORD_PATH]. Determine the semantic version bump for this release."
+Context: "Plan: [PLAN_PATH]. Determine the semantic version bump for this release."
 
 Apply the version bump to both files:
 ```bash

@@ -57,12 +57,12 @@ git diff --name-only $TESTS_COMMIT..HEAD
 
 **Before starting validation**, invoke the `superpowers:verification-before-completion` skill to load evidence-before-assertions rules into context.
 
-Read the decision record path:
+Read the plan path:
 ```bash
-echo "Decision record: $(.claude/hooks/workflow-cmd.sh get_decision_record)"
+echo "Plan: $(.claude/hooks/workflow-cmd.sh get_plan_path)"
 ```
 
-**If a plan file exists** (check `docs/superpowers/plans/`, `docs/plans/`, or any plan referenced in the decision record):
+**If a plan file exists** (check `docs/plans/`, `docs/plans/`, or any plan referenced in the plan):
 
 Dispatch a **Plan validator agent** — read `plugin/agents/plan-validator.md`, then dispatch as `general-purpose`:
 
@@ -78,11 +78,11 @@ Mark milestone:
 ### Step 2: Outcome Validation
 
 **Find the outcome source** — check in this order:
-1. Decision record (from `get_decision_record`) → Problem section with outcomes
-2. Design spec (check `docs/superpowers/specs/`) → Problem section or Requirements
-3. Implementation plan (check `docs/superpowers/plans/`, `docs/plans/`) → Goal and deliverables
+1. Plan (from `get_plan_path`) → Problem section with outcomes
+2. Design spec (check `docs/specs/`) → Problem section or Requirements
+3. Implementation plan (check `docs/plans/`, `docs/plans/`) → Goal and deliverables
 
-Use the first source found. If the workflow started at `/discuss` (no decision record), the spec and plan still define what success looks like.
+Use the first source found. If the workflow started at `/discuss` (no plan), the spec and plan still define what success looks like.
 
 Dispatch an **Outcome validator agent** — read `plugin/agents/outcome-validator.md`, then dispatch as `general-purpose`:
 
@@ -141,7 +141,7 @@ Present validation results as two tables:
 |---|--------------|--------|--------|----------|
 | 1 | <attack type> | <target component> | <what happened> | Critical/Warning/Info |
 
-Then enrich the decision record with the **Outcome Verification** section:
+Then enrich the plan with the **Outcome Verification** section:
 
 ```markdown
 ## Outcome Verification (COMPLETE phase)
@@ -158,7 +158,7 @@ Then enrich the decision record with the **Outcome Verification** section:
 - Don't let the user skip without understanding consequences: "Acknowledging this gap means X. Are you comfortable shipping with that?"
 - User decides: fix (jump to `/implement`), re-review, or acknowledge
 - If validation finds critical issues:
-  1. Document findings in the decision record's Open Issues section
+  1. Document findings in the plan's Open Issues section
   2. Save as claude-mem observations (one per category — Security, Robustness, Feature, etc.)
   3. Create GitHub issues for critical/high findings (autonomy-gated: auto → auto-create, ask → ask per-category, off → ask per-item)
   4. Continue the COMPLETE pipeline — commit what we have, the tech debt audit in Step 7 will include these findings
@@ -168,7 +168,7 @@ Then enrich the decision record with the **Outcome Verification** section:
 
 After presenting validation results, dispatch a **review agent** — read `plugin/agents/results-reviewer.md`, then dispatch as `general-purpose` — to verify presentation quality:
 
-Context: "Review the validation results. Decision record: [DECISION_RECORD_PATH]."
+Context: "Review the validation results. Plan: [DECISION_RECORD_PATH]."
 
 If REDO: fix the issues and re-dispatch the reviewer. Max 3 iterations, then surface to user.
 **After the gate passes (or on each iteration):** present a summary to the user: "Step 3 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
@@ -376,8 +376,8 @@ Mark reconciliation milestone:
 #### Collect and Categorize Findings
 
 Gather all findings from these sources:
-- Decision record's "accepted trade-offs" and "tech debt acknowledged" entries
-- Review phase findings (if review was run — check the decision record's Review Findings section)
+- Plan's "accepted trade-offs" and "tech debt acknowledged" entries
+- Review phase findings (if review was run — check the plan's Review Findings section)
 - Steps 1-3 validation results (boundary tester, devil's advocate findings)
 
 Group findings into these categories:
@@ -452,7 +452,7 @@ echo "Cleaned up .claude/tmp/"
 
 After presenting the categorized tech debt table, dispatch a **review agent** — read `plugin/agents/tech-debt-reviewer.md`, then dispatch as `general-purpose` — to verify proposal quality:
 
-Context: "Decision record: [DECISION_RECORD_PATH]. Categorized tech debt table: [TABLE]."
+Context: "Plan: [DECISION_RECORD_PATH]. Categorized tech debt table: [TABLE]."
 
 If REDO: fix and re-dispatch. Max 3 iterations, then surface to user.
 **After the gate passes (or on each iteration):** present a summary to the user: "Step 7 review: [findings found / no issues]. Fixed: [what changed]. Verdict: PASS."
@@ -466,7 +466,7 @@ Mark milestone:
 
 Dispatch a **Handover writer agent** — read `plugin/agents/handover-writer.md`, then dispatch as `general-purpose`:
 
-Context: "Prepare a claude-mem handover observation. Project name: [derived from git remote get-url origin]. Decision record: [DECISION_RECORD_PATH]. Include commit hash, verification results, key decisions, gotchas, files modified, tech debt."
+Context: "Prepare a claude-mem handover observation. Project name: [derived from git remote get-url origin]. Plan: [DECISION_RECORD_PATH]. Include commit hash, verification results, key decisions, gotchas, files modified, tech debt."
 
 Save via the `save_observation` MCP tool. **Set `project` to the GitHub repo name.** Derive it: `git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'`
 

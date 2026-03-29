@@ -103,7 +103,7 @@ sed -i '' '/define)/,/;;/ {
 }' "$FILE"
 
 # Update DISCUSS phase: remove superpowers paths
-sed -i '' 's|(docs/superpowers/plans/|docs/plans/)|docs/plans/|g' "$FILE"
+sed -i '' "s#(docs/superpowers/plans/|docs/plans/)#docs/plans/#g" "$FILE"
 
 # Update COMPLETE phase: decision_record_edit -> project_docs_edit
 sed -i '' '/complete)/,/;;/ {
@@ -119,7 +119,7 @@ sed -i '' '/review)/,/fi/ {
 }' "$FILE"
 
 # Update DISCUSS Layer 3: remove superpowers paths
-sed -i '' 's|(docs/superpowers/plans/|docs/plans/)|docs/plans/|g' "$FILE"
+sed -i '' "s#(docs/superpowers/plans/|docs/plans/)#docs/plans/#g" "$FILE"
 
 echo "  OK"
 
@@ -178,6 +178,17 @@ sed -i '' 's|docs/superpowers/specs/|docs/specs/|g' "$FILE"
 sed -i '' 's/get_decision_record/get_plan_path/g' "$FILE"
 sed -i '' 's/Decision record/Plan/g' "$FILE"
 sed -i '' 's/decision record/plan/g' "$FILE"
+echo "  OK"
+
+# --- plugin reference docs ---
+FILE="$PLUGIN_DIR/docs/reference/agent-dispatch.md"
+echo "Updating $FILE..."
+sed -i '' 's|docs/superpowers/specs/2026-03-26-example-design.md|docs/plans/2026-03-26-example.md|' "$FILE"
+echo "  OK"
+
+FILE="$PLUGIN_DIR/docs/reference/wfm-architecture.md"
+echo "Updating $FILE..."
+sed -i '' 's|docs/superpowers/specs/, docs/plans/|docs/plans/|' "$FILE"
 echo "  OK"
 
 # --- Update brainstorming skill cache ---

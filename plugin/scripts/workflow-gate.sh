@@ -9,7 +9,7 @@
 # Matcher: Write|Edit|MultiEdit|NotebookEdit
 #
 # Whitelist tiers:
-#   Restrictive (DEFINE/DISCUSS): .claude/state/, docs/superpowers/specs/, docs/superpowers/plans/, docs/plans/
+#   Restrictive (DEFINE/DISCUSS): .claude/state/, docs/plans/
 #   Docs-allowed (COMPLETE):      .claude/state/, docs/ (all), *.md at project root
 
 set -euo pipefail

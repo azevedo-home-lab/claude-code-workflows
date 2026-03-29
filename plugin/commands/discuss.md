@@ -9,7 +9,7 @@ Present the output to the user.
 
 **You are now in DISCUSS phase (Diamond 2 — Solution Space).** Code edits are blocked — design the solution and write the plan.
 
-**Git in DEFINE/DISCUSS:** Spec and plan files (`docs/superpowers/specs/`, `docs/superpowers/plans/`) can be committed. Use **single git commands** — run `git add` and `git commit` as separate commands, not chained with `&&`. Chained commands with heredoc-style commit messages may be blocked by the write guard.
+**Git in DEFINE/DISCUSS:** Spec and plan files (`docs/plans/`, `docs/specs/`) can be committed. Use **single git commands** — run `git add` and `git commit` as separate commands, not chained with `&&`. Chained commands with heredoc-style commit messages may be blocked by the write guard.
 
 Before proceeding:
 1. Read `plugin/docs/reference/professional-standards.md` — apply the Universal Standards and DISCUSS Phase Standards throughout this phase.
@@ -20,18 +20,18 @@ Before proceeding:
 
 ## Setup
 
-If no decision record exists yet, create one and register it:
+If no plan exists yet, create one and register it:
 
 ```bash
-EXISTING=$(.claude/hooks/workflow-cmd.sh get_decision_record)
+EXISTING=$(.claude/hooks/workflow-cmd.sh get_plan_path)
 if [ -z "$EXISTING" ]; then
-    echo "No decision record found — will create one during this phase."
+    echo "No plan found — will create one during this phase."
 fi
 ```
 
-If no decision record exists, brainstorming will naturally cover problem discovery (lighter than a full DEFINE phase). Create the decision record with a Problem section from what you learn, then proceed to solution design.
+If no plan exists, brainstorming will naturally cover problem discovery (lighter than a full DEFINE phase). Create the plan with a Problem section from what you learn, then proceed to solution design.
 
-Once the problem statement is confirmed (from DEFINE's decision record or from brainstorming), mark the milestone:
+Once the problem statement is confirmed (from DEFINE's plan or from brainstorming), mark the milestone:
 ```bash
 .claude/hooks/workflow-cmd.sh set_discuss_field "problem_confirmed" "true"
 ```
@@ -46,7 +46,7 @@ Use `superpowers:brainstorming` with **solution-design context**. Focus on how t
 
 ### Diverge Phase
 
-Once the problem statement is confirmed (from DEFINE's decision record or from brainstorming's natural discovery), **dispatch background research agents** (unless the solution is obvious — if so, state explicitly: "The solution approach is straightforward — skipping broad research. If you want alternatives explored, say so."):
+Once the problem statement is confirmed (from DEFINE's plan or from brainstorming's natural discovery), **dispatch background research agents** (unless the solution is obvious — if so, state explicitly: "The solution approach is straightforward — skipping broad research. If you want alternatives explored, say so."):
 
 1. **Solution researcher A** — Read `plugin/agents/solution-researcher-a.md`, then dispatch as `general-purpose`. Context: "Problem to solve: [PROBLEM_STATEMENT]. Research technical approaches."
 2. **Solution researcher B** — Read `plugin/agents/solution-researcher-b.md`, then dispatch as `general-purpose`. Context: "Problem to solve: [PROBLEM_STATEMENT]. Research case studies and lessons learned."
@@ -68,7 +68,7 @@ After the user narrows to 2-3 candidate approaches, **dispatch converge agents**
 
 Present 2-3 viable approaches (discovered possibilities filtered through codebase reality) with your recommendation. Include trade-offs and tech debt implications for each.
 
-After user selects an approach, enrich the decision record with:
+After user selects an approach, enrich the plan with:
 
 ```markdown
 ## Approaches Considered (DISCUSS phase — diverge)
@@ -88,7 +88,7 @@ After user selects an approach, enrich the decision record with:
 - Link to implementation plan
 ```
 
-After updating the decision record with the chosen approach, mark the milestone:
+After updating the plan with the chosen approach, mark the milestone:
 ```bash
 .claude/hooks/workflow-cmd.sh set_discuss_field "approach_selected" "true"
 ```
@@ -133,7 +133,7 @@ gh issue comment <ISSUE_NUMBER> --body "## Design & Plan
 **Commit:** <COMMIT_HASH>
 **Spec:** \`<SPEC_PATH>\`
 **Plan:** \`<PLAN_PATH>\`
-**Decision record:** \`<DECISION_RECORD_PATH>\`
+**Plan:** \`<DECISION_RECORD_PATH>\`
 
 Approach: <chosen approach name>
 Tasks: <N> implementation tasks"
@@ -145,9 +145,9 @@ If no issue is mapped, skip this step silently — not all work originates from 
 
 | Step | What you do | Evidence required before next step | Milestone |
 |------|-------------|-------------------------------------|-----------|
-| Problem confirmed | Verify problem statement from DEFINE or brainstorm | User or decision record confirms the problem | `problem_confirmed=true` |
+| Problem confirmed | Verify problem statement from DEFINE or brainstorm | User or plan confirms the problem | `problem_confirmed=true` |
 | Diverge | Dispatch 3 research agents | Agents returned, findings presented with sources and downsides | `research_done=true` |
-| Converge | User narrows to approach, dispatch 2 agents | User selected approach, decision record enriched | `approach_selected=true` |
+| Converge | User narrows to approach, dispatch 2 agents | User selected approach, plan enriched | `approach_selected=true` |
 | Plan | Write plan with `superpowers:writing-plans`, run reviewer | Plan file exists on disk, reviewer passed | `plan_written=true` |
 
 **Review transparency:** When the spec review loop or plan review loop finds issues, always present a summary to the user: what the reviewer found, what you fixed, and the final verdict. Never silently fix and move on — the user must see what was caught.

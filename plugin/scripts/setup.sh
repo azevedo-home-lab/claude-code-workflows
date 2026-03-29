@@ -47,7 +47,8 @@ if [ ! -f "$STATE_FILE" ]; then
     phase: "off",
     message_shown: false,
     active_skill: "",
-    decision_record: "",
+    plan_path: "",
+    spec_path: "",
     coaching: {
       tool_calls_since_agent: 0,
       layer2_fired: []

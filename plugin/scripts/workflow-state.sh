@@ -59,7 +59,7 @@ _update_state() {
 
 # Restrictive tier: DEFINE and DISCUSS phases
 # NOTE: .claude/hooks/ deliberately excluded — enforcement mechanism must not be self-modifiable
-RESTRICTED_WRITE_WHITELIST='(\.claude/state/|docs/superpowers/specs/|docs/superpowers/plans/|docs/plans/)'
+RESTRICTED_WRITE_WHITELIST='(\.claude/state/|docs/plans/)'
 
 # Docs-allowed tier: COMPLETE phase
 # NOTE: .claude/commands/ deliberately excluded — no phase may rewrite command files.
@@ -336,7 +336,7 @@ _read_preserved_state() {
     if [ ! -f "$STATE_FILE" ]; then return; fi
 
     preserved_skill=$(get_active_skill)
-    preserved_decision=$(get_decision_record)
+    preserved_decision=$(get_plan_path)
     preserved_autonomy=$(get_autonomy_level)
     preserved_obs_id=$(get_last_observation_id)
     preserved_tracked=$(get_tracked_observations)
@@ -437,7 +437,7 @@ agent_set_phase() {
               phase: $phase,
               message_shown: false,
               active_skill: $skill,
-              decision_record: $decision,
+              plan_path: $decision,
               coaching: {tool_calls_since_agent: 0, layer2_fired: []},
               updated: $ts
           }
@@ -483,22 +483,64 @@ get_active_skill() {
 }
 
 # ---------------------------------------------------------------------------
-# Decision record management
+# Plan path management
 # ---------------------------------------------------------------------------
 
-set_decision_record() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.decision_record = $v' --arg v "$1"; }
+set_plan_path() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.plan_path = $v' --arg v "$1"; }
 
-get_decision_record() {
+get_plan_path() {
     if [ ! -f "$STATE_FILE" ]; then
         echo ""
         return
     fi
     local val
-    val=$(jq -r '.decision_record // ""' "$STATE_FILE" 2>/dev/null) || val=""
+    val=$(jq -r '.plan_path // ""' "$STATE_FILE" 2>/dev/null) || val=""
     echo "$val"
 }
 
 # ---------------------------------------------------------------------------
+
+
+set_spec_path() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.spec_path = $v' --arg v "$1"; }
+
+get_spec_path() {
+    if [ ! -f "$STATE_FILE" ]; then
+        echo ""
+        return
+    fi
+    local val
+    val=$(jq -r '.spec_path // ""' "$STATE_FILE" 2>/dev/null) || val=""
+    echo "$val"
+}
+
+
+
+set_spec_path() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.spec_path = $v' --arg v "$1"; }
+
+get_spec_path() {
+    if [ ! -f "$STATE_FILE" ]; then
+        echo ""
+        return
+    fi
+    local val
+    val=$(jq -r '.spec_path // ""' "$STATE_FILE" 2>/dev/null) || val=""
+    echo "$val"
+}
+
+
+
+set_spec_path() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.spec_path = $v' --arg v "$1"; }
+
+get_spec_path() {
+    if [ ! -f "$STATE_FILE" ]; then
+        echo ""
+        return
+    fi
+    local val
+    val=$(jq -r '.spec_path // ""' "$STATE_FILE" 2>/dev/null) || val=""
+    echo "$val"
+}
+
 # Test results tracking (preserved across phase transitions)
 # ---------------------------------------------------------------------------
 
@@ -527,7 +569,7 @@ check_soft_gate() {
         implement)
             # Check if any plan file exists
             local plan_files
-            plan_files=$(find "$project_root/docs/superpowers/plans" "$project_root/docs/plans" -maxdepth 1 -name '*.md' 2>/dev/null | head -1)
+            plan_files=$(find "$project_root/docs/plans" -maxdepth 1 -name '*.md' 2>/dev/null | head -1)
             if [ -z "$plan_files" ]; then
                 echo "No plan exists. The workflow recommends /discuss first. Proceed without a plan?"
                 return

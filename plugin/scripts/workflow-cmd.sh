@@ -27,7 +27,7 @@ source "$SCRIPT_DIR/workflow-state.sh"
 case "$1" in
     get_phase|agent_set_phase|get_autonomy_level|set_autonomy_level|\
     get_active_skill|set_active_skill|\
-    get_decision_record|set_decision_record|\
+    get_plan_path|set_plan_path|get_spec_path|set_spec_path|\
     get_message_shown|set_message_shown|\
     check_soft_gate|\
     reset_review_status|get_review_field|set_review_field|\

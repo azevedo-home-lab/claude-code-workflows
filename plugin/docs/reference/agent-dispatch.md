@@ -18,7 +18,7 @@ To dispatch `plan-validator` with runtime context about the plan file:
 1. Read `plugin/agents/plan-validator.md`
 2. Use Agent tool:
    - `subagent_type: "general-purpose"`
-   - `prompt: "<content of plan-validator.md after frontmatter>\n\n---\n\nRuntime context: Plan file is at docs/superpowers/specs/2026-03-26-example-design.md. Validate all deliverables."`
+   - `prompt: "<content of plan-validator.md after frontmatter>\n\n---\n\nRuntime context: Plan file is at docs/plans/2026-03-26-example.md. Validate all deliverables."`
 
 ## Model selection
 

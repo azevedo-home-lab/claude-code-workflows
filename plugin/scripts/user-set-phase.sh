@@ -85,7 +85,7 @@ ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           phase: $phase,
           message_shown: false,
           active_skill: $skill,
-          decision_record: $decision,
+          plan_path: $decision,
           coaching: {tool_calls_since_agent: 0, layer2_fired: []},
           updated: $ts
       }

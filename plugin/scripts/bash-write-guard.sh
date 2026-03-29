@@ -10,7 +10,7 @@
 # Catches: redirections, sed -i, tee, heredocs, python/node/ruby/perl file writes, pipe-to-shell, gh API ops
 #
 # Whitelist tiers:
-#   Restrictive (DEFINE/DISCUSS): .claude/state/, docs/superpowers/specs/, docs/superpowers/plans/, docs/plans/
+#   Restrictive (DEFINE/DISCUSS): .claude/state/, docs/plans/
 #   Docs-allowed (COMPLETE):      .claude/state/, docs/ (all), *.md at project root
 
 set -euo pipefail
