@@ -4,6 +4,8 @@
 
 Two PreToolUse hooks and a PostToolUse coaching system enforce a plan-before-code workflow by blocking Write/Edit tool calls until the user explicitly approves a plan. This complements superpowers' prompt-based discipline with deterministic enforcement that Claude cannot rationalize away.
 
+For system-level documentation (phases, enforcement layers, gates, milestones), see [Architecture](architecture.md).
+
 ## Architecture
 
 ```
@@ -20,15 +22,11 @@ Layer 1: PreToolUse Hooks (Deterministic)       Layer 2: Superpowers Skills (Beh
 └──────────────────────────────────────┘        └──────────────────────────────────┘
 ```
 
-Hooks read state but never write it. Phase transitions are driven by user commands (`/implement`, `/discuss`, etc.).
+Hooks read state but never write it. Phase transitions are driven by user commands (`/implement`, `/discuss`, etc.) or agent auto-transitions (`agent_set_phase` in auto mode).
 
-## Phase Model
+## Permission Matrix
 
-```
-OFF ──(/define)──> DEFINE ──(/discuss)──> DISCUSS ──(/implement)──> IMPLEMENT ──(/review)──> REVIEW ──(/complete)──> COMPLETE ──> OFF
-
-Any /phase command can jump directly to any phase. Soft gates warn when skipping recommended steps.
-```
+See [Architecture — Phase Model](architecture.md#phase-model) for the full phase flow diagram.
 
 | Phase | Write/Edit/MultiEdit | Bash writes | Read/Grep/Glob/Agent | Git |
 |-------|---------------------|-------------|---------------------|-----|
@@ -84,26 +82,29 @@ Per-project state (gitignored):
 
 - **Matcher**: `Write|Edit|MultiEdit|NotebookEdit`
 - **Logic**: Read phase from state file. If `define`, `discuss`, or `complete` → deny with message (with phase-specific whitelist tiers). If `implement` or `review` → allow.
-- **Whitelist tiers**: DEFINE/DISCUSS allow specs/plans paths. COMPLETE allows docs paths.
+- **Whitelist tiers**: DEFINE/DISCUSS allow specs/plans paths. COMPLETE allows docs paths. See [Architecture — Write Blocking](architecture.md#write-blocking) for tier details.
+- **Guard-system self-protection**: Blocks edits to `.claude/hooks/`, `plugin/scripts/`, `plugin/commands/` in all active phases.
+- **Path traversal protection**: Canonicalizes file paths via `python3 os.path.realpath` to catch encoded/symlinked traversal.
 - **No state file**: Allow (no enforcement on first run before setup).
 
 ### bash-write-guard.sh
 
 - **Matcher**: `Bash`
 - **Logic**: Read phase. If `implement` or `review` → allow all. If `define`, `discuss`, or `complete` → extract command, pattern-match for write operations, deny if found.
-- **Patterns caught**: `>`, `>>`, `sed -i`, `tee`, `cat << EOF`, `python -c` with file writes, `echo >`.
+- **Patterns caught**: `>`, `>>`, `sed -i`, `tee`, `cat << EOF`, `python -c` with file writes, `echo >`, `cp`, `mv`, `rm`, `curl -o`, pipe-to-shell, xargs execution, `gh` operations (phase-restricted).
+- **Exceptions**: `git commit` (standalone), safe git chains, workflow state calls, `workflow-cmd.sh` calls, `gh` read-only in DEFINE/DISCUSS, `gh` all ops in COMPLETE, `rm .claude/tmp/` in COMPLETE, redirects to `/dev/null`.
 - **Coverage**: ~95%. Claude isn't adversarial — it uses Bash as a fallback when Edit is blocked. Common patterns are sufficient.
 
 ### workflow-state.sh
 
 - **Not a hook** — sourced by other scripts.
-- **State file**: `.claude/state/workflow.json` — consolidated state (phase, active skill, plan path, review status, coaching state).
-- **Phase functions**: `get_phase`, `set_phase <phase>` (validates: off/define/discuss/implement/review/complete)
+- **State file**: `.claude/state/workflow.json` — consolidated state (phase, active skill, plan path, spec path, milestones, coaching state).
+- **Phase functions**: `get_phase`, `agent_set_phase <phase>` (auto mode, forward-only)
 - **Message functions**: `get_message_shown`, `set_message_shown`
 - **Skill tracking**: `set_active_skill <name>`, `get_active_skill`
-- **Decision record**: `set_plan_path <path>`, `get_plan_path`
+- **Plan/spec paths**: `set_plan_path <path>`, `get_plan_path`, `set_spec_path`, `get_spec_path`
 - **Soft gates**: `check_soft_gate <target_phase>` — returns warning message or empty string
-- **Review status**: `reset_review_status`, `get_review_field <field>`, `set_review_field <field> <value>`
+- **Milestone sections**: `reset_*_status`, `get_*_field`, `set_*_field` for discuss, implement, review, completion
 - **Coaching state**: `increment_coaching_counter`, `reset_coaching_counter`, `add_coaching_fired <type>`, `has_coaching_fired <type>`
 - **Debug mode**: `get_debug`, `set_debug <true|false>` — preserved across transitions, cleared on OFF
 - **Whitelists**: `RESTRICTED_WRITE_WHITELIST` (DEFINE/DISCUSS), `COMPLETE_WRITE_WHITELIST` (COMPLETE)
@@ -159,61 +160,33 @@ Hooks are auto-wired when the plugin is installed. The configuration lives in `p
 
 No manual `settings.json` configuration is required for end users.
 
-## Coaching System (PostToolUse)
+## PostToolUse Implementation Details
 
-The `post-tool-navigator.sh` hook provides a three-layer coaching system via PostToolUse messages:
+For the full three-layer coaching system description, see [Architecture — Three-Layer Enforcement](architecture.md#three-layer-enforcement).
 
-| Layer | Purpose | When | Phases |
-|-------|---------|------|--------|
-| **Phase entry** | Orients Claude to the current phase's objectives and done criteria | Once per phase transition | All active phases |
-| **Standards reinforcement** | Contextual reminders from professional-standards.md | After specific tool patterns (Agent returns, Write/Edit to code, test runs, plan writes) | DEFINE, DISCUSS, IMPLEMENT, REVIEW, COMPLETE |
-| **Anti-laziness** | Detects lazy behavior patterns | On every match: short agent prompts (<150 chars), generic commits (<30 chars), skipped research (>10 tool calls without agents in DEFINE/DISCUSS), all findings downgraded, minimal handovers | All active phases |
+Implementation specifics in `post-tool-navigator.sh`:
 
-All coaching messages are prefixed with `[Workflow Coach — PHASE]` and visible to the user. They are non-blocking guidance — they inform Claude's behavior but do not prevent tool use.
+### Observation ID capture
 
-### Layer 3: claude-mem project scoping check
-
-A dedicated Layer 3 check fires when `save_observation` is called without a `project` parameter:
-
-- **Trigger**: PostToolUse on `mcp__plugin_claude-mem_mcp-search__save_observation` where the tool input lacks a `project` field
-- **Message**: Reminds Claude to derive the project name from `git remote get-url origin` and re-issue the call with `project=<name>`
-- **Effect**: Non-blocking warning only. The observation is already saved; the check prompts correction before the session ends.
-
-### PostToolUse: observation ID capture
-
-The `post-tool-navigator.sh` hook also captures observation IDs from claude-mem responses:
+Captures observation IDs from claude-mem responses:
 
 - **Triggers**: `save_observation` and `get_observations` tool responses
 - **Logic**: Parses the MCP response for the returned observation ID (or the last ID in a list)
 - **Effect**: Writes the ID to `.claude/state/workflow.json` under `last_observation_id`
 - **Consumer**: The status line script reads this field and renders `Claude-Mem ✓ #<id>` when present
 
-## Autonomy Levels
-
-Autonomy level is an orthogonal dimension to phase — phase controls **what** is allowed; autonomy controls **how much** Claude does independently.
-
-### Levels
-
-| Symbol | Level | Name | Behavior |
-|--------|-------|------|----------|
-| `▶` | off | Supervised | Step-by-step pair programming. Claude executes one plan step at a time, presents the change, and waits for review before proceeding. Writes follow phase rules. |
-| `▶▶` | ask | Semi-Auto | Claude works freely within each phase but stops at phase boundaries for review and guidance before transitioning. No auto-commits. **Default.** |
-| `▶▶▶` | auto | Unattended | Full autonomy. Claude auto-transitions between phases, auto-fixes review findings, auto-commits. Stops only when user input is genuinely needed or before git push. |
-
-Set the level with `/autonomy off`, `/autonomy ask`, or `/autonomy auto`. Only the user can change it.
-
-### Check Order
+### Check order
 
 Both `workflow-gate.sh` and `bash-write-guard.sh` apply checks in this order:
 
 ```
 1. No state file → allow (fails open)
 2. Workflow OFF → allow
-3. Implement/Review phase check (phase gate)
-4. Phase-specific whitelist check (specs/plans, docs)
+3. Guard-system self-protection (all active phases)
+4. Implement/Review phase → allow all
+5. Phase-specific whitelist check (specs/plans, docs)
+6. Deny with phase-aware message
 ```
-
-All three autonomy levels (`off`, `ask`, `auto`) follow the same phase-based write rules. The difference between levels is behavioral (checkpoint granularity), not enforcement — `off` stops after each plan step, `ask` stops at phase boundaries, `auto` runs end-to-end. The hooks are the single source of truth for write permissions; Claude Code permission modes (`plan`/`default`/`acceptEdits`) are best-effort convenience only.
 
 ## Known Limitations
 
