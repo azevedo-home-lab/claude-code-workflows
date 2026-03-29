@@ -7,22 +7,27 @@ Structured development with Claude Code. Think before coding, review before ship
 ## Why
 
 Claude Code is powerful but undisciplined. Left to its defaults, it:
-- Jumps straight to writing code before understanding the problem
-- Loses context over long sessions — early decisions get forgotten, hallucinations increase
-- Doesn't naturally follow think → plan → build → review → ship
-- Produces no auditable record of what was decided and why
+- Jumps straight to writing code before researching the problem, discussing a solution, writing a plan.
+- Might not review the code, or just review some aspects of it, leaving the codebase inconsistent with security or achitectural gaps. 
+- Loses context over long sessions — early decisions get forgotten, hallucinations increase, original goals drift
+- Doesn't naturally follow follow a natural development flow: think → plan → build → review → ship → reiterate  
+- Produces limited or inconsisten auditable record of what was decided or implemented and why
 
-Inspired by [cc-sessions](https://github.com/GWUDCAP/cc-sessions) (DAIC workflow enforcement with trigger-phrase automation and sub-agents for Claude Code), this project builds an opinionated workflow enforcement system that goes further. Workflow phases alone weren't enough — Claude also needed:
-- **Guardrails** to prevent coding before planning (hard edit gates)
-- **Structure** to guide each phase of development (coaching + skills)
-- **Accountability** through decision records and review pipelines
+## Goal
+The objective is to make Claude Code behave more like a disciplined senior engineer
 
-The result makes Claude Code behave like a disciplined senior engineer: think first, plan second, code third, review before shipping.
+Inspired by [cc-sessions](https://github.com/GWUDCAP/cc-sessions) (DAIC workflow enforcement with trigger-phrase automation and sub-agents for Claude Code)
+This project builds on top an opinionated workflow enforcement system with:
+- **Guardrails** - Enforced workflow phases with gated steps.
+- **Guidance Structure** to prompt and guide claude on each phase of development (coaching + skills)
+- **Accountability** through decision records, review pipelines and traceability (github issues and observations) 
+
+## How
 
 Four tools that work together:
 
-- **Workflow Manager** — Phase-based workflow enforcement with coaching and edit gates
-- **Superpowers** — skills for brainstorming, TDD, planning, debugging, code review
+- **Workflow Manager** — Phase-based workflow enforcement with coaching and sequential gates
+- **Skills and Agents** — skills for brainstorming, Agents for TDD, planning, debugging, code review
 - **claude-mem** — cross-session memory via MCP server
 - **Status Line** — context usage, git branch, workflow phase at a glance
 
@@ -36,8 +41,8 @@ Six phases. Code edits are blocked until you discuss and approve a plan.
 | **DEFINE** | Blocked | Frame the problem, define outcomes |
 | **DISCUSS** | Blocked | Research approaches, write plan |
 | **IMPLEMENT** | Allowed | Execute plan with TDD |
-| **REVIEW** | Allowed | 5 parallel review agents + verification |
-| **COMPLETE** | Blocked | Validate outcomes, docs, handover |
+| **REVIEW** | Allowed |  Parallel review agents + verification |
+| **COMPLETE** | Blocked | Validate outcomes, docs, open issues, handover |
 
 Commands: `/define` `/discuss` `/implement` `/review` `/complete` `/off` `/proposals` `/debug` `/autonomy`
 
@@ -55,23 +60,15 @@ See the [Status Line guide](docs/guides/statusline-guide.md) for symbol display 
 
 Each cycle produces a **decision record** tracking problem, approaches, rationale, findings, and outcomes.
 
-## Tools
+## Features
 
 | Tool | What it does | Docs |
 |------|-------------|------|
 | Workflow Manager | Phase-based enforcement + coaching | [Hooks reference](docs/reference/hooks.md) |
-| Superpowers | Auto-activated development skills | [Integration guide](docs/guides/integration-guide.md) |
-| claude-mem | Persistent cross-session observations | [Memory guide](docs/guides/claude-mem-guide.md) |
-| Status Line | Color-coded status bar | [Setup guide](docs/guides/statusline-guide.md) |
+| Integrated Superpowers | Auto-activated development skills | [Integration guide](docs/guides/integration-guide.md) |
+| Integrated claude-mem | Persistent cross-session observations | [Memory guide](docs/guides/claude-mem-guide.md) |
+| Status Line | Informational status bar | [Setup guide](docs/guides/statusline-guide.md) |
 
-### Optional Tools
-
-Installed separately with `--iterm` or `--yubikey` flags:
-
-| Tool | What it does | Docs |
-|------|-------------|------|
-| YubiKey signing | FIDO2 commit signing + push auth | [YubiKey setup](tools/yubikey-setup/) |
-| iTerm Launcher | Dedicated Claude Code window | [Launcher](tools/iterm-launcher/) |
 
 ## Docs
 
@@ -93,6 +90,14 @@ Add the marketplace and install:
 
 The plugin auto-wires hooks, installs the statusline, and initializes project state. No manual configuration needed.
 
+### Optional Tools
+
+Installed separately with `--iterm` or `--yubikey` flags:
+
+| Tool | What it does | Docs |
+|------|-------------|------|
+| YubiKey signing | FIDO2 commit signing + push auth | [YubiKey setup](tools/yubikey-setup/) |
+| iTerm Launcher | Dedicated Claude Code window | [Launcher](tools/iterm-launcher/) |
 
 ## Sources
 
