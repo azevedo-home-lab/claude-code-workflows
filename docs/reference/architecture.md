@@ -28,57 +28,8 @@ See [README — Workflow](../../README.md#workflow) for the phase summary table.
 
 ```mermaid
 graph LR
-    subgraph OFF
-        off1["No enforcement"]
-    end
-
-    subgraph DEFINE
-        def1["Brainstorming"]
-        def2["3 research agents"]
-        def3["Converge on problem"]
-        def4["Write Problem section"]
-        def_gate["Gate: none (soft)"]
-        def1 --> def2 --> def3 --> def4 --> def_gate
-    end
-
-    subgraph DISCUSS
-        dis1["Solution research"]
-        dis2["3 research agents"]
-        dis3["2 converge agents"]
-        dis4["Write plan"]
-        dis_gate["Gate: plan_written"]
-        dis1 --> dis2 --> dis3 --> dis4 --> dis_gate
-    end
-
-    subgraph IMPLEMENT
-        imp1["Read plan"]
-        imp2["TDD: tests first"]
-        imp3["Execute tasks"]
-        imp4["Run test suite"]
-        imp_gate["Gate: plan_read,<br/>tests_passing,<br/>all_tasks_complete"]
-        imp1 --> imp2 --> imp3 --> imp4 --> imp_gate
-    end
-
-    subgraph REVIEW
-        rev1["Verify tests passed"]
-        rev2["5 parallel agents"]
-        rev3["Verification agent"]
-        rev4["Present findings"]
-        rev_gate["Gate:<br/>findings_acknowledged"]
-        rev1 --> rev2 --> rev3 --> rev4 --> rev_gate
-    end
-
-    subgraph COMPLETE
-        com1["Validate plan/outcomes"]
-        com2["Docs check"]
-        com3["Commit & push"]
-        com4["Tech debt + handover"]
-        com_gate["Gate: all 9 milestones"]
-        com1 --> com2 --> com3 --> com4 --> com_gate
-    end
-
-    OFF -- "/define" --> DEFINE
-    OFF -. "/discuss (skip)" .-> DISCUSS
+    OFF["OFF"] -- "/define" --> DEFINE
+    OFF -. "/discuss" .-> DISCUSS
     DEFINE -- "/discuss" --> DISCUSS
     DISCUSS -- "/implement" --> IMPLEMENT
     IMPLEMENT -- "/review" --> REVIEW
@@ -87,6 +38,17 @@ graph LR
 ```
 
 Any `/phase` command can jump directly to any phase. Soft gates warn when skipping recommended steps but never block.
+
+| Phase | Steps | Exit Gate |
+|-------|-------|-----------|
+| **OFF** | No enforcement | — |
+| **DEFINE** | Brainstorming → 3 research agents → Converge on problem → Write Problem section | None (soft) |
+| **DISCUSS** | Solution research → 3 research agents → 2 converge agents → Write plan | `plan_written` |
+| **IMPLEMENT** | Read plan → TDD (tests first) → Execute tasks → Run test suite | `plan_read`, `tests_passing`\*, `all_tasks_complete` |
+| **REVIEW** | Verify tests passed → 5 parallel agents → Verification agent → Present findings | `findings_acknowledged` |
+| **COMPLETE** | Validate plan/outcomes → Docs check → Commit & push → Tech debt + handover | All 9 milestones |
+
+\*`tests_passing` is skipped if no test suite is detected.
 
 ## Autonomy Levels
 
