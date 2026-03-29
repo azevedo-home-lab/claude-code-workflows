@@ -327,52 +327,6 @@ If the tracked list is non-empty, fetch them via `get_observations([IDs])` and f
 
 Build two in-memory lists: `KEEP_IDS` (still-open observation IDs) and `RESOLVED_IDS` (completed this session). These are used by Step 8 — **do not modify tracked_observations here**.
 
-#### GitHub Issue Reconciliation
-
-For each `RESOLVED_ID`, check if it has a linked GitHub issue and close it:
-
-```bash
-for OBS_ID in $RESOLVED_IDS; do
-    ISSUE_URL=$(.claude/hooks/workflow-cmd.sh get_issue_url "$OBS_ID")
-    if [ -n "$ISSUE_URL" ]; then
-        echo "Resolved observation #$OBS_ID has GitHub issue: $ISSUE_URL"
-    fi
-done
-```
-
-For each resolved observation with a linked issue:
-1. Close the issue: `gh issue close <number> --comment "Resolved in commit $(git rev-parse --short HEAD). See claude-mem observation #<new_obs_id> for details."`
-2. Clear the mapping: `.claude/hooks/workflow-cmd.sh clear_issue_mapping "<obs_id>"`
-3. Report: "Closed issue: <url>"
-
-For each `KEEP_ID` with a linked issue, verify the issue is still open:
-
-```bash
-for OBS_ID in $KEEP_IDS; do
-    ISSUE_URL=$(.claude/hooks/workflow-cmd.sh get_issue_url "$OBS_ID")
-    if [ -n "$ISSUE_URL" ]; then
-        ISSUE_NUM=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
-        STATE=$(gh issue view "$ISSUE_NUM" --json state -q .state 2>/dev/null || echo "UNKNOWN")
-        echo "Observation #$OBS_ID → issue #$ISSUE_NUM: $STATE"
-    fi
-done
-```
-
-If a kept observation’s GitHub issue was closed externally (by PR merge, manual close, etc.), flag it:
-> "Observation #<id> is still tracked but its GitHub issue #<num> was closed. Resolve the observation? (yes/no)"
-
-Autonomy gating:
-- **auto (▶▶▶):** Auto-close resolved issues. Auto-resolve observations whose issues were closed externally.
-- **ask (▶▶):** Ask per-issue for closures. Ask per-observation for external closures.
-- **off (▶):** Ask per-item for both.
-
-Present summary: "GitHub reconciliation: [N issues closed for resolved observations, N open issues verified, N external closures detected]."
-
-Mark reconciliation milestone:
-```bash
-.claude/hooks/workflow-cmd.sh set_completion_field "issues_reconciled" "true"
-```
-
 #### Collect and Categorize Findings
 
 Gather all findings from these sources:
@@ -434,6 +388,54 @@ For each issue to create:
 6. Report: "Created issue: <url>"
 
 The issue mapping makes observation IDs clickable in the status line (links to GitHub issues via OSC 8 hyperlinks).
+
+#### GitHub Issue Reconciliation
+
+Now that new issues have been created, reconcile all tracked observations with their GitHub issues.
+
+For each `RESOLVED_ID`, check if it has a linked GitHub issue and close it:
+
+```bash
+for OBS_ID in $RESOLVED_IDS; do
+    ISSUE_URL=$(.claude/hooks/workflow-cmd.sh get_issue_url "$OBS_ID")
+    if [ -n "$ISSUE_URL" ]; then
+        echo "Resolved observation #$OBS_ID has GitHub issue: $ISSUE_URL"
+    fi
+done
+```
+
+For each resolved observation with a linked issue:
+1. Close the issue: `gh issue close <number> --comment "Resolved in commit $(git rev-parse --short HEAD). See claude-mem observation #<new_obs_id> for details."`
+2. Clear the mapping: `.claude/hooks/workflow-cmd.sh clear_issue_mapping "<obs_id>"`
+3. Report: "Closed issue: <url>"
+
+For each `KEEP_ID` with a linked issue, verify the issue is still open:
+
+```bash
+for OBS_ID in $KEEP_IDS; do
+    ISSUE_URL=$(.claude/hooks/workflow-cmd.sh get_issue_url "$OBS_ID")
+    if [ -n "$ISSUE_URL" ]; then
+        ISSUE_NUM=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
+        STATE=$(gh issue view "$ISSUE_NUM" --json state -q .state 2>/dev/null || echo "UNKNOWN")
+        echo "Observation #$OBS_ID → issue #$ISSUE_NUM: $STATE"
+    fi
+done
+```
+
+If a kept observation's GitHub issue was closed externally (by PR merge, manual close, etc.), flag it:
+> "Observation #<id> is still tracked but its GitHub issue #<num> was closed. Resolve the observation? (yes/no)"
+
+Autonomy gating:
+- **auto (▶▶▶):** Auto-close resolved issues. Auto-resolve observations whose issues were closed externally.
+- **ask (▶▶):** Ask per-issue for closures. Ask per-observation for external closures.
+- **off (▶):** Ask per-item for both.
+
+Present summary: "GitHub reconciliation: [N issues closed for resolved observations, N open issues verified, N external closures detected]."
+
+Mark reconciliation milestone:
+```bash
+.claude/hooks/workflow-cmd.sh set_completion_field "issues_reconciled" "true"
+```
 
 **CHECKPOINT — Report to user before proceeding:**
 Present a summary: "GitHub issues: [N created, N skipped, or 'gh not available']. Observation IDs saved: [list with mapped issue URLs]."
