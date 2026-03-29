@@ -296,7 +296,21 @@ _check_phase_gates() {
         fi
 
         if [ "$has_tests" = "true" ]; then
+            # Check if a test suite exists; skip tests_passing milestone if not
+        local project_root
+        project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+        local has_tests=false
+        if find "$project_root" -maxdepth 3 -name 'run-tests.sh' -o -name 'pytest.ini' -o -name 'jest.config.*' -o -name 'vitest.config.*' -o -name 'Cargo.toml' -o -name 'go.mod' 2>/dev/null | grep -q .; then
+            has_tests=true
+        elif [ -d "$project_root/tests" ] || [ -d "$project_root/test" ] || [ -d "$project_root/__tests__" ]; then
+            has_tests=true
+        fi
+
+        if [ "$has_tests" = "true" ]; then
             missing=$(_check_milestones "implement" "plan_read" "tests_passing" "all_tasks_complete")
+        else
+            missing=$(_check_milestones "implement" "plan_read" "all_tasks_complete")
+        fi
         else
             missing=$(_check_milestones "implement" "plan_read" "all_tasks_complete")
         fi
@@ -355,6 +369,7 @@ _read_preserved_state() {
     preserved_obs_id=$(get_last_observation_id)
     preserved_tracked=$(get_tracked_observations)
     preserved_issue_mappings=$(jq -c '.issue_mappings // null' "$STATE_FILE" 2>/dev/null) || preserved_issue_mappings="null"
+    preserved_spec=$(get_spec_path)
     preserved_tests_passed=$(get_tests_passed_at)
     preserved_debug=$(get_debug)
 }
@@ -421,6 +436,7 @@ agent_set_phase() {
     local preserved_skill="" preserved_decision="" preserved_autonomy=""
     local preserved_obs_id="" preserved_tracked=""
     local preserved_issue_mappings="null"
+    local preserved_spec=""
     local preserved_tests_passed=""
     local preserved_debug=""
     _read_preserved_state
@@ -445,6 +461,7 @@ agent_set_phase() {
           --arg obs_id "$preserved_obs_id" \
           --argjson tracked "$tracked_json" \
           --argjson issue_maps "${preserved_issue_mappings:-null}" \
+          --arg spec "$preserved_spec" \
           --arg tests_passed "$preserved_tests_passed" \
           --arg debug "$preserved_debug" \
           '{
@@ -452,6 +469,7 @@ agent_set_phase() {
               message_shown: false,
               active_skill: $skill,
               plan_path: $decision,
+              spec_path: $spec,
               coaching: {tool_calls_since_agent: 0, layer2_fired: []},
               updated: $ts
           }
@@ -511,51 +529,9 @@ get_plan_path() {
     val=$(jq -r '.plan_path // ""' "$STATE_FILE" 2>/dev/null) || val=""
     echo "$val"
 }
-
 # ---------------------------------------------------------------------------
-
-
-set_spec_path() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.spec_path = $v' --arg v "$1"; }
-
-get_spec_path() {
-    if [ ! -f "$STATE_FILE" ]; then
-        echo ""
-        return
-    fi
-    local val
-    val=$(jq -r '.spec_path // ""' "$STATE_FILE" 2>/dev/null) || val=""
-    echo "$val"
-}
-
-
-
-set_spec_path() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.spec_path = $v' --arg v "$1"; }
-
-get_spec_path() {
-    if [ ! -f "$STATE_FILE" ]; then
-        echo ""
-        return
-    fi
-    local val
-    val=$(jq -r '.spec_path // ""' "$STATE_FILE" 2>/dev/null) || val=""
-    echo "$val"
-}
-
-
-
-set_spec_path() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.spec_path = $v' --arg v "$1"; }
-
-get_spec_path() {
-    if [ ! -f "$STATE_FILE" ]; then
-        echo ""
-        return
-    fi
-    local val
-    val=$(jq -r '.spec_path // ""' "$STATE_FILE" 2>/dev/null) || val=""
-    echo "$val"
-}
-
-
+# Spec path management
+# ---------------------------------------------------------------------------
 
 set_spec_path() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.spec_path = $v' --arg v "$1"; }
 

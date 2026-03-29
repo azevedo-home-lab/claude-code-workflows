@@ -79,6 +79,7 @@ ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
       --arg obs_id "$preserved_obs_id" \
       --argjson tracked "$tracked_json" \
       --argjson issue_maps "${preserved_issue_mappings:-null}" \
+      --arg spec "$preserved_spec" \
       --arg tests_passed "$preserved_tests_passed" \
       --arg debug "$preserved_debug" \
       '{
@@ -86,6 +87,7 @@ ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           message_shown: false,
           active_skill: $skill,
           plan_path: $decision,
+          spec_path: $spec,
           coaching: {tool_calls_since_agent: 0, layer2_fired: []},
           updated: $ts
       }

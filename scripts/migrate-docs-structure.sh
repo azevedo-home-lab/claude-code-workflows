@@ -49,14 +49,45 @@ sed -i '' 's/decision_record: \$decision/plan_path: \$decision/' "$FILE"
 # Update soft gate to search docs/plans only
 sed -i '' 's|find "\$project_root/docs/superpowers/plans" "\$project_root/docs/plans"|find "\$project_root/docs/plans"|' "$FILE"
 
-# Add spec_path functions after the plan_path get function
-# Find the closing brace of get_plan_path and add after it
+# Add spec_path functions (idempotent — removes ALL duplicates, inserts exactly 1)
 python3 -c "
-import re
 with open('$FILE') as f:
-    content = f.read()
+    lines = f.readlines()
 
-spec_funcs = '''
+# Remove all lines belonging to spec_path function definitions
+# Keep references like preserved_spec=\$(get_spec_path) and jq template lines
+out = []
+skip = False
+for i, line in enumerate(lines):
+    stripped = line.strip()
+    # Start skipping on set_spec_path definition
+    if stripped.startswith('set_spec_path()'):
+        skip = True
+        # Also remove preceding blank lines and separator comments
+        while out and out[-1].strip() in ('', '# ---------------------------------------------------------------------------', '# Spec path management'):
+            out.pop()
+        continue
+    # Skip get_spec_path definition and its body
+    if stripped.startswith('get_spec_path()') and skip:
+        continue
+    if skip and stripped in ('if [ ! -f \"\$STATE_FILE\" ]; then', 'echo \"\"', 'return', 'fi', 'local val', '}'):
+        continue
+    if skip and '.spec_path' in stripped and 'jq' in stripped:
+        continue
+    if skip and stripped == 'echo \"\$val\"':
+        continue
+    # End skip on non-empty, non-blank line that's not part of the function
+    if skip and stripped and not stripped.startswith('#'):
+        skip = False
+    if skip and not stripped:
+        continue
+    out.append(line)
+
+# Now insert exactly one copy before '# Test results tracking'
+insert = '''
+# ---------------------------------------------------------------------------
+# Spec path management
+# ---------------------------------------------------------------------------
 
 set_spec_path() { if [ ! -f \"\$STATE_FILE\" ]; then return; fi; _update_state '.spec_path = \$v' --arg v \"\$1\"; }
 
@@ -68,13 +99,18 @@ get_spec_path() {
     local val
     val=\$(jq -r '.spec_path // \"\"' \"\$STATE_FILE\" 2>/dev/null) || val=\"\"
     echo \"\$val\"
-}'''
+}
 
-# Insert after get_plan_path function (find the section boundary)
-marker = '# Test results tracking'
-content = content.replace(marker, spec_funcs + '\n\n' + marker)
+'''
+final = []
+for line in out:
+    if '# Test results tracking' in line:
+        final.append(insert)
+    final.append(line)
+
 with open('$FILE', 'w') as f:
-    f.write(content)
+    f.writelines(final)
+print('  spec_path: cleaned all duplicates, inserted 1 copy')
 "
 
 echo "  OK"
@@ -120,6 +156,21 @@ sed -i '' '/review)/,/fi/ {
 
 # Update DISCUSS Layer 3: remove superpowers paths
 sed -i '' "s#(docs/superpowers/plans/|docs/plans/)#docs/plans/#g" "$FILE"
+
+# Fix REVIEW Layer 2: decisions.md -> docs/specs/ (line 286 area)
+sed -i '' "s|grep -qE 'decisions\\\\.md'|grep -qE 'docs/specs/'|g" "$FILE"
+
+# Fix REVIEW Layer 2 comment (line 282)
+sed -i '' 's/writing review findings to user (Write\/Edit\/MultiEdit to decision record in review phase)/writing review findings (Write\/Edit\/MultiEdit to spec in review phase)/' "$FILE"
+
+# Fix REVIEW Layer 3 comment (line 344)
+sed -i '' 's/All findings downgraded (REVIEW phase, writing to decision record)/All findings downgraded (REVIEW phase, writing to spec)/' "$FILE"
+
+# Fix Layer 1 coaching messages: decision record -> plan/spec
+sed -i '' 's/Decision record has a complete Problem section with measurable outcomes/Plan has a complete Problem section with measurable outcomes/' "$FILE"
+sed -i '' 's/Decision record has Approaches Considered + Decision sections/Plan has Approaches Considered + Decision sections/' "$FILE"
+sed -i '' 's/findings verified and persisted to decision record/findings verified and persisted to spec/' "$FILE"
+sed -i '' 's/Validation results in decision record/Validation results in plan/' "$FILE"
 
 echo "  OK"
 
@@ -179,6 +230,81 @@ sed -i '' 's/get_decision_record/get_plan_path/g' "$FILE"
 sed -i '' 's/Decision record/Plan/g' "$FILE"
 sed -i '' 's/decision record/plan/g' "$FILE"
 echo "  OK"
+
+# --- workflow-state.sh: add spec_path preservation across phase transitions ---
+FILE="$PLUGIN_DIR/scripts/workflow-state.sh"
+echo "Updating $FILE (spec_path preservation)..."
+python3 -c "
+with open('$FILE') as f:
+    content = f.read()
+
+# Add preserved_spec to _read_preserved_state
+if 'preserved_spec=' not in content:
+    content = content.replace(
+        'preserved_tests_passed=\$(get_tests_passed_at)',
+        'preserved_spec=\$(get_spec_path)\n    preserved_tests_passed=\$(get_tests_passed_at)'
+    )
+
+# Add local preserved_spec to agent_set_phase
+if 'preserved_spec=\"\"' not in content:
+    content = content.replace(
+        'local preserved_tests_passed=\"\"',
+        'local preserved_spec=\"\"\n    local preserved_tests_passed=\"\"'
+    )
+
+# Add --arg spec to jq command in agent_set_phase
+if '--arg spec ' not in content:
+    content = content.replace(
+        '--arg tests_passed \"\$preserved_tests_passed\"',
+        '--arg spec \"\$preserved_spec\" \\\\\n          --arg tests_passed \"\$preserved_tests_passed\"'
+    )
+
+# Add spec_path to jq template output
+if 'spec_path: \$spec' not in content:
+    content = content.replace(
+        'plan_path: \$decision,',
+        'plan_path: \$decision,\n              spec_path: \$spec,'
+    )
+
+with open('$FILE', 'w') as f:
+    f.write(content)
+"
+echo "  OK"
+
+# --- user-set-phase.sh: add spec_path preservation ---
+FILE="$PLUGIN_DIR/scripts/user-set-phase.sh"
+echo "Updating $FILE (spec_path preservation)..."
+python3 -c "
+with open('$FILE') as f:
+    content = f.read()
+
+# Add --arg spec and spec_path field (same pattern as agent_set_phase)
+if '--arg spec ' not in content:
+    content = content.replace(
+        '--arg tests_passed \"\$preserved_tests_passed\"',
+        '--arg spec \"\$preserved_spec\" \\\\\n      --arg tests_passed \"\$preserved_tests_passed\"'
+    )
+
+if 'spec_path: \$spec' not in content:
+    content = content.replace(
+        'plan_path: \$decision,',
+        'plan_path: \$decision,\n          spec_path: \$spec,'
+    )
+
+with open('$FILE', 'w') as f:
+    f.write(content)
+"
+echo "  OK"
+
+# --- docs/reference/hooks.md: update stale decision_record references ---
+FILE="docs/reference/hooks.md"
+if [ -f "$FILE" ]; then
+    echo "Updating $FILE..."
+    sed -i '' 's/decision record/plan path/g' "$FILE"
+    sed -i '' 's/set_decision_record/set_plan_path/g' "$FILE"
+    sed -i '' 's/get_decision_record/get_plan_path/g' "$FILE"
+    echo "  OK"
+fi
 
 # --- workflow-state.sh: fix tests_passing gate for projects without test suites ---
 FILE="$PLUGIN_DIR/scripts/workflow-state.sh"

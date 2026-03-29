@@ -86,13 +86,13 @@ if [ "$(get_message_shown)" != "true" ]; then
                 MESSAGES="[Workflow Coach — DEFINE]
 Objective: Frame the problem and define measurable outcomes.
 You are in Diamond 1 (Problem Space). Diverge on understanding, converge on a clear problem statement.
-Done when: Decision record has a complete Problem section with measurable outcomes, approved by user."
+Done when: Plan has a complete Problem section with measurable outcomes, approved by user."
                 ;;
             discuss)
                 MESSAGES="[Workflow Coach — DISCUSS]
 Objective: Research solution approaches, choose one with documented rationale, write implementation plan.
 You are in Diamond 2 (Solution Space). Diverge on possibilities, converge through codebase and risk analysis.
-Done when: Decision record has Approaches Considered + Decision sections. Plan file created. User approved."
+Done when: Plan has Approaches Considered + Decision sections. Plan file created. User approved."
                 ;;
             implement)
                 MESSAGES="[Workflow Coach — IMPLEMENT]
@@ -104,13 +104,13 @@ Done when: All plan steps implemented, tests passing, ready for review."
                 MESSAGES="[Workflow Coach — REVIEW]
 Objective: Independent multi-agent validation of implementation quality.
 Report findings accurately. Don't downgrade severity. Quantify impact and fix effort.
-Done when: All agents dispatched, findings verified and persisted to decision record, user has responded."
+Done when: All agents dispatched, findings verified and persisted to spec, user has responded."
                 ;;
             complete)
                 MESSAGES="[Workflow Coach — COMPLETE]
 Objective: Verify outcomes were met, update documentation, hand over for future sessions.
 Be specific about failures. Recommend next steps. Audit tech debt. Write a useful handover.
-Done when: Validation results in decision record, README checked, claude-mem observation saved, phase OFF."
+Done when: Validation results in plan, README checked, claude-mem observation saved, phase OFF."
                 ;;
             error)
                 MESSAGES="[Workflow Coach — ERROR]
@@ -279,11 +279,11 @@ $L2_MSG"
     fi
 
     # REVIEW Layer 2 trigger: "After presenting findings"
-    # Fires when writing review findings to user (Write/Edit/MultiEdit to decision record in review phase)
+    # Fires when writing review findings (Write/Edit/MultiEdit to spec in review phase)
     # This is separate from the agent_return_review trigger above
     if [ "$PHASE" = "review" ]; then
         if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-            if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
+            if echo "$FILE_PATH" | grep -qE 'docs/specs/'; then
                 FINDINGS_TRIGGER="findings_present"
                 if [ "$(has_coaching_fired "$FINDINGS_TRIGGER")" != "true" ]; then
                     add_coaching_fired "$FINDINGS_TRIGGER"
@@ -341,9 +341,9 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     fi
 fi
 
-# Check 3: All findings downgraded (REVIEW phase, writing to decision record)
+# Check 3: All findings downgraded (REVIEW phase, writing to spec)
 if [ "$PHASE" = "review" ] && { [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; }; then
-    if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
+    if echo "$FILE_PATH" | grep -qE 'docs/specs/'; then
         # Check if all findings are under Suggestions with no Critical or Warning entries
         ALL_SUGGESTIONS="false"
         if [ -f "$FILE_PATH" ]; then
@@ -559,7 +559,7 @@ elif [ "$PHASE" = "implement" ]; then
 elif [ "$PHASE" = "review" ]; then
     if [ "$(_section_exists "review")" = "true" ]; then
         if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-            if echo "$FILE_PATH" | grep -qE 'decisions\.md'; then
+            if echo "$FILE_PATH" | grep -qE 'docs/specs/'; then
                 if [ "$(get_review_field "agents_dispatched")" != "true" ]; then
                     STEP_MSG="[Workflow Coach — REVIEW] Writing findings before all agents have run. Dispatch review agents first."
                 fi

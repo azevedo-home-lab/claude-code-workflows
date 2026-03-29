@@ -97,11 +97,11 @@ Per-project state (gitignored):
 ### workflow-state.sh
 
 - **Not a hook** — sourced by other scripts.
-- **State file**: `.claude/state/workflow.json` — consolidated state (phase, active skill, decision record, review status, coaching state).
+- **State file**: `.claude/state/workflow.json` — consolidated state (phase, active skill, plan path, review status, coaching state).
 - **Phase functions**: `get_phase`, `set_phase <phase>` (validates: off/define/discuss/implement/review/complete)
 - **Message functions**: `get_message_shown`, `set_message_shown`
 - **Skill tracking**: `set_active_skill <name>`, `get_active_skill`
-- **Decision record**: `set_decision_record <path>`, `get_decision_record`
+- **Decision record**: `set_plan_path <path>`, `get_plan_path`
 - **Soft gates**: `check_soft_gate <target_phase>` — returns warning message or empty string
 - **Review status**: `reset_review_status`, `get_review_field <field>`, `set_review_field <field> <value>`
 - **Coaching state**: `increment_coaching_counter`, `reset_coaching_counter`, `add_coaching_fired <type>`, `has_coaching_fired <type>`
