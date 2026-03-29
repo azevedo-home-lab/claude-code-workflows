@@ -20,7 +20,7 @@ Inspired by [cc-sessions](https://github.com/GWUDCAP/cc-sessions) (DAIC workflow
 This project builds on top an opinionated workflow enforcement system with:
 - **Guardrails** - Enforced workflow phases with gated steps.
 - **Guidance Structure** to prompt and guide claude on each phase of development (coaching + skills)
-- **Accountability** through decision records, review pipelines and traceability (github issues and observations) 
+- **Accountability** through plans, specs, review pipelines and traceability (github issues and observations) 
 
 ## How
 
@@ -58,7 +58,7 @@ Orthogonal to phase, the autonomy level controls how independently Claude operat
 
 See the [Status Line guide](docs/guides/statusline-guide.md) for symbol display details.
 
-Each cycle produces a **decision record** tracking problem, approaches, rationale, findings, and outcomes.
+Each cycle produces a **plan** (problem, approaches, rationale) and a **spec** (requirements, tasks, acceptance criteria).
 
 ## Features
 
