@@ -27,100 +27,51 @@ How Workflow Manager, Superpowers, and claude-mem work together in Claude Code.
  enforcement     guidance         & recall
 ```
 
-## Two-Layer Enforcement
-
-| Layer | Mechanism | What it does | Can Claude bypass? |
-|-------|-----------|-------------|-------------------|
-| **Hooks** | PreToolUse deny | Blocks Write/Edit in DEFINE, DISCUSS, and COMPLETE phases | No |
-| **Superpowers** | Prompt instructions | Guides brainstorm → plan → execute → verify | Yes (but less likely with hooks backing it up) |
-
-The hooks enforce the **discuss-before-code boundary**. Superpowers handles the **quality of each phase**.
-
 ## Phase Model
 
-```
-         ┌──(/define)──> DEFINE ──(/discuss)──┐
-OFF ─────┤                                    ├──> DISCUSS ──(/implement)──> IMPLEMENT ──(/review)──> REVIEW ──(/complete)──> COMPLETE ──> OFF
-         └──(/discuss)────────────────────────┘
-
-Any /phase command can jump directly to any phase. Soft gates warn when skipping recommended steps.
-
-DEFINE:     Write/Edit BLOCKED (except specs/plans), Bash writes BLOCKED (except specs/plans)
-DISCUSS:    Write/Edit BLOCKED (except specs/plans), Bash writes BLOCKED (except specs/plans)
-IMPLEMENT:  Everything ALLOWED
-REVIEW:     Everything ALLOWED (fixes from review)
-COMPLETE:   Write/Edit BLOCKED (except docs), Bash writes BLOCKED (except docs)
-```
-
-### Detailed Workflow Diagram
+Six phases. Code edits are blocked until you discuss and approve a plan.
 
 ```mermaid
 flowchart LR
     subgraph OFF_BOX ["OFF"]
-        OFF["No enforcement\nAll edits allowed"]
+        direction TB
+        OFF_desc["No enforcement<br/>All edits allowed"]
     end
 
     subgraph DEFINE_BOX ["DEFINE — Diamond 1: Problem Space"]
         direction TB
-        D1["Problem Discovery\nwho, what pain, why now\n<b>skill: brainstorming</b>"]
-        D2["Diverge: Research Agents\ndomain research, context\nassumption challenging"]
-        D3["Problem Statement\nHow Might We framing"]
-        D4["Converge: Structure Agents\noutcomes, scope, metrics"]
-        D5["Decision Record\nProblem section"]
-        D1 --> D2 --> D3 --> D4 --> D5
+        DEF_steps["<b>Steps:</b><br/>1. Problem discovery (brainstorming)<br/>2. Diverge: 3 research agents<br/>3. Converge: outcomes + scope<br/>4. Write Problem section of plan"]
+        DEF_gate["<b>Soft gate out →</b> none<br/><b>Edits:</b> Blocked (specs/plans allowed)"]
     end
 
     subgraph DISCUSS_BOX ["DISCUSS — Diamond 2: Solution Space"]
         direction TB
-        P1["Diverge: Solution Research\nweb search, case studies\nprior art\n<b>skill: brainstorming</b>"]
-        P2["Converge: Codebase Analysis\narchitecture fit, risks\ntrade-offs\n<b>skill: brainstorming</b>"]
-        P3["Decision Record\napproaches, rationale\nchosen approach"]
-        P4["Write the Plan\nstep-by-step implementation\n<b>skill: writing-plans</b>"]
-        P1 --> P2 --> P3 --> P4
+        DIS_steps["<b>Steps:</b><br/>1. Solution research (brainstorming)<br/>2. Diverge: solution + prior art agents<br/>3. Converge: codebase + risk agents<br/>4. Write implementation plan"]
+        DIS_gate["<b>Hard gate out →</b> plan_written<br/><b>Edits:</b> Blocked (specs/plans allowed)"]
     end
 
     subgraph IMPLEMENT_BOX ["IMPLEMENT"]
         direction TB
-        I1["Execute the Plan\nstep-by-step with checkpoints\n<b>skill: executing-plans</b>"]
-        I2["Test-Driven Development\nwrite tests before code\n<b>skill: test-driven-development</b>"]
-        I3["Code + Tests\ncommit after each task\n<b>skill: subagent-driven-development</b>"]
-        I1 --> I2 --> I3
+        IMP_steps["<b>Steps:</b><br/>1. Read plan<br/>2. Execute tasks (TDD)<br/>3. Version bump<br/>4. Run test suite"]
+        IMP_gate["<b>Hard gate out →</b> plan_read,<br/>tests_passing*, all_tasks_complete<br/><b>Edits:</b> All allowed"]
     end
 
     subgraph REVIEW_BOX ["REVIEW"]
         direction TB
-        R1["Run Test Suite\n<b>skill: verification-before-completion</b>"]
-        R2["Detect Changed Files"]
-        subgraph R3 ["5 Parallel Review Agents"]
-            direction LR
-            R3A["Code Quality\nDRY, SOLID, YAGNI\ncomplexity, naming\n<b>skill: requesting-code-review</b>"]
-            R3B["Security\ninjection, credentials\nunsafe operations\n<b>skill: requesting-code-review</b>"]
-            R3C["Architecture\nplan compliance\npatterns, boundaries\n<b>skill: requesting-code-review</b>"]
-            R3D["Governance\nproduction readiness\n<b>skill: requesting-code-review</b>"]
-            R3E["Codebase Hygiene\ndead code, orphans\n<b>skill: requesting-code-review</b>"]
-        end
-        R4["Verification Agent\nfilter false positives"]
-        R5["Consolidated Report\nfindings by severity"]
-        R6["Fix Findings\napply fixes, re-review\nuntil clean or acknowledged\n<b>skill: systematic-debugging</b>"]
-        R1 --> R2 --> R3 --> R4 --> R5 --> R6
+        REV_steps["<b>Steps:</b><br/>1. Verify tests passed<br/>2. Detect changed files<br/>3. 5 parallel review agents<br/>4. Verification agent<br/>5. Present findings"]
+        REV_gate["<b>Hard gate out →</b> findings_acknowledged<br/><b>Edits:</b> All allowed (for fixes)"]
     end
 
     subgraph COMPLETE_BOX ["COMPLETE"]
         direction TB
-        C1["Plan Validation\nverify each deliverable\nwith behavioral evidence\n<b>skill: verification-before-completion</b>"]
-        C2["Outcome Validation\ncheck decision record outcomes\nand success metrics\n<b>skill: verification-before-completion</b>"]
-        C3["Smart Docs Detection\nrecommend doc updates"]
-        C4["Commit and Push\nstage, sign, push"]
-        C5["Branch Integration\nmerge PR, clean worktree\n<b>skill: finishing-a-development-branch</b>"]
-        C6["Tech Debt Audit\nreview accepted trade-offs"]
-        C7["Handover\nclaude-mem observation\ncommit hash, decisions\n<b>tool: claude-mem</b>"]
-        C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> C7
+        COM_steps["<b>Steps:</b><br/>1. Plan validation<br/>2. Outcome validation<br/>3. Present results<br/>4. Docs detection<br/>5. Commit & push<br/>6. Branch integration<br/>7. Tech debt audit<br/>8. Handover (claude-mem)<br/>9. Summary & close"]
+        COM_gate["<b>Hard gate out →</b> all 9 milestones<br/><b>Edits:</b> Blocked (docs allowed)"]
     end
 
     OFF_END(("OFF"))
 
-    OFF -- "/define" --> DEFINE_BOX
-    OFF -. "/discuss\n(skip define)" .-> DISCUSS_BOX
+    OFF_BOX -- "/define" --> DEFINE_BOX
+    OFF_BOX -. "/discuss<br/>(skip define)" .-> DISCUSS_BOX
     DEFINE_BOX -- "/discuss" --> DISCUSS_BOX
     DISCUSS_BOX -- "/implement" --> IMPLEMENT_BOX
     IMPLEMENT_BOX -- "/review" --> REVIEW_BOX
@@ -134,39 +85,22 @@ flowchart LR
     style REVIEW_BOX fill:#cffafe,stroke:#06b6d4,color:#155e75
     style COMPLETE_BOX fill:#fce7f3,stroke:#ec4899,color:#9d174d
     style OFF_END fill:#f5f5f5,stroke:#999,color:#333
-    style R3 fill:#e0f2fe,stroke:#0ea5e9,color:#0c4a6e
-
-    style OFF fill:#f5f5f5,stroke:#999,color:#333
-    style D1 fill:#dbeafe,stroke:#3b82f6,color:#1e40af
-    style D2 fill:#dbeafe,stroke:#3b82f6,color:#1e40af
-    style D3 fill:#dbeafe,stroke:#3b82f6,color:#1e40af
-    style D4 fill:#dbeafe,stroke:#3b82f6,color:#1e40af
-    style D5 fill:#dbeafe,stroke:#3b82f6,color:#1e40af
-    style P1 fill:#fef9c3,stroke:#eab308,color:#854d0e
-    style P2 fill:#fef9c3,stroke:#eab308,color:#854d0e
-    style P3 fill:#fef9c3,stroke:#eab308,color:#854d0e
-    style P4 fill:#fef9c3,stroke:#eab308,color:#854d0e
-    style I1 fill:#dcfce7,stroke:#22c55e,color:#166534
-    style I2 fill:#dcfce7,stroke:#22c55e,color:#166534
-    style I3 fill:#dcfce7,stroke:#22c55e,color:#166534
-    style R1 fill:#cffafe,stroke:#06b6d4,color:#155e75
-    style R2 fill:#cffafe,stroke:#06b6d4,color:#155e75
-    style R3A fill:#e0f2fe,stroke:#0ea5e9,color:#0c4a6e
-    style R3B fill:#e0f2fe,stroke:#0ea5e9,color:#0c4a6e
-    style R3C fill:#e0f2fe,stroke:#0ea5e9,color:#0c4a6e
-    style R3D fill:#e0f2fe,stroke:#0ea5e9,color:#0c4a6e
-    style R3E fill:#e0f2fe,stroke:#0ea5e9,color:#0c4a6e
-    style R4 fill:#cffafe,stroke:#06b6d4,color:#155e75
-    style R5 fill:#cffafe,stroke:#06b6d4,color:#155e75
-    style R6 fill:#cffafe,stroke:#06b6d4,color:#155e75
-    style C1 fill:#fce7f3,stroke:#ec4899,color:#9d174d
-    style C2 fill:#fce7f3,stroke:#ec4899,color:#9d174d
-    style C3 fill:#fce7f3,stroke:#ec4899,color:#9d174d
-    style C4 fill:#fce7f3,stroke:#ec4899,color:#9d174d
-    style C5 fill:#fce7f3,stroke:#ec4899,color:#9d174d
-    style C6 fill:#fce7f3,stroke:#ec4899,color:#9d174d
-    style C7 fill:#fce7f3,stroke:#ec4899,color:#9d174d
 ```
+
+*`tests_passing` is skipped if no test suite is detected.
+
+Any `/phase` command can jump directly to any phase. Soft gates warn when skipping recommended steps but never block.
+
+| Phase | Edits | Diamond | Focus |
+|-------|-------|---------|-------|
+| **OFF** | Allowed | — | No enforcement |
+| **DEFINE** | Blocked* | 1 — Problem Space | Frame problem, define outcomes |
+| **DISCUSS** | Blocked* | 2 — Solution Space | Research approaches, write plan |
+| **IMPLEMENT** | Allowed | — | Execute plan with TDD |
+| **REVIEW** | Allowed | — | Multi-agent code review |
+| **COMPLETE** | Blocked** | — | Validate outcomes, handover |
+
+\*specs/plans allowed · \*\*docs allowed
 
 ## Autonomy Levels
 
@@ -185,22 +119,152 @@ Phase and autonomy are two orthogonal dimensions of control:
 
 Set via `/autonomy off|ask|auto`. Only the user can change it.
 
+## Three-Layer Enforcement
+
+| Layer | Mechanism | Fires | Can bypass? |
+|-------|-----------|-------|-------------|
+| **1. Phase Entry Guidance** | Coaching message on first tool use | Once per phase entry | Yes |
+| **2. Professional Standards** | Contextual reinforcement | Once per phase, resets after 30 idle tool calls | Yes |
+| **3. Anti-Laziness Checks** | Red-flag detection | Every match | Yes |
+
+Hard gates (hooks) additionally block Write/Edit operations — see [Gates and Milestones](#gates-and-milestones).
+
+### Layer 1: Phase Entry Guidance
+
+Fires once when entering a phase and a tracked tool is used. Provides the phase objective, context, and done criteria.
+
+| Phase | Objective | Done When |
+|-------|-----------|-----------|
+| DEFINE | Frame problem, define measurable outcomes | Plan has a complete Problem section with measurable outcomes |
+| DISCUSS | Research solutions, select approach, write plan | Plan has Approaches + Decision sections, plan file created |
+| IMPLEMENT | Build solution following plan with TDD | All plan steps implemented, tests passing |
+| REVIEW | Multi-agent validation, present findings | Findings acknowledged by user |
+| COMPLETE | Verify outcomes, docs, handover | All 9 completion steps done |
+
+### Layer 2: Professional Standards Reinforcement
+
+Fires once per phase when contextual triggers match (e.g., agent returns in DEFINE, source edit in IMPLEMENT). Resets after 30 tool calls without firing.
+
+| Phase | Trigger | Example Message |
+|-------|---------|-----------------|
+| DEFINE | Agent return | "Challenge the first framing. Separate facts from interpretations." |
+| DISCUSS | Plan write | "Does every plan step trace to the chosen approach? Flag scope creep." |
+| IMPLEMENT | Source edit | "Does this follow the plan? Tests written first?" |
+| REVIEW | Agent return | "Don't downgrade findings. Verify before reporting." |
+| COMPLETE | Docs edit | "Does the handover make sense to a stranger? Is tech debt visible?" |
+
+### Layer 3: Anti-Laziness Checks
+
+Fires on every match. Detects patterns that indicate shortcuts or abandoned work:
+
+| Check | Trigger | Phases |
+|-------|---------|--------|
+| Short agent prompts | < 150 chars | All |
+| Generic commit messages | < 30 chars | All |
+| All findings downgraded | No Critical/Warning entries | REVIEW |
+| Minimal handover | < 200 chars | COMPLETE |
+| Missing project field | `save_observation` without project | All |
+| Skipping research | > 10 tool calls since last Agent | DEFINE, DISCUSS |
+| Options without recommendation | Agent returned, no recommendation | All |
+| No verify after code change | 5+ source edits without test run | IMPLEMENT, REVIEW |
+| Pipeline abandoned | Phase-specific incomplete work | DISCUSS, IMPLEMENT, REVIEW, COMPLETE |
+
+## Gates and Milestones
+
+### Hard Gates
+
+Hard gates block phase transitions when milestones are incomplete:
+
+| Transition | Required Milestones | Rationale |
+|-----------|---------------------|-----------|
+| DISCUSS → any | `plan_written` | The plan is the contract between DISCUSS and IMPLEMENT |
+| IMPLEMENT → any | `plan_read`, `tests_passing`\*, `all_tasks_complete` | Proves the plan was executed and tests pass |
+| Skip REVIEW → COMPLETE | `findings_acknowledged` | Review is mandatory before completion |
+| COMPLETE → OFF | All 9: `plan_validated`, `outcomes_validated`, `results_presented`, `docs_checked`, `committed`, `pushed`, `issues_reconciled`, `tech_debt_audited`, `handover_saved` | Each step produces artifacts for future sessions |
+
+\*`tests_passing` is skipped if no test suite is detected (no pytest.ini, jest.config.\*, Cargo.toml, go.mod, or test/ directories).
+
+### Soft Gates
+
+Soft gates warn but don't block:
+
+| Transition | Warning |
+|-----------|---------|
+| → IMPLEMENT | "No plan registered for this workflow cycle." |
+| → REVIEW | "No code changes detected." |
+| → COMPLETE | "Review hasn't been run." |
+
+### Milestones Per Phase
+
+| Phase | Milestones |
+|-------|-----------|
+| DEFINE | *(guidance only — no tracked milestones)* |
+| DISCUSS | `problem_confirmed`, `research_done`, `approach_selected`, `plan_written` |
+| IMPLEMENT | `plan_read`, `tests_passing`, `all_tasks_complete` |
+| REVIEW | `verification_complete`, `agents_dispatched`, `findings_presented`, `findings_acknowledged` |
+| COMPLETE | `plan_validated`, `outcomes_validated`, `results_presented`, `docs_checked`, `committed`, `pushed`, `issues_reconciled`, `tech_debt_audited`, `handover_saved` |
+
+## Write Blocking
+
+### Whitelist Tiers
+
+| Tier | Phases | Allowed Writes | Blocked |
+|------|--------|---------------|---------|
+| Restrictive | DEFINE, DISCUSS | `.claude/state/`, `docs/plans/`, `docs/specs/` | All source code, config, other docs |
+| Docs-allowed | COMPLETE | `.claude/state/`, `docs/` (all), root `*.md` | Source code, implementation files |
+| Open | IMPLEMENT, REVIEW | Everything | Nothing |
+
+### Guard-System Self-Protection
+
+In all phases, edits to `.claude/hooks/`, `plugin/scripts/`, and `plugin/commands/` are blocked. The workflow cannot rewrite its own rules. Users can override via `!backtick` commands.
+
+### Bash Write Guard
+
+The `bash-write-guard.sh` script blocks shell write operations (redirects, `sed -i`, `cp`, `mv`, `rm`, `tee`, `curl -o`, heredocs, `python`/`node`/`ruby`/`perl` file writes, pipe-to-shell, etc.) in restrictive phases.
+
+Exceptions: `git commit`, workflow state calls, `gh` read-only ops in DEFINE/DISCUSS, `gh` all ops in COMPLETE, `rm .claude/tmp/` cleanup in COMPLETE, and redirects to `/dev/null`.
+
+## Pipeline-Abandoned Detection
+
+Layer 3 coaching detects when work is abandoned mid-pipeline:
+
+| Phase | Pattern | Detection |
+|-------|---------|-----------|
+| DISCUSS | Approach selected, plan not written | `approach_selected=true && plan_written=false` |
+| IMPLEMENT | Tasks complete, tests not run | `all_tasks_complete=true && tests_passing=false` |
+| REVIEW | Agents dispatched, findings not presented | `agents_dispatched=true && findings_presented=false` |
+| COMPLETE | Pushed, but Steps 7-9 incomplete | `pushed=true && handover_saved=false` |
+
 ## Component Responsibilities
 
 ### Workflow Manager — Hard Gates
 
-- `workflow-gate.sh` — blocks Write/Edit/MultiEdit in DEFINE, DISCUSS, and COMPLETE phases (with different whitelist tiers)
+- `workflow-gate.sh` — blocks Write/Edit/MultiEdit in DEFINE, DISCUSS, and COMPLETE phases (with phase-specific whitelist tiers)
 - `bash-write-guard.sh` — blocks Bash write operations in DEFINE, DISCUSS, and COMPLETE phases
-- `workflow-state.sh` — state read/write utility (phase, autonomy, debug, coaching, review status)
+- `workflow-state.sh` — state read/write utility (phase, autonomy, debug, coaching, milestones)
+- `post-tool-navigator.sh` — three-layer coaching system (PostToolUse)
 - State: `.claude/state/workflow.json` (gitignored)
 - Debug mode (`/debug on`): makes all hook decisions visible to the user via stderr
 
-### Superpowers — Development Techniques
+### Superpowers — Development Skills
 
-- `/superpowers:brainstorming` — requirements refinement
-- `/superpowers:writing-plans` — plan generation
-- `/superpowers:executing-plans` — batch execution with checkpoints
-- Auto-activated skills: TDD, debugging, code review, verification, worktrees
+Manual commands (workflow-driven):
+
+| Command | When | Output |
+|---------|------|--------|
+| `/superpowers:brainstorming` | DEFINE, DISCUSS | Structured Q&A, refined requirements |
+| `/superpowers:writing-plans` | DISCUSS | Implementation plan with testing steps |
+| `/superpowers:executing-plans` | IMPLEMENT | Batch execution with review checkpoints |
+
+Auto-activated skills (context-driven):
+
+| Skill | Triggers When |
+|-------|--------------|
+| TDD | Creating new functions/modules |
+| Systematic Debugging | Error logs or stack traces |
+| Code Review | Refactoring existing code |
+| Verification | Before claiming completion |
+| Worktrees | Multiple features in parallel |
 
 Skills load on-demand when contextually relevant, not preloaded.
 
@@ -209,82 +273,31 @@ Skills load on-demand when contextually relevant, not preloaded.
 - Persists observations (decisions, discoveries, preferences) across sessions
 - `mem-search` for loading prior context at session start
 - `make-plan` / `do` for plan creation and execution
-
-## Workflow
-
-```
-DEFINE PHASE (Diamond 1 — Problem Space, edits blocked, optional):
-  /define → brainstorming with problem-discovery context
-  Diverge: domain research, context gathering, assumption challenging agents
-  Converge: outcome structurer, scope boundary checker agents
-  Output: decision record with Problem section
-
-TRANSITION: /discuss → proceed to solution design
-
-DISCUSS PHASE (Diamond 2 — Solution Space, edits blocked):
-  /discuss → brainstorming with solution-design context
-  Diverge: solution researchers, prior art scanner agents
-  Converge: codebase analyst, risk assessor agents
-  Output: decision record enriched with Approaches + Decision sections
-  /superpowers:writing-plans → implementation plan
-
-TRANSITION: /implement → unlock edits (soft gate: warns if no plan)
-
-IMPLEMENT PHASE (edits allowed):
-  /superpowers:executing-plans → step-by-step with checkpoints
-  /superpowers:test-driven-development → tests before code
-
-TRANSITION: /review → enter review (soft gate: warns if no changes)
-
-REVIEW PHASE (edits allowed for fixes):
-  5 parallel review agents: code quality, security, architecture, governance, codebase hygiene
-  Verification agent filters false positives
-  Findings persisted to decision record
-  Fix issues or acknowledge
-
-TRANSITION: /complete → enter completion (soft gate: warns if no review)
-
-COMPLETE PHASE (code blocked, docs allowed):
-  Plan validation → verify deliverables with behavioral evidence
-  Outcome validation → check decision record outcomes and metrics
-  Smart docs detection → recommend doc/README updates
-  Commit and push
-  Tech debt audit → review accepted trade-offs
-  Handover → claude-mem observation with commit hash and decisions
-
-TRANSITION: completes → back to OFF
-
-Note: Any /phase command can jump directly to any phase.
-Soft gates warn when skipping recommended steps but never block.
-```
+- Project-scoped via git remote name
 
 ## File Organization
 
 ```
 your-project/
 ├── .claude/
-│   ├── hooks/
-│   │   ├── user-set-phase.sh       # User-only phase transition (!backtick)
-│   │   ├── workflow-state.sh       # State utility
-│   │   ├── workflow-cmd.sh         # Shell-independent wrapper
-│   │   ├── workflow-gate.sh        # Write/Edit gate
-│   │   ├── bash-write-guard.sh     # Bash write gate
-│   │   └── post-tool-navigator.sh  # Phase guidance messages
-│   ├── commands/
-│   │   ├── define.md               # /define command
-│   │   ├── discuss.md              # /discuss command
-│   │   ├── implement.md            # /implement command
-│   │   ├── review.md               # /review command
-│   │   ├── complete.md             # /complete command
-│   │   ├── off.md                  # /off command
-│   │   └── autonomy.md             # /autonomy command
+│   ├── hooks/                         # Enforcement hooks
+│   │   ├── user-set-phase.sh         # User-only phase transition (!backtick)
+│   │   ├── workflow-state.sh         # State utility
+│   │   ├── workflow-cmd.sh           # Shell-independent wrapper
+│   │   ├── workflow-gate.sh          # Write/Edit gate
+│   │   ├── bash-write-guard.sh       # Bash write gate
+│   │   └── post-tool-navigator.sh    # 3-layer coaching system
+│   ├── commands/                      # Phase commands (/define, /discuss, etc.)
 │   ├── state/
-│   │   └── workflow.json           # Consolidated workflow state (gitignored)
-│   └── settings.json               # Hook configuration
+│   │   └── workflow.json              # Workflow state (gitignored)
+│   └── settings.json                  # Hook configuration
 ├── docs/
-│   └── plans/                      # Implementation plans
-├── CLAUDE.md                       # Project rules (committed)
-└── src/                            # Your code
+│   ├── guides/                        # Getting started, claude-mem, statusline
+│   ├── reference/                     # Architecture, hooks, commands
+│   ├── plans/                         # Implementation plans (per-feature)
+│   └── specs/                         # Design specs (per-feature)
+├── CLAUDE.md                          # Project rules (committed)
+└── src/                               # Your code
 ```
 
 ## Security
@@ -293,3 +306,4 @@ your-project/
 - `.claude/state/` in `.gitignore` (session state, not committed)
 - YubiKey FIDO2 signing optional (see CLAUDE.md template)
 - Never commit credentials; use vault-managed secrets
+- Guard-system self-protection prevents the workflow from rewriting its own rules
