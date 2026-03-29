@@ -64,19 +64,18 @@ Each cycle produces a **plan** (problem, approaches, rationale) and a **spec** (
 
 | Tool | What it does | Docs |
 |------|-------------|------|
-| Workflow Manager | Phase-based enforcement + coaching | [Hooks reference](docs/reference/hooks.md) |
-| Integrated Superpowers | Auto-activated development skills | [Integration guide](docs/guides/integration-guide.md) |
+| Workflow Manager | Phase-based enforcement + coaching | [Architecture](docs/reference/architecture.md) |
+| Integrated Superpowers | Auto-activated development skills | [Hooks reference](docs/reference/hooks.md) |
 | Integrated claude-mem | Persistent cross-session observations | [Memory guide](docs/guides/claude-mem-guide.md) |
 | Status Line | Informational status bar | [Setup guide](docs/guides/statusline-guide.md) |
 
-
 ## Docs
 
-- [Overview](docs/guides/overview.md) — what this is, why it exists, how it works
 - [Getting Started](docs/guides/getting-started.md) — installation and first workflow
-- [Architecture](docs/reference/architecture.md) — how the pieces fit together
-- [Command Reference](docs/quick-reference/commands.md) — all commands
-- [Professional Standards](docs/reference/professional-standards.md) — behavioral expectations per phase
+- [Architecture](docs/reference/architecture.md) — phases, enforcement, gates, milestones
+- [Hooks Reference](docs/reference/hooks.md) — hook implementation details
+- [Command Reference](docs/reference/commands.md) — all commands
+- [Professional Standards](plugin/docs/reference/professional-standards.md) — behavioral expectations per phase
 
 ## Installation
 
