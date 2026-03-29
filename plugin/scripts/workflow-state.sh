@@ -316,7 +316,7 @@ _check_phase_gates() {
     # COMPLETE exit gate: leaving complete → must have completed completion pipeline
     if [ "$current" = "complete" ] && [ "$new_phase" != "complete" ]; then
         local missing=""
-        missing=$(_check_milestones "completion" "plan_validated" "outcomes_validated" "results_presented" "docs_checked" "committed" "pushed" "tech_debt_audited" "handover_saved")
+        missing=$(_check_milestones "completion" "plan_validated" "outcomes_validated" "results_presented" "docs_checked" "committed" "pushed" "issues_reconciled" "tech_debt_audited" "handover_saved")
         if [ -n "$missing" ]; then
             echo "HARD GATE: Cannot leave COMPLETE — pipeline not finished." >&2
             echo "  Why: Each pipeline step produces artifacts needed by the next session." >&2
@@ -634,7 +634,7 @@ set_review_field() { _set_section_field "review" "$1" "$2"; }
 # ---------------------------------------------------------------------------
 # Completion status (public API)
 # ---------------------------------------------------------------------------
-reset_completion_status() { _reset_section "completion" "plan_validated" "outcomes_validated" "results_presented" "docs_checked" "committed" "pushed" "tech_debt_audited" "handover_saved"; }
+reset_completion_status() { _reset_section "completion" "plan_validated" "outcomes_validated" "results_presented" "docs_checked" "committed" "pushed" "issues_reconciled" "tech_debt_audited" "handover_saved"; }
 get_completion_field() { _get_section_field "completion" "$1"; }
 set_completion_field() { _set_section_field "completion" "$1" "$2"; }
 

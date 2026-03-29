@@ -368,6 +368,11 @@ Autonomy gating:
 
 Present summary: "GitHub reconciliation: [N issues closed for resolved observations, N open issues verified, N external closures detected]."
 
+Mark reconciliation milestone:
+```bash
+.claude/hooks/workflow-cmd.sh set_completion_field "issues_reconciled" "true"
+```
+
 #### Collect and Categorize Findings
 
 Gather all findings from these sources:
