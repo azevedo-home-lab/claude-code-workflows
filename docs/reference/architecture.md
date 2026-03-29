@@ -42,7 +42,12 @@ See [README — Workflow](../../README.md#workflow) for the phase summary table.
 
 | | DEFINE | DISCUSS | IMPLEMENT | REVIEW | COMPLETE |
 |---|--------|---------|-----------|--------|----------|
-| **Edits** | Blocked (specs/plans only) | Blocked (specs/plans only) | All allowed | All allowed | Blocked (docs only) |
+| **Write/Edit** | Blocked (specs/plans only) | Blocked (specs/plans only) | Allowed | Allowed | Blocked (docs only) |
+| **Bash writes** | Blocked (specs/plans only) | Blocked (specs/plans only) | Allowed | Allowed | Blocked (docs only) |
+| **Read/Grep/Glob/Agent** | Allowed | Allowed | Allowed | Allowed | Allowed |
+| **Git** | Allowed | Allowed | Allowed | Allowed | Allowed |
+| **gh CLI** | Read-only (view, list, comment) | Read-only (view, list, comment) | Allowed | Allowed | Allowed |
+| **Self-protection** | Enforcement files blocked | Enforcement files blocked | Enforcement files blocked | Enforcement files blocked | Enforcement files blocked |
 | **Soft gate in** | — | — | Warns if no plan | Warns if no changes | Warns if no review |
 | **Hard gate out** | *none* | `plan_written` | `plan_read`, `tests_passing`\*, `all_tasks_complete` | `findings_acknowledged` | All 9 milestones |
 | **Phase objective** | Frame the problem and define measurable outcomes | Research solutions, choose one, write implementation plan | Build the chosen solution following the plan with TDD | Independent multi-agent validation of implementation quality | Verify outcomes were met, update docs, hand over for future sessions |
@@ -51,7 +56,7 @@ See [README — Workflow](../../README.md#workflow) for the phase summary table.
 
 \*`tests_passing` is skipped if no test suite is detected. Any `/phase` command can jump to any phase. Soft gates warn but never block.
 
-Edits to `.claude/hooks/`, `plugin/scripts/`, and `plugin/commands/` are blocked in all phases (guard-system self-protection). Users can override via `!backtick`. The bash write guard (`bash-write-guard.sh`) pattern-matches ~95% of shell write operations.
+**Self-protection**: `.claude/hooks/`, `plugin/scripts/`, `plugin/commands/` are blocked in all phases — the workflow cannot rewrite its own rules. Users can override via `!backtick`. The bash write guard pattern-matches ~95% of shell write operations (redirects, `sed -i`, `cp`, `mv`, `rm`, `tee`, heredocs, scripted file writes, pipe-to-shell).
 
 ## Autonomy Levels
 
