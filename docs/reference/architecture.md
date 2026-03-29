@@ -8,7 +8,7 @@ How Workflow Manager, Superpowers, and claude-mem work together in Claude Code.
 graph TD
     User["User<br/>/define /discuss /implement ..."]
     CLI["Claude Code CLI"]
-    WFM["Workflow Manager<br/>(Hard gates)"]
+    WFM["Workflow Manager<br/>(Gates + Coaching)"]
     SP["Superpowers<br/>(Skills & Techniques)"]
     CM["claude-mem<br/>(Cross-session memory)"]
 
