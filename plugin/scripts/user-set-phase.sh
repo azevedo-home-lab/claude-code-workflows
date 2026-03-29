@@ -39,7 +39,7 @@ preserved_obs_id=""
 preserved_tracked=""
 preserved_issue_mappings="null"
 preserved_tests_passed=""
-  preserved_spec=""
+preserved_spec=""
 preserved_debug=""
 current_phase="off"
 
