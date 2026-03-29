@@ -28,17 +28,17 @@ See [README — Workflow](../../README.md#workflow) for the phase summary table.
 
 <table>
 <tr>
-<th>OFF</th>
-<th>→</th>
-<th>DEFINE</th>
-<th>→</th>
-<th>DISCUSS</th>
-<th>→</th>
-<th>IMPLEMENT</th>
-<th>→</th>
-<th>REVIEW</th>
-<th>→</th>
-<th>COMPLETE</th>
+<th style="width:18%">OFF</th>
+<th style="width:10%; text-align:center">→<br/><em>no gate</em></th>
+<th style="width:18%">DEFINE</th>
+<th style="width:10%; text-align:center">→<br/><em>soft</em></th>
+<th style="width:18%">DISCUSS</th>
+<th style="width:10%; text-align:center">→<br/><em>plan_written</em></th>
+<th style="width:18%">IMPLEMENT</th>
+<th style="width:10%; text-align:center">→<br/><em>plan_read,<br/>tests_passing*,<br/>all_tasks_complete</em></th>
+<th style="width:18%">REVIEW</th>
+<th style="width:10%; text-align:center">→<br/><em>findings_<br/>acknowledged</em></th>
+<th style="width:18%">COMPLETE</th>
 </tr>
 <tr>
 <td>No enforcement</td>
@@ -91,19 +91,6 @@ See [README — Workflow](../../README.md#workflow) for the phase summary table.
 <td>Present findings</td>
 <td></td>
 <td>Tech debt + handover</td>
-</tr>
-<tr>
-<td></td>
-<td></td>
-<td><em>Gate: none</em></td>
-<td></td>
-<td><em>Gate: plan_written</em></td>
-<td></td>
-<td><em>Gate: plan_read, tests_passing*, all_tasks_complete</em></td>
-<td></td>
-<td><em>Gate: findings_acknowledged</em></td>
-<td></td>
-<td><em>Gate: all 9 milestones</em></td>
 </tr>
 </table>
 
