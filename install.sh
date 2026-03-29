@@ -59,7 +59,7 @@ if [ -f "$OLD_HOOKS_DIR/workflow-gate.sh" ] && [ ! -L "$OLD_HOOKS_DIR/workflow-g
         ok "Removed empty .claude/hooks/ directory"
     fi
 
-    # Remove hook entries from settings.json
+    # Remove stale entries from settings.json
     if [ -f "$OLD_SETTINGS" ]; then
         python3 -c "
 import json, sys
@@ -68,8 +68,13 @@ settings_path = sys.argv[1]
 with open(settings_path) as f:
     settings = json.load(f)
 
-if 'hooks' in settings:
-    del settings['hooks']
+changed = False
+for key in ['hooks', 'statusLine']:
+    if key in settings:
+        del settings[key]
+        changed = True
+
+if changed:
     with open(settings_path, 'w') as f:
         json.dump(settings, f, indent=2)
         f.write('\n')
@@ -79,7 +84,7 @@ else:
 " "$OLD_SETTINGS"
         HOOK_RESULT=$?
         if [ $HOOK_RESULT -eq 0 ]; then
-            ok "Removed hook entries from .claude/settings.json"
+            ok "Removed stale entries (hooks, statusLine) from .claude/settings.json"
         fi
     fi
 
