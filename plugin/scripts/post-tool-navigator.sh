@@ -91,25 +91,25 @@ Done when: Plan has a complete Problem section with measurable outcomes, approve
             discuss)
                 MESSAGES="[Workflow Coach — DISCUSS]
 Objective: Research solution approaches, choose one with documented rationale, write implementation plan.
-You are in Diamond 2 (Solution Space). Diverge on possibilities, converge through codebase and risk analysis.
+You are in Diamond 2 (Solution Space). Diverge, converge, then WRITE THE PLAN. Do not stop after selecting an approach.
 Done when: Plan has Approaches Considered + Decision sections. Plan file created. User approved."
                 ;;
             implement)
                 MESSAGES="[Workflow Coach — IMPLEMENT]
 Objective: Build the chosen solution following the approved plan with TDD discipline.
-Follow the plan. Flag deviations. Write tests before code.
+Follow the plan. Flag deviations. Write tests before code. Do not stop after code — run tests and version bump.
 Done when: All plan steps implemented, tests passing, ready for review."
                 ;;
             review)
                 MESSAGES="[Workflow Coach — REVIEW]
 Objective: Independent multi-agent validation of implementation quality.
-Report findings accurately. Don't downgrade severity. Quantify impact and fix effort.
+Report findings accurately. Don't downgrade severity. You MUST present findings to the user — do not stop after dispatching agents.
 Done when: All agents dispatched, findings verified and persisted to spec, user has responded."
                 ;;
             complete)
                 MESSAGES="[Workflow Coach — COMPLETE]
 Objective: Verify outcomes were met, update documentation, hand over for future sessions.
-Be specific about failures. Recommend next steps. Audit tech debt. Write a useful handover.
+ALL 9 STEPS ARE MANDATORY. Do not stop after push. Tech debt audit, handover, and summary must complete before prompting /off.
 Done when: Validation results in plan, README checked, claude-mem observation saved, phase OFF."
                 ;;
             error)
@@ -533,6 +533,10 @@ if [ "$PHASE" = "complete" ]; then
                 STEP_MSG="[Workflow Coach — COMPLETE] Writing handover before tech debt audit. Run Step 7 first."
             fi
         fi
+        # Pipeline-abandoned: pushed but later steps not done
+        if [ "$(get_completion_field "pushed")" = "true" ] && [ "$(get_completion_field "handover_saved")" != "true" ]; then
+            STEP_MSG="[Workflow Coach — COMPLETE] Pipeline incomplete. You pushed but Steps 7-9 (tech debt, handover, summary) still need to run. Do not stop here."
+        fi
     fi
 elif [ "$PHASE" = "discuss" ]; then
     if [ "$(_section_exists "discuss")" = "true" ]; then
@@ -545,6 +549,10 @@ elif [ "$PHASE" = "discuss" ]; then
                 fi
             fi
         fi
+        # Pipeline-abandoned: approach selected but plan not written
+        if [ "$(get_discuss_field "approach_selected")" = "true" ] && [ "$(get_discuss_field "plan_written")" != "true" ]; then
+            STEP_MSG="[Workflow Coach — DISCUSS] Approach selected but plan not written. Write the implementation plan before transitioning."
+        fi
     fi
 elif [ "$PHASE" = "implement" ]; then
     if [ "$(_section_exists "implement")" = "true" ]; then
@@ -554,6 +562,10 @@ elif [ "$PHASE" = "implement" ]; then
                     STEP_MSG="[Workflow Coach — IMPLEMENT] Writing code before reading the plan. Read the plan first and mark plan_read milestone."
                 fi
             fi
+        fi
+        # Pipeline-abandoned: tasks complete but tests not run
+        if [ "$(get_implement_field "all_tasks_complete")" = "true" ] && [ "$(get_implement_field "tests_passing")" != "true" ]; then
+            STEP_MSG="[Workflow Coach — IMPLEMENT] All tasks complete but tests not run. Run the test suite and version bump before transitioning to review."
         fi
     fi
 elif [ "$PHASE" = "review" ]; then
@@ -569,6 +581,10 @@ elif [ "$PHASE" = "review" ]; then
             if [ "$(get_review_field "findings_presented")" != "true" ]; then
                 STEP_MSG="[Workflow Coach — REVIEW] Asking for acknowledgment before presenting findings. Present findings first."
             fi
+        fi
+        # Pipeline-abandoned: agents dispatched but findings not presented
+        if [ "$(get_review_field "agents_dispatched")" = "true" ] && [ "$(get_review_field "findings_presented")" != "true" ]; then
+            STEP_MSG="[Workflow Coach — REVIEW] Review agents returned but findings not presented. Consolidate and present findings to the user."
         fi
     fi
 fi
