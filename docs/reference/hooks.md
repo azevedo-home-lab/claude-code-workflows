@@ -59,8 +59,8 @@ Per-project state (gitignored):
 ### bash-write-guard.sh
 
 - **Matcher**: `Bash`
-- **Logic**: Read phase. If `implement` or `review` → allow all. If `define`, `discuss`, or `complete` → extract command, pattern-match for write operations, deny if found.
-- **Patterns caught**: `>`, `>>`, `sed -i`, `tee`, `cat << EOF`, `python -c` with file writes, `echo >`, `cp`, `mv`, `rm`, `curl -o`, pipe-to-shell, xargs execution, `gh` operations (phase-restricted).
+- **Logic**: Read phase. Block destructive git operations in ALL active phases (before phase-specific logic). Then: if `implement` or `review` → allow all. If `define`, `discuss`, or `complete` → extract command, pattern-match for write operations, deny if found.
+- **Patterns caught**: Destructive git (all phases: `reset --hard`, `push --force/-f`, `branch -D`, `checkout -- .`, `clean -f`, `rebase --abort`), `>`, `>>`, `sed -i`, `tee`, `cat << EOF`, `python -c` with file writes, `echo >`, `cp`, `mv`, `rm`, `curl -o`, pipe-to-shell, xargs execution, `gh` operations (phase-restricted).
 - **Exceptions**: `git commit` (standalone), safe git chains, workflow state calls, `workflow-cmd.sh` calls, `gh` read-only in DEFINE/DISCUSS, `gh` all ops in COMPLETE, `rm .claude/tmp/` in COMPLETE, redirects to `/dev/null`.
 - **Coverage**: ~95%. Claude isn't adversarial — it uses Bash as a fallback when Edit is blocked. Common patterns are sufficient.
 

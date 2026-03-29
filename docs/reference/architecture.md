@@ -45,6 +45,7 @@ See [README — Workflow](../../README.md#workflow) for the phase summary table.
 | **Write/Edit** | Blocked (specs/plans only) | Blocked (specs/plans only) | Allowed | Allowed | Blocked (docs only) |
 | **Bash writes** | Blocked (specs/plans only) | Blocked (specs/plans only) | Allowed | Allowed | Blocked (docs only) |
 | **Read/Grep/Glob/Agent** | Allowed | Allowed | Allowed | Allowed | Allowed |
+| **Destructive git** | Blocked (`reset --hard`, `push --force`, `branch -D`, `checkout --`, `clean -f`, `rebase --abort`) | Blocked | Blocked | Blocked | Blocked |
 | **Git / gh CLI** | `git` allowed; `gh` read-only (view, list, comment) | `git` allowed; `gh` read-only (view, list, comment) | Allowed | Allowed | Allowed (push requires confirmation) |
 | **Self-protection** | Enforcement files blocked | Enforcement files blocked | Enforcement files blocked | Enforcement files blocked | Enforcement files blocked |
 | **Soft gate in** | — | — | Warns if no plan | Warns if no changes | Warns if no review |
