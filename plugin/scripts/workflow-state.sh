@@ -59,7 +59,7 @@ _update_state() {
 
 # Restrictive tier: DEFINE and DISCUSS phases
 # NOTE: .claude/hooks/ deliberately excluded — enforcement mechanism must not be self-modifiable
-RESTRICTED_WRITE_WHITELIST='(\.claude/state/|docs/plans/)'
+RESTRICTED_WRITE_WHITELIST='(\.claude/state/|docs/plans/|docs/specs/)'
 
 # Docs-allowed tier: COMPLETE phase
 # NOTE: .claude/commands/ deliberately excluded — no phase may rewrite command files.
@@ -553,16 +553,16 @@ get_tests_passed_at() {
 
 check_soft_gate() {
     local target_phase="$1"
-    local project_root
-    project_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
     case "$target_phase" in
         implement)
-            # Check if any plan file exists
-            local plan_files
-            plan_files=$(find "$project_root/docs/plans" -maxdepth 1 -name '*.md' 2>/dev/null | head -1)
-            if [ -z "$plan_files" ]; then
-                echo "No plan exists. The workflow recommends /discuss first. Proceed without a plan?"
+            # Check if a plan was registered for the current workflow cycle
+            local plan_path=""
+            if [ -f "$STATE_FILE" ]; then
+                plan_path=$(jq -r '.plan_path // ""' "$STATE_FILE" 2>/dev/null) || plan_path=""
+            fi
+            if [ -z "$plan_path" ]; then
+                echo "No plan registered for this workflow cycle. The workflow recommends /discuss first. Proceed without a plan?"
                 return
             fi
             ;;

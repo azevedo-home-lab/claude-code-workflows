@@ -7,6 +7,8 @@ disable-model-invocation: true
 
 If the output shows `SOFT_GATE_WARNING`, ask the user: "Review hasn't been run. Proceed anyway?" If no, stop. If yes, run the phase transition manually.
 
+**Phase Transitions:** Slash commands (e.g., `/implement`) trigger phase transitions via `user-set-phase.sh` — this runs automatically via `!backtick`, never call it from Bash tool. In auto autonomy mode, the agent transitions forward using `agent_set_phase` via `workflow-cmd.sh`. All milestone and state commands go through `workflow-cmd.sh` (e.g., `set_completion_field`). See the case statement in `workflow-cmd.sh` for the full list of available commands.
+
 Before proceeding:
 1. Read `plugin/docs/reference/professional-standards.md` — apply the Universal Standards and COMPLETE Phase Standards throughout this phase.
 

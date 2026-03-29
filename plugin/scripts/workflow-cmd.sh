@@ -48,6 +48,17 @@ case "$1" in
         ;;
     *)
         echo "ERROR: Unknown command: $1" >&2
+        echo "" >&2
+        echo "Phase transitions:" >&2
+        echo "  User (slash commands): /define /discuss /implement /review /complete /off" >&2
+        echo "    These trigger user-set-phase.sh via !backtick. Never call it from Bash tool." >&2
+        echo "  Agent (auto mode only): agent_set_phase <phase>" >&2
+        echo "    Forward-only. Requires autonomy=auto. Cannot set phase to off." >&2
+        echo "" >&2
+        echo "Common commands: get_phase, agent_set_phase, get_plan_path, set_plan_path," >&2
+        echo "  set_discuss_field, set_implement_field, set_review_field, set_completion_field," >&2
+        echo "  set_active_skill, check_soft_gate, get_debug, set_debug" >&2
+        echo "See the case statement in workflow-cmd.sh for the full allowlist." >&2
         exit 1
         ;;
 esac

@@ -184,89 +184,89 @@ if echo "$COMMAND" | grep -qE "$STATE_FILE_PATTERN"; then
 fi
 
 # ---------------------------------------------------------------------------
-  # Guard-system self-protection: block writes to enforcement files in ALL active phases.
-  # Fires before the implement|review early-exit — those phases do not bypass this.
-  # Claude cannot modify the files that enforce the workflow on Claude.
-  # This includes: hook scripts, workflow scripts, and command files.
-  # The user can always use !backtick to make legitimate changes to these files.
-  # ---------------------------------------------------------------------------
+# Guard-system self-protection: block writes to enforcement files in ALL active phases.
+# Fires before the implement|review early-exit — those phases do not bypass this.
+# Claude cannot modify the files that enforce the workflow on Claude.
+# This includes: hook scripts, workflow scripts, and command files.
+# The user can always use !backtick to make legitimate changes to these files.
+# ---------------------------------------------------------------------------
 
-  # Block execution of user-set-phase.sh — !backtick only, never a Bash tool call.
-  # Matches execution contexts (direct call, source, bash -c) but not read-only ops (cat, git diff).
-  if echo "$COMMAND" | grep -qE '(^|[;&|[:space:]])(\\./|source[[:space:]]|bash[[:space:]]|sh[[:space:]]|/)[^[:space:]]*user-set-phase\.sh'; then
-      if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: user-set-phase.sh called via Bash tool" >&2; fi
-      emit_deny "BLOCKED: user-set-phase.sh is the user-only phase transition path. It cannot be called via Bash tool — only from !backtick command files."
-      exit 0
-  fi
+# Block execution of user-set-phase.sh — !backtick only, never a Bash tool call.
+# Matches execution contexts (direct call, source, bash -c) but not read-only ops (cat, git diff).
+if echo "$COMMAND" | grep -qE '(^|[;&|[:space:]])(\\./|source[[:space:]]|bash[[:space:]]|sh[[:space:]]|/)[^[:space:]]*user-set-phase\.sh'; then
+    if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: user-set-phase.sh called via Bash tool" >&2; fi
+    emit_deny "BLOCKED: user-set-phase.sh is the user-only phase transition path. It cannot be called via Bash tool — only from !backtick command files."
+    exit 0
+fi
 
-  # ---------------------------------------------------------------------------
-  # Phase-gate: ask/auto enforcement by phase
-  # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Phase-gate: ask/auto enforcement by phase
+# ---------------------------------------------------------------------------
 
-  # Allow everything in implement and review phases
-  case "$PHASE" in
-      implement|review) if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: phase=$PHASE allows all bash" >&2; fi; exit 0 ;;
-  esac
+# Allow everything in implement and review phases
+case "$PHASE" in
+    implement|review) if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: phase=$PHASE allows all bash" >&2; fi; exit 0 ;;
+esac
 
-  # Select whitelist based on phase
-  case "$PHASE" in
-      define|discuss|error) WHITELIST="$RESTRICTED_WRITE_WHITELIST" ;;
-      complete)             WHITELIST="$COMPLETE_WRITE_WHITELIST" ;;
-      *)                    exit 0 ;;
-  esac
+# Select whitelist based on phase
+case "$PHASE" in
+    define|discuss|error) WHITELIST="$RESTRICTED_WRITE_WHITELIST" ;;
+    complete)             WHITELIST="$COMPLETE_WRITE_WHITELIST" ;;
+    *)                    exit 0 ;;
+esac
 
-  # gh command handling — split by phase:
-  #   DEFINE/DISCUSS: named read-only gh ops only (view, list) — no gh api (allows POST/PATCH)
-  #   COMPLETE:       all gh ops allowed (need to create issues, PRs for handover)
-  # Guard: no shell chaining, no pipe to file writers (applies to both tiers).
-  _gh_safe_chain() {
-      # Strip harmless "|| true" / "|| echo ..." suffixes before chain check
-      local _gh_stripped
-      _gh_stripped=$(echo "$COMMAND" | sed -E 's/\|\|[[:space:]]*(true|echo[[:space:]][^;&|]*)$//')
-      ! echo "$_gh_stripped" | grep -qE '(&&|\|\||;)' && \
-      ! echo "$COMMAND" | grep -qE "$PIPE_SHELL" && \
-      ! echo "$COMMAND" | grep -qE "$PROC_SUB" && \
-      ! echo "$COMMAND" | grep -qE "$XARGS_EXEC" && \
-      ! echo "$COMMAND" | grep -qE '\|[[:space:]]*(tee|sed|dd|cp|mv|install|python[3]?|node|ruby|perl|awk)\b'
-  }
+# gh command handling — split by phase:
+#   DEFINE/DISCUSS: named read-only gh ops only (view, list) — no gh api (allows POST/PATCH)
+#   COMPLETE:       all gh ops allowed (need to create issues, PRs for handover)
+# Guard: no shell chaining, no pipe to file writers (applies to both tiers).
+_gh_safe_chain() {
+    # Strip harmless "|| true" / "|| echo ..." suffixes before chain check
+    local _gh_stripped
+    _gh_stripped=$(echo "$COMMAND" | sed -E 's/\|\|[[:space:]]*(true|echo[[:space:]][^;&|]*)$//')
+    ! echo "$_gh_stripped" | grep -qE '(&&|\|\||;)' && \
+    ! echo "$COMMAND" | grep -qE "$PIPE_SHELL" && \
+    ! echo "$COMMAND" | grep -qE "$PROC_SUB" && \
+    ! echo "$COMMAND" | grep -qE "$XARGS_EXEC" && \
+    ! echo "$COMMAND" | grep -qE '\|[[:space:]]*(tee|sed|dd|cp|mv|install|python[3]?|node|ruby|perl|awk)\b'
+}
 
-  if echo "$COMMAND" | grep -qE '^[[:space:]]*(gh)[[:space:]]'; then
-      if [ "$PHASE" = "complete" ] && _gh_safe_chain; then
-          # COMPLETE: all gh ops allowed (issue create, pr create, etc.)
-          if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: gh command in COMPLETE" >&2; fi
-          exit 0
-      elif [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ] || [ "$PHASE" = "error" ]; then
-          # DEFINE/DISCUSS: read-only gh ops + issue comment (for plan→issue linking)
-          if echo "$COMMAND" | grep -qE '^[[:space:]]*gh[[:space:]]+(repo[[:space:]]+view|issue[[:space:]]+view|issue[[:space:]]+list|issue[[:space:]]+comment|pr[[:space:]]+view|pr[[:space:]]+list|release[[:space:]]+(view|list))' && \
-             _gh_safe_chain; then
-              if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: gh read-only in $PHASE" >&2; fi
-              exit 0
-          fi
-      fi
-  fi
-
-  # COMPLETE phase: allow rm for .claude/tmp/ cleanup
-    if [ "$PHASE" = "complete" ]; then
-        _rm_stripped=$(echo "$COMMAND" | sed -E 's/\|\|[[:space:]]*(true|echo[[:space:]][^;&|]*)$//')
-        if echo "$_rm_stripped" | grep -qE '^[[:space:]]*rm[[:space:]]' && \
-           echo "$_rm_stripped" | grep -qE '\.claude/tmp/' && \
-           ! echo "$_rm_stripped" | grep -qE '\.\.' && \
-           ! echo "$_rm_stripped" | grep -qE '(&&|\|\||;|\|)'; then
-            if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: rm .claude/tmp/ in COMPLETE" >&2; fi
+if echo "$COMMAND" | grep -qE '^[[:space:]]*(gh)[[:space:]]'; then
+    if [ "$PHASE" = "complete" ] && _gh_safe_chain; then
+        # COMPLETE: all gh ops allowed (issue create, pr create, etc.)
+        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: gh command in COMPLETE" >&2; fi
+        exit 0
+    elif [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ] || [ "$PHASE" = "error" ]; then
+        # DEFINE/DISCUSS: read-only gh ops + issue comment (for plan→issue linking)
+        if echo "$COMMAND" | grep -qE '^[[:space:]]*gh[[:space:]]+(repo[[:space:]]+view|issue[[:space:]]+view|issue[[:space:]]+list|issue[[:space:]]+comment|pr[[:space:]]+view|pr[[:space:]]+list|release[[:space:]]+(view|list))' && \
+           _gh_safe_chain; then
+            if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: gh read-only in $PHASE" >&2; fi
             exit 0
         fi
     fi
+fi
 
-  # Guard-system path check — runs AFTER gh/rm early exits so that gh commands
-  # in COMPLETE phase are not blocked by path mentions in --body text.
-  GUARD_SYSTEM_PATTERN='(\.claude/hooks/|plugin/scripts/|plugin/commands/)'
-  if echo "$COMMAND" | grep -qE "$GUARD_SYSTEM_PATTERN"; then
-      if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ] || [ "$NODE_WRITE" = "true" ] || [ "$RUBY_WRITE" = "true" ] || [ "$PERL_WRITE" = "true" ]; then
-          if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: write to enforcement file blocked" >&2; fi
-          emit_deny "BLOCKED: Writes to enforcement files (.claude/hooks/, plugin/scripts/, plugin/commands/) are not allowed in any phase. These files define the workflow rules. Use !backtick if you need to make legitimate changes."
-          exit 0
-      fi
-  fi
+# COMPLETE phase: allow rm for .claude/tmp/ cleanup
+if [ "$PHASE" = "complete" ]; then
+    _rm_stripped=$(echo "$COMMAND" | sed -E 's/\|\|[[:space:]]*(true|echo[[:space:]][^;&|]*)$//')
+    if echo "$_rm_stripped" | grep -qE '^[[:space:]]*rm[[:space:]]' && \
+       echo "$_rm_stripped" | grep -qE '\.claude/tmp/' && \
+       ! echo "$_rm_stripped" | grep -qE '\.\.' && \
+       ! echo "$_rm_stripped" | grep -qE '(&&|\|\||;|\|)'; then
+        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: rm .claude/tmp/ in COMPLETE" >&2; fi
+        exit 0
+    fi
+fi
+
+# Guard-system path check — runs AFTER gh/rm early exits so that gh commands
+# in COMPLETE phase are not blocked by path mentions in --body text.
+GUARD_SYSTEM_PATTERN='(\.claude/hooks/|plugin/scripts/|plugin/commands/)'
+if echo "$COMMAND" | grep -qE "$GUARD_SYSTEM_PATTERN"; then
+    if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ] || [ "$NODE_WRITE" = "true" ] || [ "$RUBY_WRITE" = "true" ] || [ "$PERL_WRITE" = "true" ]; then
+        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: write to enforcement file blocked" >&2; fi
+        emit_deny "BLOCKED: Writes to enforcement files (.claude/hooks/, plugin/scripts/, plugin/commands/) are not allowed in any phase. These files define the workflow rules. Use !backtick if you need to make legitimate changes."
+        exit 0
+    fi
+fi
 
 if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ] || [ "$NODE_WRITE" = "true" ] || [ "$RUBY_WRITE" = "true" ] || [ "$PERL_WRITE" = "true" ]; then
     # Extract the write target path from the command for whitelist checking

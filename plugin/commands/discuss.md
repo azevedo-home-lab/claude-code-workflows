@@ -7,6 +7,8 @@ disable-model-invocation: true
 
 Present the output to the user.
 
+**Phase Transitions:** Slash commands (e.g., `/implement`) trigger phase transitions via `user-set-phase.sh` — this runs automatically via `!backtick`, never call it from Bash tool. In auto autonomy mode, the agent transitions forward using `agent_set_phase` via `workflow-cmd.sh`. All milestone and state commands go through `workflow-cmd.sh` (e.g., `set_implement_field`, `set_discuss_field`). See the case statement in `workflow-cmd.sh` for the full list of available commands.
+
 **You are now in DISCUSS phase (Diamond 2 — Solution Space).** Code edits are blocked — design the solution and write the plan.
 
 **Git in DEFINE/DISCUSS:** Spec and plan files (`docs/plans/`, `docs/specs/`) can be committed. Use **single git commands** — run `git add` and `git commit` as separate commands, not chained with `&&`. Chained commands with heredoc-style commit messages may be blocked by the write guard.

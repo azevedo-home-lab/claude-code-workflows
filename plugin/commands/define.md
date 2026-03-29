@@ -7,6 +7,8 @@ disable-model-invocation: true
 
 Present the output to the user.
 
+**Phase Transitions:** Slash commands (e.g., `/implement`) trigger phase transitions via `user-set-phase.sh` — this runs automatically via `!backtick`, never call it from Bash tool. In auto autonomy mode, the agent transitions forward using `agent_set_phase` via `workflow-cmd.sh`. All milestone and state commands go through `workflow-cmd.sh` (e.g., `set_implement_field`, `set_discuss_field`). See the case statement in `workflow-cmd.sh` for the full list of available commands.
+
 **You are in DEFINE phase.** Code edits are blocked — define the problem and outcomes first.
 
 **You are now in DEFINE phase (Diamond 1 — Problem Space).**
