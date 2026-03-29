@@ -48,6 +48,8 @@ Commands: `/define` `/discuss` `/implement` `/review` `/complete` `/off` `/propo
 
 Any command can jump to any phase. `/off` closes the workflow. Soft gates warn when skipping steps.
 
+See [Architecture — Phase Model](docs/reference/architecture.md#phase-model) for the full breakdown: steps, agents, gates, milestones, and coaching per phase.
+
 ### Autonomy Levels
 
 Orthogonal to phase, the autonomy level controls how independently Claude operates. Set with `/autonomy off|ask|auto` (default: ask):
