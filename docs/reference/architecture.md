@@ -45,8 +45,7 @@ See [README — Workflow](../../README.md#workflow) for the phase summary table.
 | **Write/Edit** | Blocked (specs/plans only) | Blocked (specs/plans only) | Allowed | Allowed | Blocked (docs only) |
 | **Bash writes** | Blocked (specs/plans only) | Blocked (specs/plans only) | Allowed | Allowed | Blocked (docs only) |
 | **Read/Grep/Glob/Agent** | Allowed | Allowed | Allowed | Allowed | Allowed |
-| **Destructive git** | Blocked (`reset --hard`, `push --force`, `branch -D`, `checkout --`, `clean -f`, `rebase --abort`) | Blocked | Blocked | Blocked | Blocked |
-| **Git / gh CLI** | `git` allowed; `gh` read-only (view, list, comment) | `git` allowed; `gh` read-only (view, list, comment) | Allowed | Allowed | Allowed (push requires confirmation) |
+| **Git / gh CLI** | `git` allowed (destructive\*\* blocked); `gh` read-only | `git` allowed (destructive\*\* blocked); `gh` read-only | Allowed (destructive\*\* blocked) | Allowed (destructive\*\* blocked) | Allowed (destructive\*\* blocked; push requires confirmation) |
 | **Self-protection** | Enforcement files blocked | Enforcement files blocked | Enforcement files blocked | Enforcement files blocked | Enforcement files blocked |
 | **Soft gate in** | — | — | Warns if no plan | Warns if no changes | Warns if no review |
 | **Hard gate out** | *none* | `plan_written` | `plan_read`, `tests_passing`\*, `all_tasks_complete` | `findings_acknowledged` | All 9 milestones |
@@ -54,7 +53,7 @@ See [README — Workflow](../../README.md#workflow) for the phase summary table.
 | **Contextual nudges** | Agent return → challenge framing, separate facts from interpretations; Plan write → challenge vague outcomes, require verifiable criteria | Agent return → require stated downsides, unsourced claims are opinions; Plan write → flag scope creep, trace steps to chosen approach | Source edit → "tests first? does this follow the plan?"; Test run → "diagnose root cause, don't patch tests" | Agent return → "don't downgrade findings, verify before reporting"; Findings write → "quantify cost of not fixing" | Agent return → "be specific about failures, quantify fix effort"; Docs edit → "does handover make sense to a stranger?"; Test run → "be specific about validation failures" |
 | **Anti-laziness checks** | Short agent prompts (<150 chars), skipped research (10+ calls without agent), options without recommendation, generic commits (<30 chars) | Short agent prompts, skipped research, options without recommendation, approach selected but plan not written, generic commits | No verify after 5+ source edits, tasks complete but tests not run, generic commits, stalled auto-transition | All findings downgraded to suggestions, agents dispatched but findings not presented, generic commits | Minimal handover (<200 chars), pushed but steps 7-9 incomplete, missing project field on save_observation, stalled auto-transition, generic commits |
 
-\*`tests_passing` is skipped if no test suite is detected. Any `/phase` command can jump to any phase. Soft gates warn but never block.
+\*`tests_passing` is skipped if no test suite is detected. \*\*Destructive git: `reset --hard`, `push --force/-f`, `branch -D`, `checkout -- .`, `clean -f`, `rebase --abort` — blocked in all active phases, override via `!backtick`. Any `/phase` command can jump to any phase. Soft gates warn but never block.
 
 **Self-protection**: `.claude/hooks/`, `plugin/scripts/`, `plugin/commands/` are blocked in all phases — the workflow cannot rewrite its own rules. Users can override via `!backtick`. The bash write guard pattern-matches ~95% of shell write operations (redirects, `sed -i`, `cp`, `mv`, `rm`, `tee`, heredocs, scripted file writes, pipe-to-shell).
 
