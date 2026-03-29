@@ -27,28 +27,43 @@ graph TD
 See [README — Workflow](../../README.md#workflow) for the phase summary table.
 
 ```mermaid
-graph LR
-    OFF["OFF"] -- "/define" --> DEFINE
-    OFF -. "/discuss" .-> DISCUSS
-    DEFINE -- "/discuss" --> DISCUSS
-    DISCUSS -- "/implement" --> IMPLEMENT
-    IMPLEMENT -- "/review" --> REVIEW
-    REVIEW -- "/complete" --> COMPLETE
-    COMPLETE --> OFF
+graph TB
+    OFF["OFF"] --> DEFINE["DEFINE"] --> DISCUSS["DISCUSS"] --> IMPLEMENT["IMPLEMENT"] --> REVIEW["REVIEW"] --> COMPLETE["COMPLETE"]
+
+    OFF --- off1["No enforcement"]
+
+    DEFINE --- def1["Brainstorming"]
+    def1 --- def2["3 research agents"]
+    def2 --- def3["Converge on problem"]
+    def3 --- def4["Write Problem section"]
+    def4 --- def5["Gate: none"]
+
+    DISCUSS --- dis1["Solution research"]
+    dis1 --- dis2["3 research agents"]
+    dis2 --- dis3["2 converge agents"]
+    dis3 --- dis4["Write plan"]
+    dis4 --- dis5["Gate: plan_written"]
+
+    IMPLEMENT --- imp1["Read plan"]
+    imp1 --- imp2["TDD: tests first"]
+    imp2 --- imp3["Execute tasks"]
+    imp3 --- imp4["Run test suite"]
+    imp4 --- imp5["Gate: plan_read, tests_passing, all_tasks_complete"]
+
+    REVIEW --- rev1["Verify tests passed"]
+    rev1 --- rev2["5 parallel agents"]
+    rev2 --- rev3["Verification agent"]
+    rev3 --- rev4["Present findings"]
+    rev4 --- rev5["Gate: findings_acknowledged"]
+
+    COMPLETE --- com1["Validate plan/outcomes"]
+    com1 --- com2["Docs check"]
+    com2 --- com3["Commit & push"]
+    com3 --- com4["Tech debt + handover"]
+    com4 --- com5["Gate: all 9 milestones"]
 ```
 
-Any `/phase` command can jump directly to any phase. Soft gates warn when skipping recommended steps but never block.
-
-| Phase | Steps | Exit Gate |
-|-------|-------|-----------|
-| **OFF** | No enforcement | — |
-| **DEFINE** | Brainstorming → 3 research agents → Converge on problem → Write Problem section | None (soft) |
-| **DISCUSS** | Solution research → 3 research agents → 2 converge agents → Write plan | `plan_written` |
-| **IMPLEMENT** | Read plan → TDD (tests first) → Execute tasks → Run test suite | `plan_read`, `tests_passing`\*, `all_tasks_complete` |
-| **REVIEW** | Verify tests passed → 5 parallel agents → Verification agent → Present findings | `findings_acknowledged` |
-| **COMPLETE** | Validate plan/outcomes → Docs check → Commit & push → Tech debt + handover | All 9 milestones |
-
-\*`tests_passing` is skipped if no test suite is detected.
+Any `/phase` command can jump directly to any phase. Soft gates warn when skipping recommended steps but never block. `tests_passing` is skipped if no test suite is detected.
 
 ## Autonomy Levels
 
