@@ -44,11 +44,6 @@ read_state() {
   jq -r ".$field // empty" "$STATE_FILE"
 }
 
-update_state() {
-  local updates="$1"
-  jq "$updates" "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
-}
-
 # --- Lock management ---
 
 acquire_lock() {
@@ -99,7 +94,7 @@ check_threshold() {
 }
 
 reset_counter() {
-  update_state '.completion_count = 0'
+  jq '.completion_count = 0' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
 }
 
 # --- CLI dispatch ---
@@ -121,9 +116,6 @@ case "${1:-}" in
   --read)
     read_state "${2:-version}"
     ;;
-  --update)
-    update_state "${2:-.}"
-    ;;
   --lock)
     acquire_lock
     ;;
@@ -137,7 +129,7 @@ case "${1:-}" in
     check_threshold
     ;;
   *)
-    echo "Usage: evolve.sh --trigger=complete | --init | --read <field> | --update <jq-expr> | --lock | --unlock | --reset-counter | --check-threshold" >&2
+    echo "Usage: evolve.sh --trigger=complete | --init | --read <field> | --lock | --unlock | --reset-counter | --check-threshold" >&2
     exit 1
     ;;
 esac
