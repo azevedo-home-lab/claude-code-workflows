@@ -6,20 +6,14 @@ How Workflow Manager, Superpowers, and claude-mem work together in Claude Code.
 
 ```mermaid
 graph TD
-    User["User<br/>/define /discuss /implement ..."]
-    CLI["Claude Code CLI"]
-    WFM["Workflow Manager<br/>(Gates + Coaching)"]
-    SP["Superpowers<br/>(Skills & Techniques)"]
-    CM["claude-mem<br/>(Cross-session memory)"]
+    User["User<br/>/define /discuss /implement ..."] --> CLI["Claude Code CLI"]
+    CLI -- "PreToolUse / PostToolUse hooks" --> WFM["Workflow Manager"]
+    CLI -- "Skills invoked by Claude" --> SP["Superpowers"]
+    CLI -- "MCP tools" --> CM["claude-mem"]
 
-    User --> CLI
-    CLI --> WFM
-    CLI --> SP
-    CLI --> CM
-
-    WFM -.- |"Deterministic<br/>enforcement"| WFM
-    SP -.- |"Behavioral<br/>guidance"| SP
-    CM -.- |"Persistence<br/>& recall"| CM
+    WFM -- "gates: block writes<br/>coaching: nudges + anti-laziness" --> CLI
+    SP -- "brainstorming, TDD,<br/>executing-plans, verification" --> CLI
+    CM -- "search prior context,<br/>save observations + handover" --> CLI
 ```
 
 ## Phase Model
