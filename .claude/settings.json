@@ -46,7 +46,5 @@
       }
     ]
   },
-  "enabledPlugins": {
-    "workflow-manager@azevedo-home-lab": true
-  }
+  "enabledPlugins": {}
 }
