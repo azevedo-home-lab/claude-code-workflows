@@ -59,7 +59,7 @@ _update_state() {
 
 # Restrictive tier: DEFINE and DISCUSS phases
 # NOTE: .claude/hooks/ deliberately excluded — enforcement mechanism must not be self-modifiable
-RESTRICTED_WRITE_WHITELIST='(\.claude/state/|docs/plans/|docs/specs/)'
+RESTRICTED_WRITE_WHITELIST='(\.claude/state/|docs/plans/|docs/specs/|/tmp/|\.claude/tmp/)'
 
 # Docs-allowed tier: COMPLETE phase
 # NOTE: .claude/commands/ deliberately excluded — no phase may rewrite command files.
