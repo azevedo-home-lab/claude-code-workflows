@@ -84,10 +84,27 @@ fi
 DEBUG_MODE=$(get_debug)
 source "$SCRIPT_DIR/debug-log.sh" "post-tool-navigator"
 
+# Collect debug trace for systemMessage injection (show mode only).
+# _trace() logs via _show (file + stderr) AND collects into DEBUG_TRACE
+# so the trace can be prepended to systemMessage — the only user-visible
+# channel for PostToolUse hooks in Claude Code.
+DEBUG_TRACE=""
+_trace() {
+    _show "$1"
+    if [ "$_WFM_DEBUG_LEVEL" = "show" ]; then
+        if [ -n "$DEBUG_TRACE" ]; then
+            DEBUG_TRACE="$DEBUG_TRACE
+$1"
+        else
+            DEBUG_TRACE="$1"
+        fi
+    fi
+}
+
 # Compute uppercased phase once for all layers
 PHASE_UPPER=$(echo "$PHASE" | tr '[:lower:]' '[:upper:]')
 
-_show "[WFM coach] Tool: $TOOL_NAME (phase=$PHASE_UPPER)"
+_trace "[WFM coach] Tool: $TOOL_NAME (phase=$PHASE_UPPER)"
 
 # Collect messages from all layers — may combine multiple
 MESSAGES=""
@@ -141,12 +158,12 @@ $AUTO_MSG"
             set_message_shown
         fi
 
-        _show "[WFM coach] L1: phase entry — FIRED"
+        _trace "[WFM coach] L1: phase entry — FIRED"
     else
-        _show "[WFM coach] L1: already shown, skipped"
+        _trace "[WFM coach] L1: already shown, skipped"
     fi
 else
-    _show "[WFM coach] L1: already shown, skipped"
+    _trace "[WFM coach] L1: already shown, skipped"
 fi
 
 # Early exit for tools that don't participate in Layer 2/3
@@ -155,9 +172,18 @@ case "$TOOL_NAME" in
     Agent|Write|Edit|MultiEdit|NotebookEdit|Bash|AskUserQuestion) ;;
     mcp*save_observation|mcp*get_observations) ;;
     *) # Tool is irrelevant to coaching — output any Layer 1 message and exit
-        _show "[WFM coach] L2: no trigger matched (tool not tracked)"
-        if [ -n "$MESSAGES" ]; then
-            jq -n --arg msg "$MESSAGES" '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "systemMessage": $msg}}'
+        _trace "[WFM coach] L2: no trigger matched (tool not tracked)"
+        if [ -n "$MESSAGES" ] || [ -n "$DEBUG_TRACE" ]; then
+            if [ -n "$DEBUG_TRACE" ] && [ -n "$MESSAGES" ]; then
+                COMBINED="$DEBUG_TRACE
+
+$MESSAGES"
+            elif [ -n "$DEBUG_TRACE" ]; then
+                COMBINED="$DEBUG_TRACE"
+            else
+                COMBINED="$MESSAGES"
+            fi
+            jq -n --arg msg "$COMBINED" '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "systemMessage": $msg}}'
         fi
         exit 0
         ;;
@@ -259,14 +285,14 @@ $L2_MSG"
             else
                 MESSAGES="$L2_MSG"
             fi
-            _show "[WFM coach] L2: trigger=$TRIGGER — FIRED"
+            _trace "[WFM coach] L2: trigger=$TRIGGER — FIRED"
         else
-            _show "[WFM coach] L2: trigger=$TRIGGER — already fired, skipped"
+            _trace "[WFM coach] L2: trigger=$TRIGGER — already fired, skipped"
         fi
     elif [ -n "$TRIGGER" ]; then
-        _show "[WFM coach] L2: trigger=$TRIGGER — no message file"
+        _trace "[WFM coach] L2: trigger=$TRIGGER — no message file"
     else
-        _show "[WFM coach] L2: no trigger matched"
+        _trace "[WFM coach] L2: no trigger matched"
     fi
 
     # REVIEW Layer 2 trigger: "After presenting findings"
@@ -602,19 +628,30 @@ $L3_MSG"
 fi
 
 # Debug summary for L3 checks
-_show "[WFM coach] L3: short_agent=$_L3_SHORT_AGENT, generic_commit=$_L3_GENERIC_COMMIT, all_downgraded=$_L3_ALL_DOWNGRADED, minimal_handover=$_L3_MINIMAL_HANDOVER, missing_project=$_L3_MISSING_PROJECT, skip_research=$_L3_SKIP_RESEARCH, options_no_rec=$_L3_OPTIONS_NO_REC, no_verify=$_L3_NO_VERIFY, stalled=$_L3_STALLED, step_order=$_L3_STEP_ORDER"
+_trace "[WFM coach] L3: short_agent=$_L3_SHORT_AGENT, generic_commit=$_L3_GENERIC_COMMIT, all_downgraded=$_L3_ALL_DOWNGRADED, minimal_handover=$_L3_MINIMAL_HANDOVER, missing_project=$_L3_MISSING_PROJECT, skip_research=$_L3_SKIP_RESEARCH, options_no_rec=$_L3_OPTIONS_NO_REC, no_verify=$_L3_NO_VERIFY, stalled=$_L3_STALLED, step_order=$_L3_STEP_ORDER"
 
 # Counter summary
 _COACH_COUNTER=$(jq -r '.coaching.tool_calls_since_agent // 0' "$STATE_FILE" 2>/dev/null) || _COACH_COUNTER="?"
 _COACH_L2_FIRED=$(jq -r '.coaching.layer2_fired // [] | join(",")' "$STATE_FILE" 2>/dev/null) || _COACH_L2_FIRED="?"
-_show "[WFM coach] Counters: calls_since_agent=$_COACH_COUNTER, layer2_fired=[$_COACH_L2_FIRED]"
+_trace "[WFM coach] Counters: calls_since_agent=$_COACH_COUNTER, layer2_fired=[$_COACH_L2_FIRED]"
 
 # ============================================================
 # OUTPUT: Return combined messages
 # ============================================================
 
-if [ -n "$MESSAGES" ]; then
-    _show "[WFM coach] Message sent to Claude:"
+if [ -n "$MESSAGES" ] || [ -n "$DEBUG_TRACE" ]; then
+    _trace "[WFM coach] Message sent to Claude:"
     echo "$MESSAGES" | while IFS= read -r line; do _show "  $line"; done
-    jq -n --arg msg "$MESSAGES" '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "systemMessage": $msg}}'
+    # In show mode, prepend debug trace to systemMessage so user sees it
+    # (stderr from hooks is swallowed by Claude Code in normal mode)
+    if [ -n "$DEBUG_TRACE" ] && [ -n "$MESSAGES" ]; then
+        COMBINED="$DEBUG_TRACE
+
+$MESSAGES"
+    elif [ -n "$DEBUG_TRACE" ]; then
+        COMBINED="$DEBUG_TRACE"
+    else
+        COMBINED="$MESSAGES"
+    fi
+    jq -n --arg msg "$COMBINED" '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "systemMessage": $msg}}'
 fi
