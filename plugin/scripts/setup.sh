@@ -145,8 +145,12 @@ HOOKS_DIR="$PROJECT_DIR/.claude/hooks"
 mkdir -p "$HOOKS_DIR"
 
 # Create symlinks for all plugin hook scripts (idempotent)
-for script in user-set-phase.sh workflow-gate.sh bash-write-guard.sh post-tool-navigator.sh workflow-state.sh workflow-cmd.sh; do
-  if [ -f "$PLUGIN_ROOT/scripts/$script" ] && [ ! -e "$HOOKS_DIR/$script" ]; then
+# Uses glob instead of hardcoded list so new scripts are automatically included.
+# setup.sh is excluded — it runs from the plugin root, not from .claude/hooks/.
+for script_path in "$PLUGIN_ROOT"/scripts/*.sh; do
+  script=$(basename "$script_path")
+  [ "$script" = "setup.sh" ] && continue
+  if [ ! -e "$HOOKS_DIR/$script" ]; then
     ln -s "../../plugin/scripts/$script" "$HOOKS_DIR/$script"
   fi
 done
