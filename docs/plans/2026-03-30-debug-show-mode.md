@@ -37,3 +37,26 @@ WFM has 10 distinct components that execute during a session, but most are invis
 - **Risks identified:** Claude might forget wrapper commands — mitigated by coaching nudge as fallback in show mode
 - **Constraints applied:** Must use existing hook stdout mechanism (already displayed by Claude Code)
 - **Tech debt acknowledged:** None — clean extension of existing debug infrastructure
+
+## Bugfix: Issue #29 — Hook Output Errors
+
+### Problem 1: PreToolUse `_emit_debug_allow()` emits invalid JSON
+- `workflow-gate.sh` and `bash-write-guard.sh` emit `{"hookSpecificOutput":{"systemMessage":"..."}}` on ALLOW paths
+- PreToolUse ALLOW must be silent (exit 0, no stdout) — any JSON causes "hook error"
+- **Fix:** Remove `_emit_debug_allow()` function and all call sites from both files
+
+### Problem 2: PostToolUse JSON structure is wrong
+- `post-tool-navigator.sh` nests `systemMessage` inside `hookSpecificOutput` — invalid
+- `systemMessage` is a **top-level** field (user-visible, Claude-invisible)
+- `additionalContext` goes inside `hookSpecificOutput` (Claude-visible, user-invisible)
+- **Fix:** Restructure JSON output:
+  - Normal mode: `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"..."}}`
+  - Show mode: add top-level `systemMessage` with debug trace for user visibility
+
+### Implementation Steps
+1. Remove `_emit_debug_allow()` + all calls from `workflow-gate.sh` (3 call sites)
+2. Remove `_emit_debug_allow()` + all calls from `bash-write-guard.sh` (9 call sites)
+3. Fix `post-tool-navigator.sh` JSON output (lines 176-186, 642-656):
+   - Move coaching messages to `additionalContext` inside `hookSpecificOutput`
+   - Move debug trace to top-level `systemMessage` (show mode only)
+4. Verify: `/debug show` → run Bash command → no hook errors, coaching visible to Claude, trace visible to user
