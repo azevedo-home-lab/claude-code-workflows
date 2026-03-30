@@ -1,0 +1,1 @@
+The handover must be useful to someone who knows nothing about this session. Include: what was built, why these choices, gotchas, what's left.

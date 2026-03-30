@@ -1,0 +1,1 @@
+save_observation called without project parameter. Always pass project to scope observations to this repo. Derive repo name: git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git$/\1/' | sed 's/.*[:/]\([^/]*\)$/\1/'

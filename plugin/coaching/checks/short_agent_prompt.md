@@ -1,0 +1,1 @@
+Agent prompts must be detailed enough for autonomous work. Include: context, specific task, expected output format, constraints. Short prompts produce shallow results.

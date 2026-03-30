@@ -1,0 +1,1 @@
+Don't just list options. State which you recommend and why. The user needs your professional judgment, not a menu.

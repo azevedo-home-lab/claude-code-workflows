@@ -1,0 +1,1 @@
+Commit messages must explain why, not what. The diff shows what changed. Include context and reasoning.

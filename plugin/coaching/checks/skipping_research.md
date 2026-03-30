@@ -1,0 +1,1 @@
+You're in a research phase but haven't dispatched background agents. Is this trivial enough to skip? State explicitly.

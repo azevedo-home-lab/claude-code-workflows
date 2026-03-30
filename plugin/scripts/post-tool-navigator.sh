@@ -288,12 +288,25 @@ fi
 # ============================================================
 
 L3_MSG=""
+PHASE_UPPER=$(echo "$PHASE" | tr '[:lower:]' '[:upper:]')
+
+# Helper: append a check message to L3_MSG
+_append_l3() {
+    if [ -n "$L3_MSG" ]; then
+        L3_MSG="$L3_MSG
+
+$1"
+    else
+        L3_MSG="$1"
+    fi
+}
 
 # Check 1: Short agent prompts (< 150 chars)
 if [ "$TOOL_NAME" = "Agent" ]; then
     PROMPT_LEN=$(echo "$INPUT" | jq -r '.tool_input.prompt // "" | length' 2>/dev/null) || PROMPT_LEN=999
     if [ "$PROMPT_LEN" -lt 150 ]; then
-        L3_MSG="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] Agent prompts must be detailed enough for autonomous work. Include: context, specific task, expected output format, constraints. Short prompts produce shallow results."
+        CHECK_BODY=$(load_message "checks/short_agent_prompt.md" "$PHASE_UPPER")
+        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
     fi
 fi
 
@@ -318,7 +331,8 @@ if [ "$TOOL_NAME" = "Bash" ]; then
     fi
 }) || COMMIT_MSG_LEN=999
         if [ "$COMMIT_MSG_LEN" -lt 30 ]; then
-            L3_MSG="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] Commit messages must explain why, not what. The diff shows what changed. Include context and reasoning."
+            CHECK_BODY=$(load_message "checks/generic_commit.md" "$PHASE_UPPER")
+            [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
         fi
     fi
 fi
@@ -345,7 +359,8 @@ if [ "$PHASE" = "review" ] && { [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "
             fi
         fi
         if [ "$ALL_SUGGESTIONS" = "true" ]; then
-            L3_MSG="[Workflow Coach — REVIEW] All findings were rated as suggestions. Review severity assessments. Are you downgrading to avoid friction?"
+            CHECK_BODY=$(load_message "checks/all_findings_downgraded.md")
+            [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — REVIEW] $CHECK_BODY"
         fi
     fi
 fi
@@ -363,19 +378,14 @@ if echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
 
     # 4a: Minimal handover (COMPLETE phase only)
     if [ "$PHASE" = "complete" ] && [ "$OBS_LEN" -lt 200 ]; then
-        L3_MSG="[Workflow Coach — COMPLETE] The handover must be useful to someone who knows nothing about this session. Include: what was built, why these choices, gotchas, what's left."
+        CHECK_BODY=$(load_message "checks/minimal_handover.md")
+        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — COMPLETE] $CHECK_BODY"
     fi
 
     # 4b: Missing project field (any phase)
     if [ "$HAS_PROJECT" = "false" ]; then
-        PROJ_MSG="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] save_observation called without project parameter. Always pass project to scope observations to this repo. Derive repo name: git remote get-url origin 2>/dev/null | sed 's/.*[:/]\([^/]*\)\.git\$/\1/' | sed 's/.*[:/]\([^/]*\)\$/\1/'"
-        if [ -n "$L3_MSG" ]; then
-            L3_MSG="$L3_MSG
-
-$PROJ_MSG"
-        else
-            L3_MSG="$PROJ_MSG"
-        fi
+        CHECK_BODY=$(load_message "checks/missing_project_field.md" "$PHASE_UPPER")
+        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
     fi
 fi
 
@@ -384,14 +394,8 @@ fi
 if [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ]; then
     COUNTER=$(jq -r '.coaching.tool_calls_since_agent // 0' "$STATE_FILE" 2>/dev/null) || COUNTER=0
     if [ "$COUNTER" -gt 10 ]; then
-        SKIP_MSG="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] You're in a research phase but haven't dispatched background agents. Is this trivial enough to skip? State explicitly."
-        if [ -n "$L3_MSG" ]; then
-            L3_MSG="$L3_MSG
-
-$SKIP_MSG"
-        else
-            L3_MSG="$SKIP_MSG"
-        fi
+        CHECK_BODY=$(load_message "checks/skipping_research.md" "$PHASE_UPPER")
+        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
     fi
 fi
 
@@ -403,14 +407,8 @@ if [ "$TOOL_NAME" = "AskUserQuestion" ]; then
     # Check if any agent has returned in this phase (any agent_return_* trigger fired)
     AGENTS_RETURNED=$(jq -r '[.coaching.layer2_fired[]? | select(startswith("agent_return"))] | if length > 0 then "true" else "false" end' "$STATE_FILE" 2>/dev/null) || AGENTS_RETURNED="false"
     if [ "$AGENTS_RETURNED" = "true" ]; then
-        L3_RECOMMEND="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] Don't just list options. State which you recommend and why. The user needs your professional judgment, not a menu."
-        if [ -n "$L3_MSG" ]; then
-            L3_MSG="$L3_MSG
-
-$L3_RECOMMEND"
-        else
-            L3_MSG="$L3_RECOMMEND"
-        fi
+        CHECK_BODY=$(load_message "checks/options_without_recommendation.md" "$PHASE_UPPER")
+        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
     fi
 fi
 
@@ -422,15 +420,9 @@ if [ "$PHASE" = "implement" ] || [ "$PHASE" = "review" ]; then
             VERIFY_COUNT=$((VERIFY_COUNT + 1))
             set_pending_verify "$VERIFY_COUNT"
             if [ "$VERIFY_COUNT" -ge 5 ]; then
-                VERIFY_MSG="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')] You've edited source code $VERIFY_COUNT times but haven't run tests or verification. Verify your changes before continuing."
+                VERIFY_MSG="[Workflow Coach — $PHASE_UPPER] You've edited source code $VERIFY_COUNT times but haven't run tests or verification. Verify your changes before continuing."
                 set_pending_verify 0
-                if [ -n "$L3_MSG" ]; then
-                    L3_MSG="$L3_MSG
-
-$VERIFY_MSG"
-                else
-                    L3_MSG="$VERIFY_MSG"
-                fi
+                _append_l3 "$VERIFY_MSG"
             fi
         fi
     elif [ "$TOOL_NAME" = "Bash" ]; then

@@ -1,0 +1,1 @@
+All findings were rated as suggestions. Review severity assessments. Are you downgrading to avoid friction?
