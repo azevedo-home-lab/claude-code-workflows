@@ -1,22 +1,26 @@
-# Intent File Authorization for user-set-phase.sh
+# Intent File Authorization for user-set-phase.sh and set_autonomy_level
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox syntax for tracking.
 
-**Goal:** Close the Skill tool bypass (issue #26) by adding intent file verification to `user-set-phase.sh`, while preserving the existing path separation architecture.
+**Goal:** Close the Skill tool bypass (issue #26) by adding intent file verification to `user-set-phase.sh` and `set_autonomy_level()`, while preserving the existing path separation architecture.
 
-**Problem:** `disable-model-invocation: true` is not enforced for plugin commands (upstream bug anthropics/claude-code#22345). Claude can call `Skill("off")` which triggers backtick preprocessing, executing `user-set-phase.sh "off"` and disabling workflow enforcement. Empirically verified in session 2026-03-30.
+**Problem:** `disable-model-invocation: true` is not enforced for plugin commands (upstream bug anthropics/claude-code#22345). Claude can call `Skill("off")` which triggers backtick preprocessing, executing `user-set-phase.sh "off"` and disabling workflow enforcement. The same vulnerability exists for `Skill("autonomy auto")` which could escalate autonomy via `workflow-cmd.sh set_autonomy_level`, enabling `agent_set_phase()` to advance phases freely. Both empirically verified in session 2026-03-30.
 
 **Architecture:** Two layers working together:
 1. **Path separation** (existing, v1.12.0): `user-set-phase.sh` for user transitions, `agent_set_phase()` for agent transitions. Separate code paths, separate files, no shared bypass.
-2. **Intent file verification** (new): `UserPromptSubmit` hook writes `phase-intent.json` before the slash command runs. `user-set-phase.sh` verifies the intent file exists and matches before transitioning.
+2. **Intent file verification** (new): `UserPromptSubmit` hook writes `phase-intent.json` / `autonomy-intent.json` before the slash command runs. `user-set-phase.sh` and `set_autonomy_level()` verify the intent file exists and matches before transitioning.
 
 **Why both layers:**
 - Path separation keeps the code auditable — you can trace who called what
-- Intent files close the Skill tool hole — even if Claude reaches `user-set-phase.sh` via Skill backtick, no intent file exists (UserPromptSubmit didn't fire), so the transition is rejected
+- Intent files close the Skill tool hole — even if Claude reaches these paths via Skill backtick, no intent file exists (UserPromptSubmit didn't fire), so the transition is rejected
 
-**Tech Stack:** Bash, jq (for user-set-phase.sh intent check only — not in the hook), shell builtins
+**Tech Stack:** Bash, jq (for intent checks only — not in the hook), shell builtins
 
 **History:** Original intent file spec designed March 25, implemented March 28, then removed in v1.12.0 in favor of path separation alone. This spec reintroduces intent files as a complement to path separation after discovering the Skill tool bypass.
+
+**Ordering guarantee:** `UserPromptSubmit` hooks complete before any tool invocation or backtick preprocessing begins. This is part of the Claude Code hook lifecycle — the intent file is always written before `user-set-phase.sh` runs.
+
+**Fail-closed design:** The hook uses grep/sed (not jq) to extract the prompt from stdin JSON. If extraction fails (malformed JSON, encoding issues), no intent file is written, and `user-set-phase.sh` blocks all transitions. This is immediately visible to the user and debuggable.
 
 **Issue:** [#26](https://github.com/azevedo-home-lab/claude-code-workflows/issues/26)
 
@@ -38,8 +42,12 @@
 # See LICENSE for details.
 
 # UserPromptSubmit hook: writes intent files for phase and autonomy commands.
-# Intent files are consumed by user-set-phase.sh (user path).
+# Intent files are consumed by user-set-phase.sh and set_autonomy_level().
 # Claude cannot trigger this hook — it only fires on actual user input.
+#
+# Fail-closed: if prompt extraction fails, no intent file is written,
+# and user-set-phase.sh / set_autonomy_level() will block the transition.
+# This is immediately visible to the user and debuggable.
 #
 # Security model: Only explicit slash commands generate intent files.
 # No bare set_phase/set_autonomy_level matching — prevents false positives.
@@ -170,7 +178,7 @@ fi
 
 - [ ] **Step 3: Update script header comments**
 
-Replace lines 8-13 with:
+Replace lines 8-14 with:
 ```bash
 # USER PHASE TRANSITION — called from !backtick in command files.
 # Verifies a matching intent file exists (written by UserPromptSubmit hook)
@@ -205,11 +213,84 @@ ls .claude/state/phase-intent.json 2>/dev/null || echo "Consumed"
 
 ---
 
-### Task 3: Register UserPromptSubmit hook and update bash-write-guard
+### Task 2b: Add autonomy intent verification to `set_autonomy_level()`
+
+**Files:**
+- Modify: `plugin/scripts/workflow-state.sh` (add intent check to `set_autonomy_level`)
+
+The same Skill tool bypass affects `/autonomy auto` — Claude could call `Skill("autonomy auto")` which runs `workflow-cmd.sh set_autonomy_level "auto"` via backtick. Once autonomy is "auto", `agent_set_phase()` can advance phases freely. This task closes that gap.
+
+- [ ] **Step 1: Add `_check_autonomy_intent` function**
+
+In `plugin/scripts/workflow-state.sh`, before the `set_autonomy_level()` function (before line 130), add:
+
+```bash
+# Check for a valid autonomy intent file. Consumes the intent on success.
+# Returns 0 if authorized, 1 if blocked.
+# Intent files are written by user-phase-gate.sh (UserPromptSubmit hook).
+_check_autonomy_intent() {
+    local level="$1"
+    local intent_file="$STATE_DIR/autonomy-intent.json"
+    [ -s "$intent_file" ] || return 1
+    local intent
+    intent=$(jq -r '.intent // ""' "$intent_file" 2>/dev/null) || return 1
+    if [ "$intent" = "autonomy:$level" ]; then
+        rm -f "$intent_file"
+        return 0
+    fi
+    return 1
+}
+```
+
+- [ ] **Step 2: Add intent verification to `set_autonomy_level()`**
+
+In `set_autonomy_level()`, replace lines 142-143:
+```bash
+    # set_autonomy_level is always user-initiated — called from !backtick in autonomy.md.
+    # No authorization check needed here; the user's slash command is the authorization.
+```
+
+With:
+```bash
+    # Intent file verification — closes Skill tool bypass (issue #26).
+    # UserPromptSubmit writes the intent file before this function runs.
+    # If called via Skill tool, no UserPromptSubmit fired, so no intent file exists.
+    if ! _check_autonomy_intent "$level"; then
+        echo "BLOCKED: No valid intent file for autonomy level '$level'." >&2
+        echo "  Intent files are generated by the UserPromptSubmit hook when you type /autonomy." >&2
+        echo "  If you see this error, the change was not initiated by a user slash command." >&2
+        return 1
+    fi
+```
+
+- [ ] **Step 3: Verify manually**
+
+```bash
+# Without intent file — should fail
+source plugin/scripts/workflow-state.sh && set_autonomy_level "auto" 2>&1
+# Expected: BLOCKED: No valid intent file for autonomy level 'auto'.
+
+# With intent file — should succeed
+printf '{"intent":"autonomy:auto"}\n' > .claude/state/autonomy-intent.json
+source plugin/scripts/workflow-state.sh && set_autonomy_level "auto" 2>&1
+# Expected: (no error, autonomy updated)
+
+# Intent file should be consumed
+ls .claude/state/autonomy-intent.json 2>/dev/null || echo "Consumed"
+# Expected: Consumed
+```
+
+- [ ] **Step 4: Commit**
+
+---
+
+### Task 3: Register UserPromptSubmit hook and update guards
 
 **Files:**
 - Modify: `plugin/hooks/hooks.json` (add UserPromptSubmit section)
 - Modify: `plugin/scripts/bash-write-guard.sh:177` (add autonomy-intent.json)
+- Modify: `plugin/scripts/setup.sh:148` (add symlink for user-phase-gate.sh)
+- Modify: `plugin/scripts/setup.sh:156-172` (add UserPromptSubmit registration in settings.json)
 
 - [ ] **Step 1: Add UserPromptSubmit to hooks.json**
 
@@ -240,7 +321,35 @@ With:
 STATE_FILE_PATTERN='\.claude/(state/workflow\.json|state/phase-intent\.json|state/autonomy-intent\.json)'
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Add `user-phase-gate.sh` to setup.sh symlink loop**
+
+In `plugin/scripts/setup.sh`, line 148, add `user-phase-gate.sh` to the script list:
+
+Replace:
+```bash
+for script in user-set-phase.sh workflow-gate.sh bash-write-guard.sh post-tool-navigator.sh workflow-state.sh workflow-cmd.sh; do
+```
+With:
+```bash
+for script in user-set-phase.sh user-phase-gate.sh workflow-gate.sh bash-write-guard.sh post-tool-navigator.sh workflow-state.sh workflow-cmd.sh; do
+```
+
+- [ ] **Step 4: Add UserPromptSubmit registration to setup.sh settings.json**
+
+In `plugin/scripts/setup.sh`, after the PostToolUse registration block (after line 172, after `fi || true`), add:
+
+```bash
+  # Ensure UserPromptSubmit hook exists
+  HAS_UPS=$(jq 'has("hooks") and (.hooks | has("UserPromptSubmit"))' "$PROJECT_SETTINGS" 2>/dev/null)
+  if [ "$HAS_UPS" != "true" ]; then
+    jq '.hooks.UserPromptSubmit = [{"hooks": [{"type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/user-phase-gate.sh", "timeout": 5}]}]' \
+      "$PROJECT_SETTINGS" > "$PROJECT_SETTINGS.tmp" && mv "$PROJECT_SETTINGS.tmp" "$PROJECT_SETTINGS" || true
+  fi
+```
+
+Note: this must be added BEFORE the `fi || true` that closes the `if [ -f "$PROJECT_SETTINGS" ]` block (line 173). Insert at line 172, before that closing block.
+
+- [ ] **Step 5: Commit**
 
 ---
 
@@ -299,7 +408,23 @@ source plugin/scripts/workflow-state.sh && get_phase
 # Expected: discuss
 ```
 
-- [ ] **Step 3: Verify agent path still works**
+- [ ] **Step 3: Verify autonomy Skill tool bypass is closed**
+
+```bash
+# Set up active phase with ask autonomy
+printf '{"intent":"implement"}\n' > .claude/state/phase-intent.json
+CLAUDE_PROJECT_DIR="$(pwd)" bash plugin/scripts/user-set-phase.sh "implement"
+
+# Simulate Skill tool calling /autonomy auto (no UserPromptSubmit fires)
+source plugin/scripts/workflow-state.sh && set_autonomy_level "auto" 2>&1
+# Expected: BLOCKED: No valid intent file for autonomy level 'auto'.
+
+# Verify autonomy unchanged
+source plugin/scripts/workflow-state.sh && get_autonomy_level
+# Expected: ask
+```
+
+- [ ] **Step 4: Verify agent path still works**
 
 ```bash
 # agent_set_phase uses its own checks (forward-only, auto autonomy, milestone gates)
@@ -307,7 +432,7 @@ source plugin/scripts/workflow-state.sh && get_phase
 # No changes needed to agent path
 ```
 
-- [ ] **Step 4: Verify bash-write-guard blocks intent file forgery**
+- [ ] **Step 6: Verify bash-write-guard blocks intent file forgery**
 
 ```bash
 echo '{"tool_input":{"command":"printf x > .claude/state/phase-intent.json"}}' | CLAUDE_PROJECT_DIR="$(pwd)" bash plugin/scripts/bash-write-guard.sh 2>&1
@@ -317,19 +442,21 @@ echo '{"tool_input":{"command":"echo x > .claude/state/autonomy-intent.json"}}' 
 # Expected: output contains "deny"
 ```
 
-- [ ] **Step 5: Verify hooks.json is valid JSON**
+- [ ] **Step 7: Verify hooks.json is valid JSON**
 
 ```bash
 jq . plugin/hooks/hooks.json > /dev/null && echo "Valid JSON"
 ```
 
-- [ ] **Step 6: Verify git status is clean**
+- [ ] **Step 8: Verify git status is clean**
 
 Run: `git status`
 
 ---
 
 ## Security Model Summary
+
+### Phase transitions
 
 ```
 User types /off
@@ -359,12 +486,50 @@ User types /off
 |  Match? -> transition       |
 |  No match? -> BLOCKED       |  <-- Skill tool path dies here
 +----------------------------+
+```
 
-Defense-in-depth layers:
+### Autonomy escalation
+
+```
+User types /autonomy auto
+        |
+        v
++----------------------------+
+|  UserPromptSubmit           |  <-- Platform guarantee: user-only
+|  (user-phase-gate.sh)       |
+|                             |
+|  Writes autonomy-intent.json|
+|  {"intent":"autonomy:auto"} |
++-------------+--------------+
+              |
+              v
++----------------------------+
+|  Backtick preprocessing     |  <-- Runs for BOTH /autonomy AND Skill("autonomy auto")
+|  (autonomy.md)              |
+|                             |
+|  Calls workflow-cmd.sh      |
+|  set_autonomy_level "auto"  |
++-------------+--------------+
+              |
+              v
++----------------------------+
+|  set_autonomy_level()       |  <-- Intent verification (NEW)
+|  (workflow-state.sh)        |
+|                             |
+|  Reads autonomy-intent.json |
+|  Match? -> update           |
+|  No match? -> BLOCKED       |  <-- Skill tool path dies here
++----------------------------+
+```
+
+### Defense-in-depth layers
+
+```
 1. UserPromptSubmit (platform guarantee) — only user input creates intent files
-2. user-set-phase.sh (intent check) — rejects without matching intent
-3. bash-write-guard.sh (state file guard) — blocks intent file forgery via Bash
-4. bash-write-guard.sh (execution guard) — blocks user-set-phase.sh via Bash tool
+2. user-set-phase.sh (intent check) — rejects phase change without matching intent
+3. set_autonomy_level() (intent check) — rejects autonomy change without matching intent
+4. bash-write-guard.sh (state file guard) — blocks intent file forgery via Bash
+5. bash-write-guard.sh (execution guard) — blocks user-set-phase.sh via Bash tool
 ```
 
 ## What This Does NOT Change
