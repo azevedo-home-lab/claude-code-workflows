@@ -107,5 +107,6 @@ ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 )
 
 _show "[WFM phase] State rebuilt — preserved: plan_path=$preserved_decision, autonomy=$preserved_autonomy, debug=$preserved_debug"
+_show "[WFM phase] Milestones reset: discuss={}, implement={}, review={}, completion={}"
 
 echo "Phase set to ${new_phase}."
