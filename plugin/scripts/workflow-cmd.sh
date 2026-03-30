@@ -23,6 +23,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/workflow-state.sh"
 
+# Initialize debug logging for state mutation visibility
+DEBUG_MODE=$(get_debug 2>/dev/null) || DEBUG_MODE="off"
+source "$SCRIPT_DIR/debug-log.sh" "workflow-cmd"
+
 # ---------------------------------------------------------------------------
 # dispatch_agent: load and return an agent prompt from plugin/agents/
 # ---------------------------------------------------------------------------
@@ -104,14 +108,7 @@ case "$1" in
     set_issue_mapping|get_issue_url|get_issue_mappings|clear_issue_mapping|\
     emit_deny|\
     dispatch_agent|resolve_skill)
-        # Log command invocation in show/log mode
-        _CMD_DEBUG_LEVEL=$(get_debug 2>/dev/null) || _CMD_DEBUG_LEVEL="off"
-        if [ "$_CMD_DEBUG_LEVEL" = "show" ]; then
-            echo "[WFM cmd] $*" >&2
-        fi
-        if [ "$_CMD_DEBUG_LEVEL" = "log" ] || [ "$_CMD_DEBUG_LEVEL" = "show" ]; then
-            echo "[$(date +%H:%M:%S)] [$$] cmd: $*" >> "/tmp/wfm-workflow-cmd-debug.log"
-        fi
+        _show "[WFM cmd] $*"
         "$@"
         ;;
     *)

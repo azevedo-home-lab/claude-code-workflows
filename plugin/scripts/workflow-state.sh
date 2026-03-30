@@ -12,6 +12,11 @@
 STATE_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/.claude/state"
 STATE_FILE="$STATE_DIR/workflow.json"
 
+# Stub _show for debug output — will be overridden by debug-log.sh if sourced by caller
+if ! declare -f _show >/dev/null 2>&1; then
+    _show() { :; }
+fi
+
 # Atomic write helper. Reads stdin → mktemp temp file → guards → mv.
 # All state file writes MUST go through this function.
 # Rejects: zero-byte input, >10KB output, invalid JSON, mv failure.
@@ -145,6 +150,7 @@ set_autonomy_level() {
         echo "WARNING: No workflow state file. Start a workflow phase first (e.g., /define)." >&2
         return 1
     fi
+    _show "[WFM state] SET autonomy_level = $level"
     _update_state '.autonomy_level = $v' --arg v "$level"
 }
 
@@ -484,13 +490,13 @@ get_message_shown() {
     echo "$val"
 }
 
-set_message_shown() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.message_shown = true'; }
+set_message_shown() { if [ ! -f "$STATE_FILE" ]; then return; fi; _show "[WFM state] SET message_shown = true"; _update_state '.message_shown = true'; }
 
 # ---------------------------------------------------------------------------
 # Active skill management
 # ---------------------------------------------------------------------------
 
-set_active_skill() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.active_skill = $v' --arg v "$1"; }
+set_active_skill() { if [ ! -f "$STATE_FILE" ]; then return; fi; _show "[WFM state] SET active_skill = $1"; _update_state '.active_skill = $v' --arg v "$1"; }
 
 get_active_skill() {
     if [ ! -f "$STATE_FILE" ]; then
@@ -506,7 +512,7 @@ get_active_skill() {
 # Plan path management
 # ---------------------------------------------------------------------------
 
-set_plan_path() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.plan_path = $v' --arg v "$1"; }
+set_plan_path() { if [ ! -f "$STATE_FILE" ]; then return; fi; _show "[WFM state] SET plan_path = $1"; _update_state '.plan_path = $v' --arg v "$1"; }
 
 get_plan_path() {
     if [ ! -f "$STATE_FILE" ]; then
@@ -521,7 +527,7 @@ get_plan_path() {
 # Spec path management
 # ---------------------------------------------------------------------------
 
-set_spec_path() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.spec_path = $v' --arg v "$1"; }
+set_spec_path() { if [ ! -f "$STATE_FILE" ]; then return; fi; _show "[WFM state] SET spec_path = $1"; _update_state '.spec_path = $v' --arg v "$1"; }
 
 get_spec_path() {
     if [ ! -f "$STATE_FILE" ]; then
@@ -536,7 +542,7 @@ get_spec_path() {
 # Test results tracking (preserved across phase transitions)
 # ---------------------------------------------------------------------------
 
-set_tests_passed_at() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.tests_last_passed_at = $v' --arg v "$1"; }
+set_tests_passed_at() { if [ ! -f "$STATE_FILE" ]; then return; fi; _show "[WFM state] SET tests_last_passed_at = $1"; _update_state '.tests_last_passed_at = $v' --arg v "$1"; }
 
 get_tests_passed_at() {
     if [ ! -f "$STATE_FILE" ]; then
@@ -625,6 +631,7 @@ _get_section_field() {
 _set_section_field() {
     local section="$1" field="$2" value="$3"
     if [ ! -f "$STATE_FILE" ]; then return; fi
+    _show "[WFM state] SET $section.$field = $value"
     if [ "$value" = "true" ] || [ "$value" = "false" ]; then
         _update_state 'setpath([$s, $f]; ($v == "true"))' --arg s "$section" --arg f "$field" --arg v "$value"
     else
@@ -764,5 +771,6 @@ set_debug() {
         off|log|show) ;;
         *) echo "ERROR: Invalid debug value: $val (valid: off, log, show)" >&2; return 1 ;;
     esac
+    _show "[WFM state] SET debug = $val"
     _update_state '.debug = $v' --arg v "$val"
 }
