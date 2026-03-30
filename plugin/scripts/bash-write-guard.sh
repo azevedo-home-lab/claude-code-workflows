@@ -19,9 +19,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/workflow-state.sh"
 
-# Stub _log/_show before debug-log.sh is sourced (called in early-exit paths)
+# Stub _log/_show/_trace before debug-log.sh is sourced (called in early-exit paths)
 _log() { :; }
 _show() { :; }
+DEBUG_TRACE=""
+_trace() { :; }
 
 # Write pattern — detects file-writing operations (named fragments for readability)
 REDIRECT_OPS='(>[^&]|>>)'
@@ -46,7 +48,7 @@ WRITE_PATTERN="$REDIRECT_OPS|$INPLACE_EDITORS|$STREAM_WRITERS|$HEREDOCS|$FILE_OP
 
 # No state file = no enforcement (first run, hooks not yet activated)
 if [ ! -f "$STATE_FILE" ]; then
-    _show "[WFM bash] SKIP — no state file"
+    _trace "[WFM bash] SKIP — no state file"
     exit 0
 fi
 
@@ -54,12 +56,36 @@ PHASE=$(get_phase)
 
 # OFF phase: no enforcement
 case "$PHASE" in
-    off) _show "[WFM bash] SKIP — phase=OFF"; exit 0 ;;
+    off) _trace "[WFM bash] SKIP — phase=OFF"; exit 0 ;;
 esac
 
 # Debug mode (read after OFF exit to avoid unnecessary jq call)
 DEBUG_MODE=$(get_debug)
 source "$SCRIPT_DIR/debug-log.sh" "bash-write-guard"
+
+# Collect debug trace for systemMessage injection (show mode only).
+# _trace() logs via _show (file + stderr) AND collects into DEBUG_TRACE
+# so the trace can be emitted via systemMessage — the only user-visible
+# channel for PreToolUse hooks in Claude Code.
+_trace() {
+    _show "$1"
+    if [ "$_WFM_DEBUG_LEVEL" = "show" ]; then
+        if [ -n "$DEBUG_TRACE" ]; then
+            DEBUG_TRACE="$DEBUG_TRACE
+$1"
+        else
+            DEBUG_TRACE="$1"
+        fi
+    fi
+}
+
+# Emit debug trace as systemMessage JSON on ALLOW paths (show mode only).
+# PreToolUse ALLOW has no other user-visible channel.
+_emit_debug_allow() {
+    if [ -n "${DEBUG_TRACE:-}" ]; then
+        jq -n --arg msg "$DEBUG_TRACE" '{"hookSpecificOutput": {"systemMessage": $msg}}'
+    fi
+}
 
 # ---------------------------------------------------------------------------
 # Shared command parsing — runs once, used by both autonomy and phase-gate paths
@@ -79,7 +105,8 @@ fi
 # (prevents bypass by chaining: source workflow-state.sh && echo pwned > evil)
 if echo "$COMMAND" | grep -qE '^[[:space:]]*(source[[:space:]]|\.[ /]).*workflow-state\.sh'; then
     if ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
-        _show "[WFM bash] ALLOW workflow state command"
+        _trace "[WFM bash] ALLOW workflow state command"
+        _emit_debug_allow
         exit 0
     fi
 fi
@@ -89,7 +116,8 @@ fi
 # autonomy mode — blocking it traps the workflow in the current phase forever.
 if echo "$COMMAND" | grep -qE '(^|[[:space:]/])workflow-cmd\.sh[[:space:]]'; then
     if ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
-        _show "[WFM bash] ALLOW workflow-cmd.sh call"
+        _trace "[WFM bash] ALLOW workflow-cmd.sh call"
+        _emit_debug_allow
         exit 0
     fi
 fi
@@ -108,7 +136,8 @@ if echo "$COMMAND" | grep -qE '^[[:space:]]*(git|/usr/bin/git|/usr/local/bin/git
     # Strategy: strip the -m "..." or -m '...' inline value, then check for &&/||/;
     STRIPPED=$(echo "$FIRST_LINE" | sed -E 's/-m "[^"]*"/-m MSG/g; s/-m '"'"'[^'"'"']*'"'"'/-m MSG/g; s/-m [^ ;|&]+/-m MSG/g')
     if ! echo "$STRIPPED" | grep -qE '(&&|\|\||;)'; then
-        _show "[WFM bash] ALLOW git commit"
+        _trace "[WFM bash] ALLOW git commit"
+        _emit_debug_allow
         exit 0
     fi
     emit_deny "BLOCKED: 'git commit' chained with other commands is not allowed. Run git commit as a standalone command."
@@ -131,7 +160,8 @@ if echo "$COMMAND" | grep -qE '(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+
         fi
     done < <(echo "$COMMAND" | head -1 | sed -E 's/-m "[^"]*"/-m MSG/g; s/-m '"'"'[^'"'"']*'"'"'/-m MSG/g; s/-m [^ ;|&]+/-m MSG/g' | sed 's/&&/\n/g; s/||/\n/g; s/;/\n/g; s/|/\n/g')
     if [ "$SAFE" = true ]; then
-        _show "[WFM bash] ALLOW safe git chain with commit"
+        _trace "[WFM bash] ALLOW safe git chain with commit"
+        _emit_debug_allow
         exit 0
     fi
 fi
@@ -183,7 +213,7 @@ fi
 STATE_FILE_PATTERN='\.claude/(state/workflow\.json|state/phase-intent\.json)'
 if echo "$COMMAND" | grep -qE "$STATE_FILE_PATTERN"; then
     if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ] || [ "$NODE_WRITE" = "true" ] || [ "$RUBY_WRITE" = "true" ] || [ "$PERL_WRITE" = "true" ]; then
-        _show "[WFM bash] DENY — direct writes to workflow state files"
+        _trace "[WFM bash] DENY — direct writes to workflow state files"
         emit_deny "BLOCKED: Direct writes to workflow state files are not allowed."
         exit 0
     fi
@@ -200,7 +230,7 @@ fi
 # Block execution of user-set-phase.sh — !backtick only, never a Bash tool call.
 # Matches execution contexts (direct call, source, bash -c) but not read-only ops (cat, git diff).
 if echo "$COMMAND" | grep -qE '(^|[;&|[:space:]])(\\./|source[[:space:]]|bash[[:space:]]|sh[[:space:]]|/)[^[:space:]]*user-set-phase\.sh'; then
-    _show "[WFM bash] DENY — user-set-phase.sh called via Bash tool"
+    _trace "[WFM bash] DENY — user-set-phase.sh called via Bash tool"
     emit_deny "BLOCKED: user-set-phase.sh is the user-only phase transition path. It cannot be called via Bash tool — only from !backtick command files."
     exit 0
 fi
@@ -213,7 +243,7 @@ fi
 
 DESTRUCTIVE_GIT='(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+(reset[[:space:]]+--hard|push[[:space:]]+--force|push[[:space:]]+-f[[:space:]]|branch[[:space:]]+-D[[:space:]]|checkout[[:space:]]+--[[:space:]]\.|clean[[:space:]]+-f|rebase[[:space:]]+--abort)'
 if echo "$COMMAND" | grep -qE "$DESTRUCTIVE_GIT"; then
-    _show "[WFM bash] DENY — destructive git operation blocked"
+    _trace "[WFM bash] DENY — destructive git operation blocked"
     emit_deny "BLOCKED: Destructive git operation detected (reset --hard, push --force, branch -D, checkout --, clean -f, rebase --abort). These operations can cause irreversible data loss. Use !backtick if you need to run this command."
     exit 0
 fi
@@ -224,7 +254,7 @@ fi
 
 # Allow everything in implement and review phases
 case "$PHASE" in
-    implement|review) _show "[WFM bash] ALLOW — phase=$PHASE allows all bash"; exit 0 ;;
+    implement|review) _trace "[WFM bash] ALLOW — phase=$PHASE allows all bash"; _emit_debug_allow; exit 0 ;;
 esac
 
 # Select whitelist based on phase
@@ -252,13 +282,15 @@ _gh_safe_chain() {
 if echo "$COMMAND" | grep -qE '^[[:space:]]*(gh)[[:space:]]'; then
     if [ "$PHASE" = "complete" ] && _gh_safe_chain; then
         # COMPLETE: all gh ops allowed (issue create, pr create, etc.)
-        _show "[WFM bash] ALLOW gh in COMPLETE"
+        _trace "[WFM bash] ALLOW gh in COMPLETE"
+        _emit_debug_allow
         exit 0
     elif [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ] || [ "$PHASE" = "error" ]; then
         # DEFINE/DISCUSS: read-only gh ops + issue comment (for plan→issue linking)
         if echo "$COMMAND" | grep -qE '^[[:space:]]*gh[[:space:]]+(repo[[:space:]]+view|issue[[:space:]]+view|issue[[:space:]]+list|issue[[:space:]]+comment|pr[[:space:]]+view|pr[[:space:]]+list|release[[:space:]]+(view|list))' && \
            _gh_safe_chain; then
-            _show "[WFM bash] ALLOW gh read-only in $PHASE"
+            _trace "[WFM bash] ALLOW gh read-only in $PHASE"
+            _emit_debug_allow
             exit 0
         fi
     fi
@@ -271,7 +303,8 @@ if [ "$PHASE" = "complete" ]; then
        echo "$_rm_stripped" | grep -qE '\.claude/tmp/' && \
        ! echo "$_rm_stripped" | grep -qE '\.\.' && \
        ! echo "$_rm_stripped" | grep -qE '(&&|\|\||;|\|)'; then
-        _show "[WFM bash] ALLOW rm .claude/tmp/ in COMPLETE"
+        _trace "[WFM bash] ALLOW rm .claude/tmp/ in COMPLETE"
+        _emit_debug_allow
         exit 0
     fi
 fi
@@ -281,7 +314,7 @@ fi
 GUARD_SYSTEM_PATTERN='(\.claude/hooks/|plugin/scripts/|plugin/commands/)'
 if echo "$COMMAND" | grep -qE "$GUARD_SYSTEM_PATTERN"; then
     if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ] || [ "$NODE_WRITE" = "true" ] || [ "$RUBY_WRITE" = "true" ] || [ "$PERL_WRITE" = "true" ]; then
-        _show "[WFM bash] DENY — write to enforcement file blocked"
+        _trace "[WFM bash] DENY — write to enforcement file blocked"
         emit_deny "BLOCKED: Writes to enforcement files (.claude/hooks/, plugin/scripts/, plugin/commands/) are not allowed in any phase. These files define the workflow rules. Use !backtick if you need to make legitimate changes."
         exit 0
     fi
@@ -303,7 +336,8 @@ if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ]
 
     # If we can identify a write target, check it against the whitelist
     if [ -n "$WRITE_TARGET" ] && echo "$WRITE_TARGET" | grep -qE "$WHITELIST"; then
-        _show "[WFM bash] ALLOW — write target whitelisted ($WRITE_TARGET)"
+        _trace "[WFM bash] ALLOW — write target whitelisted ($WRITE_TARGET)"
+        _emit_debug_allow
         exit 0
     fi
     # Phase-aware deny message
@@ -315,11 +349,12 @@ if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ]
         *)        REASON="BLOCKED: Unexpected phase ($PHASE)." ;;
     esac
 
-    _show "[WFM bash] DENY — $REASON"
+    _trace "[WFM bash] DENY — $REASON"
     emit_deny "$REASON"
     exit 0
 fi
 
 # Read-only Bash commands are allowed
-_show "[WFM bash] ALLOW — no write pattern detected"
+_trace "[WFM bash] ALLOW — no write pattern detected"
+_emit_debug_allow
 exit 0
