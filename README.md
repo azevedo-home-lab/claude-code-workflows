@@ -58,7 +58,7 @@ Orthogonal to phase, the autonomy level controls how independently Claude operat
 - `▶▶` **Semi-Auto (ask)**: Claude works freely within each phase but stops at phase boundaries for review and guidance before transitioning. No auto-commits.
 - `▶▶▶` **Unattended (auto)**: Full autonomy. Claude auto-transitions between phases, auto-fixes review findings, auto-commits. Stops only when user input is genuinely needed or before git push.
 
-See the [Status Line guide](docs/guides/statusline-guide.md) for symbol display details.
+Autonomy symbols are shown in the status line alongside the current phase.
 
 Each cycle produces a **plan** (problem, approaches, rationale) and a **spec** (requirements, tasks, acceptance criteria).
 
@@ -68,12 +68,11 @@ Each cycle produces a **plan** (problem, approaches, rationale) and a **spec** (
 |------|-------------|------|
 | Workflow Manager | Phase-based enforcement + coaching | [Architecture](docs/reference/architecture.md) |
 | Integrated Superpowers | Auto-activated development skills | [Hooks reference](docs/reference/hooks.md) |
-| Integrated claude-mem | Persistent cross-session observations | [Memory guide](docs/guides/claude-mem-guide.md) |
-| Status Line | Informational status bar | [Setup guide](docs/guides/statusline-guide.md) |
+| Integrated claude-mem | Persistent cross-session observations | [Hooks reference](docs/reference/hooks.md) |
+| Status Line | Informational status bar | [`plugin/statusline/statusline.sh`](plugin/statusline/statusline.sh) |
 
 ## Docs
 
-- [Getting Started](docs/guides/getting-started.md) — installation and first workflow
 - [Architecture](docs/reference/architecture.md) — phases, enforcement, gates, milestones
 - [Hooks Reference](docs/reference/hooks.md) — hook implementation details
 - [Command Reference](docs/reference/commands.md) — all commands
