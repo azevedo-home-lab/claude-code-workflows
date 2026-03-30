@@ -184,3 +184,11 @@ Returns: the resolved skill name to stdout. Debug output goes to stderr.
 - `/debug off` — verify silence
 - Backwards compat: manually set `"debug": true` in state file, verify treated as `log`
 - New commands: `dispatch_agent` with valid/invalid agent name, `resolve_skill` with valid/invalid operation
+
+## Review Findings
+
+### Suggestions
+
+1. **Bootstrap timing on `set_debug`**: When calling `set_debug "show"`, the command itself produces no inline output because debug-log.sh is sourced at workflow-cmd.sh startup (before the debug level changes). All subsequent calls work correctly. This is a minor UX quirk, not a bug — documenting rather than fixing since the fix would add complexity for minimal value.
+
+2. **Statusline logging is file-only**: `[WFM status]` writes to `/tmp/wfm-statusline-debug.log` only, never to stderr, because stderr output from statusline.sh would corrupt the terminal status line display. This is by design — documented in code comments.
