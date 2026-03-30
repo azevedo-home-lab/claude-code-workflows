@@ -103,40 +103,16 @@ if [ "$(get_message_shown)" != "true" ]; then
 
     if [ "$FIRE_LAYER1" = "true" ]; then
         case "$PHASE" in
-            define)
-                MESSAGES="[Workflow Coach — DEFINE]
-Objective: Frame the problem and define measurable outcomes.
-You are in Diamond 1 (Problem Space). Diverge on understanding, converge on a clear problem statement.
-Done when: Plan has a complete Problem section with measurable outcomes, approved by user."
-                ;;
-            discuss)
-                MESSAGES="[Workflow Coach — DISCUSS]
-Objective: Research solution approaches, choose one with documented rationale.
-You are in Diamond 2 (Solution Space). Diverge on approaches, converge on a decision with documented trade-offs.
-Done when: Spec has Approaches Considered + Decision sections. Spec committed. User approved."
-                ;;
-            implement)
-                MESSAGES="[Workflow Coach — IMPLEMENT]
-Objective: Write the implementation plan, then build the solution with TDD discipline.
-First: write the plan with writing-plans skill. Then: follow it. Flag deviations. Write tests before code. Do not stop after code — run tests and version bump.
-Done when: Plan written, all steps implemented, tests passing, ready for review."
-                ;;
-            review)
-                MESSAGES="[Workflow Coach — REVIEW]
-Objective: Independent multi-agent validation of implementation quality.
-Report findings accurately. Don't downgrade severity. You MUST present findings to the user — do not stop after dispatching agents.
-Done when: All agents dispatched, findings verified and persisted to spec, user has responded."
-                ;;
-            complete)
-                MESSAGES="[Workflow Coach — COMPLETE]
-Objective: Verify outcomes were met, update documentation, hand over for future sessions.
-ALL 9 STEPS ARE MANDATORY. Do not stop after push. Tech debt audit, handover, and summary must complete before prompting /off.
-Done when: Validation results in plan, README checked, claude-mem observation saved, phase OFF."
-                ;;
             error)
                 MESSAGES="[Workflow Coach — ERROR]
-Workflow state is corrupted. All writes are blocked for safety.
-To recover: run /off to reset the workflow, or manually delete .claude/state/workflow.json"
+$(load_message "objectives/error.md")"
+                ;;
+            *)
+                OBJ_MSG=$(load_message "objectives/$PHASE.md")
+                if [ -n "$OBJ_MSG" ]; then
+                    MESSAGES="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')]
+$OBJ_MSG"
+                fi
                 ;;
         esac
         # Append auto-transition guidance if autonomy is "auto"
