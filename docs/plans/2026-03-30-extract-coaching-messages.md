@@ -2,7 +2,7 @@
 
 ## Problem
 
-The coaching messages in `plugin/scripts/post-tool-navigator.sh` are hardcoded as string literals (~26+ messages across ~628 lines). This creates four problems:
+The coaching messages in `plugin/scripts/post-tool-navigator.sh` are hardcoded as string literals (~45 messages across ~626 lines). This creates five problems:
 
 1. **Editorial friction** — Editing coaching tone/content requires navigating shell logic
 2. **No user customization** — Plugin users can't adjust messages without forking the script
@@ -24,6 +24,10 @@ The coaching messages in `plugin/scripts/post-tool-navigator.sh` are hardcoded a
 - Adding new coaching messages
 - Changing the hook output format (JSON with `systemMessage`)
 
+## Scope Clarification: Trigger Name Normalization
+
+Several Layer 2 trigger names in the script are inconsistent — some include a phase suffix (`agent_return_define`, `plan_write_define`) while others omit it (`plan_write`, `source_edit`, `test_run`). As part of extraction, trigger names will be normalized to always include the phase suffix. This is a string-constant rename, not a logic change — it affects only the `TRIGGER=` and `FINDINGS_TRIGGER=` assignment values, not control flow. The `has_coaching_fired`/`add_coaching_fired` system is string-based, so renaming triggers is safe.
+
 ## Decision
 
 **Chosen approach:** Directory of individual markdown files (Approach B)
@@ -35,7 +39,7 @@ The coaching messages in `plugin/scripts/post-tool-navigator.sh` are hardcoded a
 - **B: Directory of individual files** — Chosen. Simple `cat`-based loading. True lazy-loading. Each message independently editable.
 - **C: Structured data file (JSON/YAML)** — Rejected because JSON is awkward for multi-line prose, and no token savings.
 
-**Trade-offs accepted:** ~40 small files instead of inline strings. More filesystem overhead, but each file is tiny and the directory structure mirrors the architecture documentation.
+**Trade-offs accepted:** ~45 small files instead of inline strings. More filesystem overhead, but each file is tiny and the directory structure mirrors the architecture documentation.
 
 ## Design
 
@@ -83,8 +87,8 @@ plugin/coaching/
 │       ├── complete_pipeline_incomplete.md
 │       ├── discuss_plan_before_research.md
 │       ├── discuss_plan_before_approach.md
-│       ├── discuss_pipeline_incomplete.md
 │       ├── implement_code_before_plan.md
+│       ├── implement_code_before_plan_read.md
 │       ├── implement_pipeline_incomplete.md
 │       ├── review_findings_before_agents.md
 │       ├── review_ack_before_findings.md
@@ -102,16 +106,23 @@ Each `.md` file contains only the message text. No frontmatter, no metadata, no 
 
 The `[Workflow Coach — PHASE]` prefix is added by the script at load time.
 
-**Template variables** for messages that need dynamic values:
+**Template variable** for messages that need the phase name:
 - `{{PHASE}}` — current phase name (uppercased)
-- `{{COUNT}}` — numeric counter (context-dependent)
+
+The `no_verify_after_edits` check includes a dynamic edit count (`$VERIFY_COUNT`). This single interpolation stays inline in the script — the `.md` file contains only the static portion of the message, and the script appends the count. This avoids a `{{COUNT}}` template parameter that would only serve one message out of 45.
 
 ### Loading Mechanism
 
 Helper function added to `post-tool-navigator.sh`:
 
 ```bash
-COACHING_DIR="$SCRIPT_DIR/../coaching"
+# Resolve coaching directory relative to PROJECT_ROOT, not SCRIPT_DIR.
+# SCRIPT_DIR resolves to .claude/hooks/ (the symlink's directory), not
+# plugin/scripts/ (the target). Using SCRIPT_DIR/../coaching would look
+# for .claude/coaching/ which doesn't exist. Uses the same project-root
+# resolution as workflow-state.sh's STATE_DIR (CLAUDE_PROJECT_DIR with
+# git fallback), though the subdirectory differs.
+COACHING_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/coaching"
 
 load_message() {
     local file="$COACHING_DIR/$1"
@@ -123,18 +134,17 @@ load_message() {
     if [ -n "${2:-}" ]; then
         msg=$(echo "$msg" | sed "s/{{PHASE}}/$2/g")
     fi
-    if [ -n "${3:-}" ]; then
-        msg=$(echo "$msg" | sed "s/{{COUNT}}/$3/g")
-    fi
     echo "$msg"
 }
 ```
 
-**Error handling:** Missing files cause `load_message` to return 1 and produce no output. The script's existing `[ -n "$MSG" ]` checks handle this naturally — the message simply doesn't fire.
+**Why not `$SCRIPT_DIR/../coaching`?** The hook scripts in `.claude/hooks/` are symlinks to `../../plugin/scripts/`. When bash resolves `SCRIPT_DIR` via `cd "$(dirname "${BASH_SOURCE[0]}")" && pwd`, it gets the symlink's parent directory (`.claude/hooks/`), not the target's directory (`plugin/scripts/`). So `$SCRIPT_DIR/../coaching` would resolve to `.claude/coaching/` — which doesn't exist. This is the same class of bug that caused the `debug-log.sh` hook errors (missing symlink).
+
+**Error handling:** Missing files cause `load_message` to return 1 and produce no output. The script's existing guards (`[ -n "$MESSAGES" ]`, `[ -n "$L2_MSG" ]`, `[ -n "$L3_MSG" ]`) handle this naturally — the message simply doesn't fire. The `[Workflow Coach — PHASE]` prefix is prepended by the script only when a message is non-empty, so missing files produce no output at all.
 
 ### Script Changes
 
-Only string literals change. All logic stays identical.
+String literals are extracted to files. Logic stays identical except for normalizing trigger names to include phase suffixes (see Scope Clarification above).
 
 | Section | Current | After |
 |---------|---------|-------|
@@ -144,7 +154,7 @@ Only string literals change. All logic stays identical.
 | Layer 3 (checks) | ~15 inline strings | `load_message "checks/$CHECK.md"` |
 | Step ordering | ~13 inline strings | `load_message "checks/step_ordering/$KEY.md"` |
 
-Estimated reduction: ~628 lines to ~500 lines in the script. ~40 new `.md` files.
+Estimated reduction: ~626 lines to ~540 lines in the script (message strings are typically 1-3 lines each; control flow logic stays). 45 new `.md` files.
 
 ### Architecture Documentation
 
