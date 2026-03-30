@@ -54,6 +54,7 @@ esac
 
 # Debug mode (read after OFF exit to avoid unnecessary jq call)
 DEBUG_MODE=$(get_debug)
+source "$SCRIPT_DIR/debug-log.sh" "bash-write-guard"
 
 # ---------------------------------------------------------------------------
 # Shared command parsing — runs once, used by both autonomy and phase-gate paths

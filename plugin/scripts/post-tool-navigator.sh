@@ -62,6 +62,7 @@ fi
 
 # Read debug flag once for all layers
 DEBUG_MODE=$(get_debug)
+source "$SCRIPT_DIR/debug-log.sh" "post-tool-navigator"
 
 # Collect messages from all layers — may combine multiple
 MESSAGES=""
