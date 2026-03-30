@@ -17,12 +17,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/workflow-state.sh"
 
-# Stub _log before debug-log.sh is sourced (called in early-exit paths)
+# Stub _log/_show before debug-log.sh is sourced (called in early-exit paths)
 _log() { :; }
+_show() { :; }
 
 # No state file = no enforcement (first run, hooks not yet activated)
 if [ ! -f "$STATE_FILE" ]; then
     _log "EXIT: no state file"
+    _show "[WFM gate] SKIP — no state file"
     exit 0
 fi
 
@@ -31,7 +33,7 @@ _log "PHASE=$PHASE"
 
 # OFF phase: no enforcement
 case "$PHASE" in
-    off) _log "EXIT: off phase"; exit 0 ;;
+    off) _log "EXIT: off phase"; _show "[WFM gate] SKIP — phase=OFF, no enforcement"; exit 0 ;;
 esac
 
 # Debug mode (read after OFF exit to avoid unnecessary jq call)
@@ -90,7 +92,7 @@ _log "NORMALIZED_PATH=$NORMALIZED_PATH"
 GUARD_SYSTEM_PATTERN='(\.claude/hooks/|(^|[^a-z-])plugin/scripts/|(^|[^a-z-])plugin/commands/)'
 if [ -n "$NORMALIZED_PATH" ] && echo "$NORMALIZED_PATH" | grep -qE "$GUARD_SYSTEM_PATTERN"; then
     _log "DENY: guard-system match on '$NORMALIZED_PATH'"
-    if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse DENY: Write/Edit on enforcement file $NORMALIZED_PATH" >&2; fi
+    _show "[WFM gate] DENY Edit $NORMALIZED_PATH — guard self-protection"
     emit_deny "BLOCKED: Edits to enforcement files (.claude/hooks/, plugin/scripts/, plugin/commands/) are not allowed in any phase. These files define the workflow rules. Use !backtick if you need to make legitimate changes."
     exit 0
 fi
@@ -98,7 +100,7 @@ _log "Guard-system check passed"
 
 # Allow everything in implement and review phases
 case "$PHASE" in
-    implement|review) if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse ALLOW: Write/Edit — phase=$PHASE allows all writes" >&2; fi; exit 0 ;;
+    implement|review) _show "[WFM gate] ALLOW — phase=$PHASE allows all writes"; exit 0 ;;
 esac
 
 # Select whitelist based on phase
@@ -113,7 +115,7 @@ _log "WHITELIST=$WHITELIST"
 if [ -n "$NORMALIZED_PATH" ]; then
     if echo "$NORMALIZED_PATH" | grep -qE "$WHITELIST"; then
         _log "ALLOW: whitelist match on '$NORMALIZED_PATH'"
-        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse ALLOW: Write/Edit on $NORMALIZED_PATH — path whitelisted" >&2; fi
+        _show "[WFM gate] ALLOW $NORMALIZED_PATH — path whitelisted"
         exit 0
     fi
     _log "Whitelist did NOT match '$NORMALIZED_PATH'"
@@ -131,6 +133,6 @@ case "$PHASE" in
 esac
 
 _log "DENY: $REASON"
-if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse DENY: Write/Edit on $NORMALIZED_PATH — $REASON" >&2; fi
+_show "[WFM gate] DENY $NORMALIZED_PATH — $REASON"
 emit_deny "$REASON"
 exit 0

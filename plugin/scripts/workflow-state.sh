@@ -466,7 +466,7 @@ agent_set_phase() {
           + (if ($tracked | length) > 0 then {tracked_observations: $tracked} else {} end)
           + (if $issue_maps != null then {issue_mappings: $issue_maps} else {} end)
           + (if $tests_passed != "" then {tests_last_passed_at: $tests_passed} else {} end)
-          + (if $debug == "true" then {debug: true} else {} end)' \
+          + (if $debug != "" and $debug != "off" then {debug: $debug} else {} end)' \
           | _safe_write
     )
 
@@ -736,12 +736,18 @@ get_pending_verify() {
 
 get_debug() {
     if [ ! -f "$STATE_FILE" ]; then
-        echo "false"
+        echo "off"
         return
     fi
     local val
-    val=$(jq -r 'if .debug == true then "true" else "false" end' "$STATE_FILE" 2>/dev/null) || val="false"
-    [ -z "$val" ] && val="false"
+    val=$(jq -r '.debug // "off"' "$STATE_FILE" 2>/dev/null) || val="off"
+    # Backwards compat
+    case "$val" in
+        true) val="log" ;;
+        false|null|"") val="off" ;;
+        off|log|show) ;;
+        *) val="off" ;;
+    esac
     echo "$val"
 }
 
@@ -751,9 +757,12 @@ set_debug() {
         return 1
     fi
     local val="${1:-}"
+    # Backwards compat: true->log, false->off
     case "$val" in
-        true|false) ;;
-        *) echo "ERROR: Invalid debug value: $val (valid: true, false)" >&2; return 1 ;;
+        true) val="log" ;;
+        false) val="off" ;;
+        off|log|show) ;;
+        *) echo "ERROR: Invalid debug value: $val (valid: off, log, show)" >&2; return 1 ;;
     esac
-    _update_state '.debug = ($v == "true")' --arg v "$val"
+    _update_state '.debug = $v' --arg v "$val"
 }

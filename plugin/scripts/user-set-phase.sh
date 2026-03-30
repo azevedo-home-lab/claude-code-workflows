@@ -54,13 +54,18 @@ if [ "$new_phase" = "off" ]; then
     preserved_decision=""
     preserved_autonomy=""
     preserved_tests_passed=""
-    preserved_debug="false"
+    preserved_debug="off"
 fi
 
 # Initialize autonomy to "ask" when starting a fresh cycle from off
 if [ "$current_phase" = "off" ] && [ "$new_phase" != "off" ] && [ -z "$preserved_autonomy" ]; then
     preserved_autonomy="ask"
 fi
+
+# Debug logging for phase transitions (read preserved_debug BEFORE sourcing debug-log.sh)
+DEBUG_MODE="$preserved_debug"
+source "$SCRIPT_DIR/debug-log.sh" "user-set-phase"
+_show "[WFM phase] User transition: $current_phase → $new_phase"
 
 tracked_json="[]"
 if [ -n "$preserved_tracked" ]; then
@@ -97,8 +102,10 @@ ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
       + (if ($tracked | length) > 0 then {tracked_observations: $tracked} else {} end)
       + (if $issue_maps != null then {issue_mappings: $issue_maps} else {} end)
       + (if $tests_passed != "" then {tests_last_passed_at: $tests_passed} else {} end)
-      + (if $debug == "true" then {debug: true} else {} end)' \
+      + (if $debug != "" and $debug != "off" then {debug: $debug} else {} end)' \
       | _safe_write
 )
+
+_show "[WFM phase] State rebuilt — preserved: plan_path=$preserved_decision, autonomy=$preserved_autonomy, debug=$preserved_debug"
 
 echo "Phase set to ${new_phase}."

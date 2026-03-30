@@ -1,15 +1,17 @@
 ---
-description: Toggle debug mode — show/hide hook messages to user
+description: Toggle debug mode — control WFM observability level
 allowed-tools: Bash
 ---
 
-Toggle WFM debug mode. When enabled, all hook coaching messages and gate decisions are shown to the user (not just to Claude).
+Toggle WFM debug mode. Three levels control how much hook activity is visible.
 
 ## Usage
 
-- `/debug on` — enable debug output
-- `/debug off` — disable debug output
-- `/debug` — show current debug state
+- `/debug` — show current debug level
+- `/debug off` — disable all debug output
+- `/debug on` — enable file-only logging (alias for `log`)
+- `/debug log` — enable file-only logging (writes to /tmp/wfm-*-debug.log)
+- `/debug show` — enable full observability (file logging + inline stderr output)
 
 ## Execution
 
@@ -19,22 +21,33 @@ Toggle WFM debug mode. When enabled, all hook coaching messages and gate decisio
 .claude/hooks/workflow-cmd.sh get_debug
 ```
 
-Report: "Debug mode is **on/off**."
+Report the result:
+- "off" — "Debug mode is **off**."
+- "log" — "Debug mode is **log** (file only). Logs at `/tmp/wfm-*-debug.log`."
+- "show" — "Debug mode is **show** (file + stderr). All WFM decisions appear inline."
 
-2. If argument is `on`:
-
-```bash
-.claude/hooks/workflow-cmd.sh set_debug "true"
-```
-
-Report: "Debug mode **enabled**. Hook messages will now be visible to you."
-
-3. If argument is `off`:
+2. If argument is `off`:
 
 ```bash
-.claude/hooks/workflow-cmd.sh set_debug "false"
+.claude/hooks/workflow-cmd.sh set_debug "off"
 ```
 
-Report: "Debug mode **disabled**. Hook messages are now Claude-only."
+Report: "Debug mode **disabled**."
 
-4. If argument is anything else, report: "Invalid argument. Use `on`, `off`, or no argument to check status."
+3. If argument is `on` or `log`:
+
+```bash
+.claude/hooks/workflow-cmd.sh set_debug "log"
+```
+
+Report: "Debug mode set to **log**. Hook activity logged to `/tmp/wfm-*-debug.log`."
+
+4. If argument is `show`:
+
+```bash
+.claude/hooks/workflow-cmd.sh set_debug "show"
+```
+
+Report: "Debug mode set to **show**. All WFM gate/coach/phase decisions will appear inline in the conversation."
+
+5. If argument is anything else, report: "Invalid argument. Use `off`, `on`, `log`, `show`, or no argument to check status."
