@@ -614,5 +614,7 @@ _show "[WFM coach] Counters: calls_since_agent=$_COACH_COUNTER, layer2_fired=[$_
 # ============================================================
 
 if [ -n "$MESSAGES" ]; then
+    _show "[WFM coach] Message sent to Claude:"
+    echo "$MESSAGES" | while IFS= read -r line; do _show "  $line"; done
     jq -n --arg msg "$MESSAGES" '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "systemMessage": $msg}}'
 fi
