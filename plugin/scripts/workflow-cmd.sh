@@ -40,16 +40,8 @@ dispatch_agent() {
     fi
     local char_count
     char_count=$(wc -c < "$agent_file" | tr -d ' ')
-    # Debug output to stderr
-    local debug_level
-    debug_level=$(get_debug)
-    if [ "$debug_level" = "show" ]; then
-        echo "[WFM agent] Loaded plugin/agents/${agent_name}.md (${char_count} chars)" >&2
-        echo "[WFM agent] Dispatching as: general-purpose" >&2
-    fi
-    if [ "$debug_level" = "log" ] || [ "$debug_level" = "show" ]; then
-        echo "[WFM agent] Loaded plugin/agents/${agent_name}.md (${char_count} chars)" >> "/tmp/wfm-workflow-cmd-debug.log"
-    fi
+    _show "[WFM agent] Loaded plugin/agents/${agent_name}.md (${char_count} chars)"
+    _show "[WFM agent] Dispatching as: general-purpose"
     # Return file content to stdout for use in agent prompt
     cat "$agent_file"
 }
@@ -69,18 +61,11 @@ resolve_skill() {
     if [ -z "$resolved" ]; then
         resolved=$(jq -r --arg op "$operation" '.operations[$op].reference_skills[0] // empty' "$registry" 2>/dev/null)
     fi
-    local debug_level
-    debug_level=$(get_debug)
-    if [ "$debug_level" = "show" ]; then
-        echo "[WFM skill] Lookup: \"$operation\" in skill-registry.json" >&2
-        if [ -n "$resolved" ]; then
-            echo "[WFM skill] Resolved: $resolved" >&2
-        else
-            echo "[WFM skill] NOT FOUND: no skill mapped for \"$operation\"" >&2
-        fi
-    fi
-    if [ "$debug_level" = "log" ] || [ "$debug_level" = "show" ]; then
-        echo "[WFM skill] Lookup: \"$operation\" → ${resolved:-NOT FOUND}" >> "/tmp/wfm-workflow-cmd-debug.log"
+    _show "[WFM skill] Lookup: \"$operation\" in skill-registry.json"
+    if [ -n "$resolved" ]; then
+        _show "[WFM skill] Resolved: $resolved"
+    else
+        _show "[WFM skill] NOT FOUND: no skill mapped for \"$operation\""
     fi
     # Return resolved skill name to stdout
     echo "$resolved"
