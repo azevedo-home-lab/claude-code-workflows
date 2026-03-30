@@ -1,0 +1,1 @@
+Writing code before the implementation plan is written. Write the plan first with superpowers:writing-plans.

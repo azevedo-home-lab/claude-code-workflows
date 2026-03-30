@@ -1,0 +1,1 @@
+Writing code before reading the plan. Read the plan first and mark plan_read milestone.

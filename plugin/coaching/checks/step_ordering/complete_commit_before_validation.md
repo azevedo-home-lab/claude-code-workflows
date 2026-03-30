@@ -1,0 +1,1 @@
+Committing before validation is complete. Run Steps 1-3 (plan validation, outcome validation, present results) first.

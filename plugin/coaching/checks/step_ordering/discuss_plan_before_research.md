@@ -1,0 +1,1 @@
+Writing spec before research is complete. Complete the diverge phase first.

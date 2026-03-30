@@ -465,6 +465,13 @@ if [ "$AUTONOMY_LEVEL" = "auto" ]; then
 fi
 
 # Check 9: Within-phase step ordering — fires on every match (all autonomy modes)
+# Helper: load step ordering message and set STEP_MSG
+_load_step() {
+    local body
+    body=$(load_message "checks/step_ordering/$1.md")
+    [ -n "$body" ] && STEP_MSG="[Workflow Coach — $PHASE_UPPER] $body"
+}
+
 STEP_MSG=""
 
 if [ "$PHASE" = "complete" ]; then
@@ -473,25 +480,25 @@ if [ "$PHASE" = "complete" ]; then
             BASH_CMD=$(extract_bash_command)
             if echo "$BASH_CMD" | grep -qE 'git[[:space:]]+commit'; then
                 if [ "$(get_completion_field "results_presented")" != "true" ]; then
-                    STEP_MSG="[Workflow Coach — COMPLETE] Committing before validation is complete. Run Steps 1-3 (plan validation, outcome validation, present results) first."
+                    _load_step "complete_commit_before_validation"
                 elif [ "$(get_completion_field "docs_checked")" != "true" ]; then
-                    STEP_MSG="[Workflow Coach — COMPLETE] Committing before documentation check. Run Step 4 first."
+                    _load_step "complete_commit_before_docs"
                 fi
             fi
             if echo "$BASH_CMD" | grep -qE 'git[[:space:]]+push'; then
                 if [ "$(get_completion_field "committed")" != "true" ]; then
-                    STEP_MSG="[Workflow Coach — COMPLETE] Pushing before committing. Run Step 5 first."
+                    _load_step "complete_push_before_commit"
                 fi
             fi
         fi
         if echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
             if [ "$(get_completion_field "tech_debt_audited")" != "true" ]; then
-                STEP_MSG="[Workflow Coach — COMPLETE] Writing handover before tech debt audit. Run Step 7 first."
+                _load_step "complete_handover_before_audit"
             fi
         fi
         # Pipeline-abandoned: pushed but later steps not done
         if [ "$(get_completion_field "pushed")" = "true" ] && [ "$(get_completion_field "handover_saved")" != "true" ]; then
-            STEP_MSG="[Workflow Coach — COMPLETE] Pipeline incomplete. You pushed but Steps 7-9 (tech debt, handover, summary) still need to run. Do not stop here."
+            _load_step "complete_pipeline_incomplete"
         fi
     fi
 elif [ "$PHASE" = "discuss" ]; then
@@ -499,9 +506,9 @@ elif [ "$PHASE" = "discuss" ]; then
         if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
             if echo "$FILE_PATH" | grep -qE 'docs/plans/'; then
                 if [ "$(get_discuss_field "research_done")" != "true" ]; then
-                    STEP_MSG="[Workflow Coach — DISCUSS] Writing spec before research is complete. Complete the diverge phase first."
+                    _load_step "discuss_plan_before_research"
                 elif [ "$(get_discuss_field "approach_selected")" != "true" ]; then
-                    STEP_MSG="[Workflow Coach — DISCUSS] Writing spec before approach is selected. Complete the converge phase first."
+                    _load_step "discuss_plan_before_approach"
                 fi
             fi
         fi
@@ -511,15 +518,15 @@ elif [ "$PHASE" = "implement" ]; then
         if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
             if [ -n "$FILE_PATH" ] && ! echo "$FILE_PATH" | grep -qE '(test|spec|docs/|plans/|specs/|\.md$)'; then
                 if [ "$(get_implement_field "plan_written")" != "true" ]; then
-                    STEP_MSG="[Workflow Coach — IMPLEMENT] Writing code before the implementation plan is written. Write the plan first with superpowers:writing-plans."
+                    _load_step "implement_code_before_plan"
                 elif [ "$(get_implement_field "plan_read")" != "true" ]; then
-                    STEP_MSG="[Workflow Coach — IMPLEMENT] Writing code before reading the plan. Read the plan first and mark plan_read milestone."
+                    _load_step "implement_code_before_plan_read"
                 fi
             fi
         fi
         # Pipeline-abandoned: tasks complete but tests not run
         if [ "$(get_implement_field "all_tasks_complete")" = "true" ] && [ "$(get_implement_field "tests_passing")" != "true" ]; then
-            STEP_MSG="[Workflow Coach — IMPLEMENT] All tasks complete but tests not run. Run the test suite and version bump before transitioning to review."
+            _load_step "implement_pipeline_incomplete"
         fi
     fi
 elif [ "$PHASE" = "review" ]; then
@@ -527,31 +534,23 @@ elif [ "$PHASE" = "review" ]; then
         if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
             if echo "$FILE_PATH" | grep -qE 'docs/specs/'; then
                 if [ "$(get_review_field "agents_dispatched")" != "true" ]; then
-                    STEP_MSG="[Workflow Coach — REVIEW] Writing findings before all agents have run. Dispatch review agents first."
+                    _load_step "review_findings_before_agents"
                 fi
             fi
         fi
         if [ "$TOOL_NAME" = "AskUserQuestion" ]; then
             if [ "$(get_review_field "findings_presented")" != "true" ]; then
-                STEP_MSG="[Workflow Coach — REVIEW] Asking for acknowledgment before presenting findings. Present findings first."
+                _load_step "review_ack_before_findings"
             fi
         fi
         # Pipeline-abandoned: agents dispatched but findings not presented
         if [ "$(get_review_field "agents_dispatched")" = "true" ] && [ "$(get_review_field "findings_presented")" != "true" ]; then
-            STEP_MSG="[Workflow Coach — REVIEW] Review agents returned but findings not presented. Consolidate and present findings to the user."
+            _load_step "review_pipeline_incomplete"
         fi
     fi
 fi
 
-if [ -n "$STEP_MSG" ]; then
-    if [ -n "$L3_MSG" ]; then
-        L3_MSG="$L3_MSG
-
-$STEP_MSG"
-    else
-        L3_MSG="$STEP_MSG"
-    fi
-fi
+[ -n "$STEP_MSG" ] && _append_l3 "$STEP_MSG"
 
 # Append Layer 3 message if any
 if [ -n "$L3_MSG" ]; then
