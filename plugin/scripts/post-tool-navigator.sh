@@ -118,30 +118,14 @@ $OBJ_MSG"
         # Append auto-transition guidance if autonomy is "auto"
         AUTONOMY_LEVEL=$(get_autonomy_level)
         if [ "$AUTONOMY_LEVEL" = "auto" ] && [ -n "$MESSAGES" ]; then
-            case "$PHASE" in
-                implement)
-                    MESSAGES="$MESSAGES
-▶▶▶ Unattended (auto) — when all milestones are complete (plan_read, tests_passing, all_tasks_complete), auto-transition: run these commands now:
-  .claude/hooks/workflow-cmd.sh agent_set_phase \"review\"
-  .claude/hooks/workflow-cmd.sh reset_review_status
-Then read plugin/commands/review.md for phase instructions. Do NOT commit, push, or do other work after milestones are done."
-                    ;;
-                review)
-                    MESSAGES="$MESSAGES
-▶▶▶ Unattended (auto) — when all review milestones are complete, auto-transition: run these commands now:
-  .claude/hooks/workflow-cmd.sh agent_set_phase \"complete\"
-  .claude/hooks/workflow-cmd.sh reset_completion_status
-Then read plugin/commands/complete.md for phase instructions. Do NOT wait for user."
-                    ;;
-                complete)
-                    MESSAGES="$MESSAGES
-▶▶▶ Unattended (auto) — run the full completion pipeline. Stop only before git push (always requires confirmation)."
-                    ;;
-                *)
-                    MESSAGES="$MESSAGES
-▶▶▶ Unattended (auto) — when this phase's work is complete, proceed to the next phase without waiting for user confirmation."
-                    ;;
-            esac
+            AUTO_MSG=$(load_message "auto-transition/$PHASE.md")
+            if [ -z "$AUTO_MSG" ]; then
+                AUTO_MSG=$(load_message "auto-transition/default.md")
+            fi
+            if [ -n "$AUTO_MSG" ]; then
+                MESSAGES="$MESSAGES
+$AUTO_MSG"
+            fi
         fi
 
         # Skip state update in error phase — state is corrupt, writes will fail

@@ -1,0 +1,1 @@
+▶▶▶ Unattended (auto) — when this phase's work is complete, proceed to the next phase without waiting for user confirmation.

@@ -1,0 +1,1 @@
+▶▶▶ Unattended (auto) — run the full completion pipeline. Stop only before git push (always requires confirmation).
