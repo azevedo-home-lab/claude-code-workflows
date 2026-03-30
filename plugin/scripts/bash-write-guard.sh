@@ -200,6 +200,19 @@ if echo "$COMMAND" | grep -qE '(^|[;&|[:space:]])(\\./|source[[:space:]]|bash[[:
 fi
 
 # ---------------------------------------------------------------------------
+# Destructive git operations: blocked in ALL active phases.
+# Fires before the implement/review early-exit — no phase bypasses this.
+# The user can always use !backtick for legitimate destructive operations.
+# ---------------------------------------------------------------------------
+
+DESTRUCTIVE_GIT='(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+(reset[[:space:]]+--hard|push[[:space:]]+--force|push[[:space:]]+-f[[:space:]]|branch[[:space:]]+-D[[:space:]]|checkout[[:space:]]+--[[:space:]]\.|clean[[:space:]]+-f|rebase[[:space:]]+--abort)'
+if echo "$COMMAND" | grep -qE "$DESTRUCTIVE_GIT"; then
+    if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: destructive git operation blocked" >&2; fi
+    emit_deny "BLOCKED: Destructive git operation detected (reset --hard, push --force, branch -D, checkout --, clean -f, rebase --abort). These operations can cause irreversible data loss. Use !backtick if you need to run this command."
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------
 # Phase-gate: ask/auto enforcement by phase
 # ---------------------------------------------------------------------------
 
