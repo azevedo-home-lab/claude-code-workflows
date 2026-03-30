@@ -168,6 +168,13 @@ if [ -f "$WM_SOURCE_JSON" ] || [ -d "$WM_PLUGIN_DIR" ]; then
             WM_DEBUG="log"
         fi
     fi
+    # Debug logging (file only — stderr would corrupt statusline output)
+    if [ "$WM_DEBUG" = "show" ] || [ "$WM_DEBUG" = "log" ]; then
+        _SL_ACTIVE_SKILL=$(grep -o '"active_skill"[[:space:]]*:[[:space:]]*"[^"]*"' "$WM_STATE_FILE" | grep -o '"[^"]*"$' | tr -d '"' || true)
+        _SL_OBS_ID=$(grep -o '"last_observation_id"[[:space:]]*:[[:space:]]*[0-9]*' "$WM_STATE_FILE" | grep -o '[0-9]*$' || true)
+        _SL_TRACKED=$(jq -r '.tracked_observations // [] | map("#" + tostring) | join(",")' "$WM_STATE_FILE" 2>/dev/null || true)
+        echo "[WFM status] Read: phase=${WM_PHASE:-off}, autonomy=${WM_AUTONOMY:-ask}, debug=${WM_DEBUG:-off}, skill=${_SL_ACTIVE_SKILL:-}, obs=${_SL_OBS_ID:+#$_SL_OBS_ID}, tracked=[${_SL_TRACKED}]" >> "/tmp/wfm-statusline-debug.log"
+    fi
     # Autonomy symbol (only when phase is not OFF and level is set)
     AUTONOMY_SYM=""
     if [ "$WM_PHASE" != "off" ] && [ -n "$WM_AUTONOMY" ]; then
