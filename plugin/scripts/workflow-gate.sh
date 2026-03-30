@@ -17,16 +17,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/workflow-state.sh"
 
-# Stub _log/_show/_trace before debug-log.sh is sourced (called in early-exit paths)
+# Stub _log before debug-log.sh is sourced (called in early-exit paths)
 _log() { :; }
-_show() { :; }
-DEBUG_TRACE=""
-_trace() { :; }
 
 # No state file = no enforcement (first run, hooks not yet activated)
 if [ ! -f "$STATE_FILE" ]; then
     _log "EXIT: no state file"
-    _trace "[WFM gate] SKIP — no state file"
     exit 0
 fi
 
@@ -35,36 +31,13 @@ _log "PHASE=$PHASE"
 
 # OFF phase: no enforcement
 case "$PHASE" in
-    off) _log "EXIT: off phase"; _trace "[WFM gate] SKIP — phase=OFF, no enforcement"; exit 0 ;;
+    off) _log "EXIT: off phase"; exit 0 ;;
 esac
 
 # Debug mode (read after OFF exit to avoid unnecessary jq call)
 DEBUG_MODE=$(get_debug)
 source "$SCRIPT_DIR/debug-log.sh" "workflow-gate"
 
-# Collect debug trace for systemMessage injection (show mode only).
-# _trace() logs via _show (file + stderr) AND collects into DEBUG_TRACE
-# so the trace can be emitted via systemMessage — the only user-visible
-# channel for PreToolUse hooks in Claude Code.
-_trace() {
-    _show "$1"
-    if [ "$_WFM_DEBUG_LEVEL" = "show" ]; then
-        if [ -n "$DEBUG_TRACE" ]; then
-            DEBUG_TRACE="$DEBUG_TRACE
-$1"
-        else
-            DEBUG_TRACE="$1"
-        fi
-    fi
-}
-
-# Emit debug trace as systemMessage JSON on ALLOW paths (show mode only).
-# PreToolUse ALLOW has no other user-visible channel.
-_emit_debug_allow() {
-    if [ -n "${DEBUG_TRACE:-}" ]; then
-        jq -n --arg msg "$DEBUG_TRACE" '{"hookSpecificOutput": {"systemMessage": $msg}}'
-    fi
-}
 
 # Parse file path early — needed by guard-system check before phase-based early-exit.
 INPUT=$(cat)
@@ -117,7 +90,7 @@ _log "NORMALIZED_PATH=$NORMALIZED_PATH"
 GUARD_SYSTEM_PATTERN='(\.claude/hooks/|(^|[^a-z-])plugin/scripts/|(^|[^a-z-])plugin/commands/)'
 if [ -n "$NORMALIZED_PATH" ] && echo "$NORMALIZED_PATH" | grep -qE "$GUARD_SYSTEM_PATTERN"; then
     _log "DENY: guard-system match on '$NORMALIZED_PATH'"
-    _trace "[WFM gate] DENY Edit $NORMALIZED_PATH — guard self-protection"
+    if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse DENY: Write/Edit on enforcement file $NORMALIZED_PATH" >&2; fi
     emit_deny "BLOCKED: Edits to enforcement files (.claude/hooks/, plugin/scripts/, plugin/commands/) are not allowed in any phase. These files define the workflow rules. Use !backtick if you need to make legitimate changes."
     exit 0
 fi
@@ -125,7 +98,7 @@ _log "Guard-system check passed"
 
 # Allow everything in implement and review phases
 case "$PHASE" in
-    implement|review) _trace "[WFM gate] ALLOW — phase=$PHASE allows all writes"; _emit_debug_allow; exit 0 ;;
+    implement|review) if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse ALLOW: Write/Edit — phase=$PHASE allows all writes" >&2; fi; exit 0 ;;
 esac
 
 # Select whitelist based on phase
@@ -140,8 +113,7 @@ _log "WHITELIST=$WHITELIST"
 if [ -n "$NORMALIZED_PATH" ]; then
     if echo "$NORMALIZED_PATH" | grep -qE "$WHITELIST"; then
         _log "ALLOW: whitelist match on '$NORMALIZED_PATH'"
-        _trace "[WFM gate] ALLOW $NORMALIZED_PATH — path whitelisted"
-        _emit_debug_allow
+        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse ALLOW: Write/Edit on $NORMALIZED_PATH — path whitelisted" >&2; fi
         exit 0
     fi
     _log "Whitelist did NOT match '$NORMALIZED_PATH'"
@@ -159,6 +131,6 @@ case "$PHASE" in
 esac
 
 _log "DENY: $REASON"
-_trace "[WFM gate] DENY $NORMALIZED_PATH — $REASON"
+if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] PreToolUse DENY: Write/Edit on $NORMALIZED_PATH — $REASON" >&2; fi
 emit_deny "$REASON"
 exit 0
