@@ -20,7 +20,7 @@ Each phase has a gate. You must pass the gate to leave.
 |-------|-------------|-------------------|
 | OFF | No enforcement | — |
 | DEFINE | Problem definition | Agent |
-| DISCUSS | Solution design + plan | Agent |
+| DISCUSS | Solution design + approach selection | Agent |
 | IMPLEMENT | Write code | Agent |
 | REVIEW | 5 agents check the code | Agent |
 | COMPLETE | Validate, commit, handover | Agent |
@@ -33,10 +33,10 @@ Each phase has a gate. You must pass the gate to leave.
 DISCUSS exit requires:
   ├── problem_confirmed = true
   ├── research_done = true
-  ├── approach_selected = true
-  └── plan_written = true
+  └── approach_selected = true
 
 IMPLEMENT exit requires:
+  ├── plan_written = true
   ├── plan_read = true
   ├── all_tasks_complete = true
   └── tests_passing = true

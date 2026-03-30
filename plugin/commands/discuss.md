@@ -1,5 +1,5 @@
 ---
-description: Design the solution and write the implementation plan (Diamond 2 — Solution Space)
+description: Design the solution and select the approach (Diamond 2 — Solution Space)
 disable-model-invocation: true
 ---
 <!-- Do NOT invoke this command via the Skill tool. Use the native /command path only. -->
@@ -9,7 +9,7 @@ Present the output to the user.
 
 **Phase Transitions:** Slash commands (e.g., `/implement`) trigger phase transitions via `user-set-phase.sh` — this runs automatically via `!backtick`, never call it from Bash tool. In auto autonomy mode, the agent transitions forward using `agent_set_phase` via `workflow-cmd.sh`. All milestone and state commands go through `workflow-cmd.sh` (e.g., `set_implement_field`, `set_discuss_field`). See the case statement in `workflow-cmd.sh` for the full list of available commands.
 
-**You are now in DISCUSS phase (Diamond 2 — Solution Space).** Code edits are blocked — design the solution and write the plan.
+**You are now in DISCUSS phase (Diamond 2 — Solution Space).** Code edits are blocked — design the solution and select the approach.
 
 **Git in DEFINE/DISCUSS:** Spec and plan files (`docs/plans/`, `docs/specs/`) can be committed. Use **single git commands** — run `git add` and `git commit` as separate commands, not chained with `&&`. Chained commands with heredoc-style commit messages may be blocked by the write guard.
 
@@ -87,7 +87,6 @@ After user selects an approach, enrich the plan with:
 - **Risks identified:** What could go wrong
 - **Constraints applied:** What codebase factors narrowed options
 - **Tech debt acknowledged:** Deliberate shortcuts
-- Link to implementation plan
 ```
 
 After updating the plan with the chosen approach, mark the milestone:
@@ -95,30 +94,15 @@ After updating the plan with the chosen approach, mark the milestone:
 .claude/hooks/workflow-cmd.sh set_discuss_field "approach_selected" "true"
 ```
 
-## Implementation Plan
+### Spec→Issue Linking
 
-Use `superpowers:writing-plans` to create the step-by-step implementation plan. Update the skill tracker:
-
-```bash
-.claude/hooks/workflow-cmd.sh set_active_skill "writing-plans"
-```
-
-Every plan step must trace back to the chosen approach. If a step can't be justified by the decision, it's scope creep.
-
-After the plan is written and reviewed, mark the milestone:
-```bash
-.claude/hooks/workflow-cmd.sh set_discuss_field "plan_written" "true"
-```
-
-### Plan→Issue Linking
-
-After the plan passes review, commit the spec and plan files (use separate commands):
+After the spec passes review, commit the spec file (use separate commands):
 
 ```bash
-git add <SPEC_PATH> <PLAN_PATH> <DECISION_RECORD_PATH>
+git add <SPEC_PATH>
 ```
 ```bash
-git commit -m "docs: add spec and plan for <feature>"
+git commit -m "docs: add spec for <feature>"
 ```
 
 Then get the commit hash for traceability:
@@ -127,18 +111,15 @@ Then get the commit hash for traceability:
 COMMIT_HASH=$(git rev-parse --short HEAD)
 ```
 
-Check if this work maps to an existing GitHub issue. If there are tracked observation IDs with GitHub issue mappings, or if the user mentioned a specific issue number, post a comment linking to the spec, plan, and commit:
+Check if this work maps to an existing GitHub issue. If there are tracked observation IDs with GitHub issue mappings, or if the user mentioned a specific issue number, post a comment linking to the spec and commit:
 
 ```bash
-gh issue comment <ISSUE_NUMBER> --body "## Design & Plan
+gh issue comment <ISSUE_NUMBER> --body "## Design
 
 **Commit:** <COMMIT_HASH>
 **Spec:** \`<SPEC_PATH>\`
-**Plan:** \`<PLAN_PATH>\`
-**Plan:** \`<DECISION_RECORD_PATH>\`
 
-Approach: <chosen approach name>
-Tasks: <N> implementation tasks"
+Approach: <chosen approach name>"
 ```
 
 If no issue is mapped, skip this step silently — not all work originates from a GitHub issue.
@@ -149,13 +130,12 @@ If no issue is mapped, skip this step silently — not all work originates from 
 |------|-------------|-------------------------------------|-----------|
 | Problem confirmed | Verify problem statement from DEFINE or brainstorm | User or plan confirms the problem | `problem_confirmed=true` |
 | Diverge | Dispatch 3 research agents | Agents returned, findings presented with sources and downsides | `research_done=true` |
-| Converge | User narrows to approach, dispatch 2 agents | User selected approach, plan enriched | `approach_selected=true` |
-| Plan | Write plan with `superpowers:writing-plans`, run reviewer | Plan file exists on disk, reviewer passed | `plan_written=true` |
+| Converge | User narrows to approach, dispatch 2 agents | User selected approach, spec enriched with decision record | `approach_selected=true` |
 
-**Review transparency:** When the spec review loop or plan review loop finds issues, always present a summary to the user: what the reviewer found, what you fixed, and the final verdict. Never silently fix and move on — the user must see what was caught.
+**Review transparency:** When the spec review loop finds issues, always present a summary to the user: what the reviewer found, what you fixed, and the final verdict. Never silently fix and move on — the user must see what was caught.
 
 **Autonomy-aware behavior:**
 - **off (▶):** After each design decision or research finding, present the result and wait for explicit user approval before proceeding. Never batch diverge/converge phases. Present the plan section by section, waiting for approval after each.
-- **ask (▶▶):** When the plan is ready and the user approves, they will run `/implement` to proceed.
+- **ask (▶▶):** When the spec is approved, they will run `/implement` to proceed.
 
-**Auto-transition:** If autonomy is auto, invoke `/implement` now after the plan passes review. Do not wait for the user. Only stop if user input is needed during the converge phase (approach selection).
+**Auto-transition:** If autonomy is auto, invoke `/implement` now after the spec passes review. Do not wait for the user. Only stop if user input is needed during the converge phase (approach selection).

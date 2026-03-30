@@ -24,17 +24,31 @@ If the output shows `SOFT_GATE_WARNING`, ask the user: "Proceed anyway? (yes/no)
 - **off (▶):** Work within phase rules. After completing each plan step, present the change (files modified, key diff summary), and wait for the user's explicit approval before proceeding to the next step. Never batch multiple steps. Never auto-commit — ask before each commit.
 
 Follow this workflow:
-1. Read the plan file and mark milestone:
+1. Write the implementation plan using `superpowers:writing-plans`. Every plan step must trace back to the chosen approach from DISCUSS. If a step can't be justified by the decision, it's scope creep. Update the skill tracker:
+```bash
+.claude/hooks/workflow-cmd.sh set_active_skill "writing-plans"
+```
+After the plan is written and reviewed, mark milestone and commit (use separate commands):
+```bash
+.claude/hooks/workflow-cmd.sh set_implement_field "plan_written" "true"
+```
+```bash
+git add <PLAN_PATH>
+```
+```bash
+git commit -m "docs: add implementation plan for <feature>"
+```
+2. Read the plan file and mark milestone:
 ```bash
 .claude/hooks/workflow-cmd.sh set_implement_field "plan_read" "true"
 ```
-2. Use `superpowers:executing-plans` or `superpowers:subagent-driven-development` to implement the approved plan
-3. Use `superpowers:test-driven-development` — write tests before implementation code
-4. When all plan tasks are implemented, mark milestone:
+3. Use `superpowers:executing-plans` or `superpowers:subagent-driven-development` to implement the approved plan
+4. Use `superpowers:test-driven-development` — write tests before implementation code
+5. When all plan tasks are implemented, mark milestone:
 ```bash
 .claude/hooks/workflow-cmd.sh set_implement_field "all_tasks_complete" "true"
 ```
-4b. **Version bump** (after all tasks complete, before final test run):
+5b. **Version bump** (after all tasks complete, before final test run):
 
 Dispatch a **Versioning agent** — read `plugin/agents/versioning-agent.md`, then dispatch as `general-purpose`:
 
@@ -60,7 +74,7 @@ for path in ['.claude-plugin/marketplace.json', '.claude-plugin/plugin.json']:
 
 Run `scripts/check-version-sync.sh` to validate both files match. This is not an IMPLEMENT exit gate — COMPLETE Step 5 will verify it.
 
-5. Run the full test suite and verify all pass:
+6. Run the full test suite and verify all pass:
 ```bash
 bash tests/run-tests.sh   # or equivalent for this project
 ```
@@ -70,22 +84,22 @@ bash tests/run-tests.sh   # or equivalent for this project
 .claude/hooks/workflow-cmd.sh set_implement_field "tests_passing" "true"
 .claude/hooks/workflow-cmd.sh set_tests_passed_at "$(git rev-parse HEAD)"
 ```
-6. Proceed to `/review` (auto) or wait for the user to run `/review` (off/ask)
+7. Proceed to `/review` (auto) or wait for the user to run `/review` (off/ask)
 
 **Step expectations — what each step must produce before you move on:**
 
 | Step | What you do | Evidence required before next step | Milestone |
 |------|-------------|-------------------------------------|-----------|
+| Write plan | Write implementation plan with `superpowers:writing-plans` | Plan file exists on disk, reviewer passed | `plan_written=true` |
 | Read plan | Read the plan file | Plan file read in this session | `plan_read=true` |
 | Implement | Execute all plan tasks via subagent-driven-development | Every task committed, files exist on disk | `all_tasks_complete=true` |
-| Version bump | Dispatch versioning agent | Both plugin.json files updated and in sync | — |
-| Version bump | Dispatch versioning agent | Both plugin.json files updated and in sync | — (COMPLETE verifies, cannot fix) |
+| Version bump | Dispatch versioning agent | Both plugin.json files updated and in sync | — (COMPLETE verifies) |
 | Tests | Run full test suite | Test output shown — pass count visible | `tests_passing=true` |
-| Transition | Call `/review` (auto) or wait | All 3 milestones set | — |
+| Transition | Call `/review` (auto) or wait | All 4 milestones set | — |
 
 **If tests fail:** fix the code before marking `tests_passing`. Do not proceed to REVIEW with failing tests.
 
-**HARD GATE: You cannot transition to /review without completing all 3 milestones (plan_read, all_tasks_complete, tests_passing). agent_set_phase will refuse.**
+**HARD GATE: You cannot transition to /review without completing all 4 milestones (plan_written, plan_read, all_tasks_complete, tests_passing). agent_set_phase will refuse.**
 
 **Review transparency:** When spec compliance reviewers or code quality reviewers find issues during implementation, always present a summary to the user: what the reviewer found, what you fixed, and the final verdict. Never silently fix and move on — the user must see what was caught.
 

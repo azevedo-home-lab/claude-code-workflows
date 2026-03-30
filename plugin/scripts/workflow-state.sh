@@ -269,15 +269,15 @@ clear_issue_mapping() {
 _check_phase_gates() {
     local current="$1" new_phase="$2"
 
-    # DISCUSS exit gate: leaving discuss → must have plan_written
+    # DISCUSS exit gate: leaving discuss → must have approach_selected
     if [ "$current" = "discuss" ] && [ "$new_phase" != "discuss" ]; then
         local missing=""
-        missing=$(_check_milestones "discuss" "plan_written")
+        missing=$(_check_milestones "discuss" "approach_selected")
         if [ -n "$missing" ]; then
-            echo "HARD GATE: Cannot leave DISCUSS — plan not written." >&2
-            echo "  Why: The plan is the contract between DISCUSS and IMPLEMENT." >&2
+            echo "HARD GATE: Cannot leave DISCUSS — approach not selected." >&2
+            echo "  Why: The design decision is the contract between DISCUSS and IMPLEMENT." >&2
             echo "  Unset milestones:$missing" >&2
-            echo "  Fix: Complete the implementation plan and mark plan_written=true." >&2
+            echo "  Fix: Complete the converge phase and mark approach_selected=true." >&2
             return 1
         fi
     fi
@@ -297,15 +297,16 @@ _check_phase_gates() {
 
   
           if [ "$has_tests" = "true" ]; then
-              missing=$(_check_milestones "implement" "plan_read" "tests_passing" "all_tasks_complete")
+              missing=$(_check_milestones "implement" "plan_written" "plan_read" "tests_passing" "all_tasks_complete")
           else
-              missing=$(_check_milestones "implement" "plan_read" "all_tasks_complete")
+              missing=$(_check_milestones "implement" "plan_written" "plan_read" "all_tasks_complete")
           fi
         if [ -n "$missing" ]; then
             echo "HARD GATE: Cannot leave IMPLEMENT — incomplete milestones." >&2
             echo "  Why: These milestones prove the plan was executed and tests actually passed." >&2
             echo "  Unset milestones:$missing" >&2
             echo "  Fix each missing milestone:" >&2
+            echo "    plan_written       — write the implementation plan with writing-plans skill" >&2
             echo "    all_tasks_complete — verify every plan task done, files exist on disk" >&2
             echo "    tests_passing      — run the test suite and show output before setting this" >&2
             return 1
@@ -674,14 +675,14 @@ set_completion_field() { _set_section_field "completion" "$1" "$2"; }
 # ---------------------------------------------------------------------------
 # Discuss status (public API)
 # ---------------------------------------------------------------------------
-reset_discuss_status() { _reset_section "discuss" "problem_confirmed" "research_done" "approach_selected" "plan_written"; }
+reset_discuss_status() { _reset_section "discuss" "problem_confirmed" "research_done" "approach_selected"; }
 get_discuss_field() { _get_section_field "discuss" "$1"; }
 set_discuss_field() { _set_section_field "discuss" "$1" "$2"; }
 
 # ---------------------------------------------------------------------------
 # Implement status (public API)
 # ---------------------------------------------------------------------------
-reset_implement_status() { _reset_section "implement" "plan_read" "tests_passing" "all_tasks_complete"; }
+reset_implement_status() { _reset_section "implement" "plan_written" "plan_read" "tests_passing" "all_tasks_complete"; }
 get_implement_field() { _get_section_field "implement" "$1"; }
 set_implement_field() { _set_section_field "implement" "$1" "$2"; }
 

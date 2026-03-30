@@ -123,7 +123,7 @@ fi
 # Phase-aware deny message
 case "$PHASE" in
     define)   REASON="BLOCKED: Phase is DEFINE. Code changes are not allowed until you define the problem and outcomes." ;;
-    discuss)  REASON="BLOCKED: Phase is DISCUSS. Code changes are not allowed until a plan is discussed and approved. Use /implement to proceed to implementation." ;;
+    discuss)  REASON="BLOCKED: Phase is DISCUSS. Code changes are not allowed until the design phase is complete. Use /implement to proceed to implementation." ;;
     complete) REASON="BLOCKED: Phase is COMPLETE. Code changes are not allowed during completion. Only documentation updates are permitted." ;;
     error)    REASON="BLOCKED: Workflow state is corrupted. All writes blocked for safety. Run /off to reset." ;;
     *)        REASON="BLOCKED: Unexpected phase ($PHASE)." ;;

@@ -91,15 +91,15 @@ Done when: Plan has a complete Problem section with measurable outcomes, approve
                 ;;
             discuss)
                 MESSAGES="[Workflow Coach — DISCUSS]
-Objective: Research solution approaches, choose one with documented rationale, write implementation plan.
-You are in Diamond 2 (Solution Space). Diverge, converge, then WRITE THE PLAN. Do not stop after selecting an approach.
-Done when: Plan has Approaches Considered + Decision sections. Plan file created. User approved."
+Objective: Research solution approaches, choose one with documented rationale.
+You are in Diamond 2 (Solution Space). Diverge on approaches, converge on a decision with documented trade-offs.
+Done when: Spec has Approaches Considered + Decision sections. Spec committed. User approved."
                 ;;
             implement)
                 MESSAGES="[Workflow Coach — IMPLEMENT]
-Objective: Build the chosen solution following the approved plan with TDD discipline.
-Follow the plan. Flag deviations. Write tests before code. Do not stop after code — run tests and version bump.
-Done when: All plan steps implemented, tests passing, ready for review."
+Objective: Write the implementation plan, then build the solution with TDD discipline.
+First: write the plan with writing-plans skill. Then: follow it. Flag deviations. Write tests before code. Do not stop after code — run tests and version bump.
+Done when: Plan written, all steps implemented, tests passing, ready for review."
                 ;;
             review)
                 MESSAGES="[Workflow Coach — REVIEW]
@@ -221,10 +221,10 @@ if [ "$(get_message_shown)" = "true" ]; then
                 TRIGGER="agent_return_discuss"
                 L2_MSG="[Workflow Coach — DISCUSS] Every approach must have stated downsides. Unsourced claims are opinions. Does this trace back to the problem statement?"
             elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-                # Check if writing to a plan file
+                # Check if writing to a spec file
                 if echo "$FILE_PATH" | grep -qE 'docs/plans/'; then
                     TRIGGER="plan_write"
-                    L2_MSG="[Workflow Coach — DISCUSS] Does every plan step trace to the chosen approach? Flag scope creep. Did you document why this approach over alternatives?"
+                    L2_MSG="[Workflow Coach — DISCUSS] Does the spec document the problem clearly? Are approaches compared with trade-offs? Did you document why this approach over alternatives?"
                 fi
             fi
             ;;
@@ -466,7 +466,7 @@ AUTONOMY_LEVEL=$(get_autonomy_level 2>/dev/null) || AUTONOMY_LEVEL=""
 if [ "$AUTONOMY_LEVEL" = "auto" ]; then
     STALL_MSG=""
     if [ "$PHASE" = "implement" ]; then
-        IMPL_MISSING=$(_check_milestones "implement" "plan_read" "tests_passing" "all_tasks_complete" 2>/dev/null) || IMPL_MISSING="skip"
+        IMPL_MISSING=$(_check_milestones "implement" "plan_written" "plan_read" "tests_passing" "all_tasks_complete" 2>/dev/null) || IMPL_MISSING="skip"
         if [ -z "$IMPL_MISSING" ]; then
             STALL_MSG="[Workflow Coach — IMPLEMENT] ⚠ ALL MILESTONES COMPLETE. Auto-transition: run these commands now:
   .claude/hooks/workflow-cmd.sh agent_set_phase \"review\"
@@ -475,7 +475,7 @@ Then read plugin/commands/review.md for phase instructions. Do not commit, push,
         fi
     elif [ "$PHASE" = "discuss" ]; then
         DISCUSS_DONE=true
-        for field in problem_confirmed research_done approach_selected plan_written; do
+        for field in problem_confirmed research_done approach_selected; do
             VAL=$(get_discuss_field "$field" 2>/dev/null) || VAL=""
             [ "$VAL" != "true" ] && DISCUSS_DONE=false && break
         done
@@ -544,22 +544,20 @@ elif [ "$PHASE" = "discuss" ]; then
         if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
             if echo "$FILE_PATH" | grep -qE 'docs/plans/'; then
                 if [ "$(get_discuss_field "research_done")" != "true" ]; then
-                    STEP_MSG="[Workflow Coach — DISCUSS] Writing plan before research is complete. Complete the diverge phase first."
+                    STEP_MSG="[Workflow Coach — DISCUSS] Writing spec before research is complete. Complete the diverge phase first."
                 elif [ "$(get_discuss_field "approach_selected")" != "true" ]; then
-                    STEP_MSG="[Workflow Coach — DISCUSS] Writing plan before approach is selected. Complete the converge phase first."
+                    STEP_MSG="[Workflow Coach — DISCUSS] Writing spec before approach is selected. Complete the converge phase first."
                 fi
             fi
-        fi
-        # Pipeline-abandoned: approach selected but plan not written
-        if [ "$(get_discuss_field "approach_selected")" = "true" ] && [ "$(get_discuss_field "plan_written")" != "true" ]; then
-            STEP_MSG="[Workflow Coach — DISCUSS] Approach selected but plan not written. Write the implementation plan before transitioning."
         fi
     fi
 elif [ "$PHASE" = "implement" ]; then
     if [ "$(_section_exists "implement")" = "true" ]; then
         if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
             if [ -n "$FILE_PATH" ] && ! echo "$FILE_PATH" | grep -qE '(test|spec|docs/|plans/|specs/|\.md$)'; then
-                if [ "$(get_implement_field "plan_read")" != "true" ]; then
+                if [ "$(get_implement_field "plan_written")" != "true" ]; then
+                    STEP_MSG="[Workflow Coach — IMPLEMENT] Writing code before the implementation plan is written. Write the plan first with superpowers:writing-plans."
+                elif [ "$(get_implement_field "plan_read")" != "true" ]; then
                     STEP_MSG="[Workflow Coach — IMPLEMENT] Writing code before reading the plan. Read the plan first and mark plan_read milestone."
                 fi
             fi
