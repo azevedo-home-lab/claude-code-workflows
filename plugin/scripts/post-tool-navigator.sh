@@ -84,6 +84,9 @@ fi
 DEBUG_MODE=$(get_debug)
 source "$SCRIPT_DIR/debug-log.sh" "post-tool-navigator"
 
+# Compute uppercased phase once for all layers
+PHASE_UPPER=$(echo "$PHASE" | tr '[:lower:]' '[:upper:]')
+
 # Collect messages from all layers — may combine multiple
 MESSAGES=""
 
@@ -104,13 +107,16 @@ if [ "$(get_message_shown)" != "true" ]; then
     if [ "$FIRE_LAYER1" = "true" ]; then
         case "$PHASE" in
             error)
-                MESSAGES="[Workflow Coach — ERROR]
-$(load_message "objectives/error.md")"
+                ERR_MSG=$(load_message "objectives/error.md")
+                if [ -n "$ERR_MSG" ]; then
+                    MESSAGES="[Workflow Coach — ERROR]
+$ERR_MSG"
+                fi
                 ;;
             *)
                 OBJ_MSG=$(load_message "objectives/$PHASE.md")
                 if [ -n "$OBJ_MSG" ]; then
-                    MESSAGES="[Workflow Coach — $(echo "$PHASE" | tr '[:lower:]' '[:upper:]')]
+                    MESSAGES="[Workflow Coach — $PHASE_UPPER]
 $OBJ_MSG"
                 fi
                 ;;
@@ -183,8 +189,6 @@ if [ "$(get_message_shown)" = "true" ]; then
     # Determine trigger type based on phase + tool pattern
     TRIGGER=""
     L2_MSG=""
-
-    PHASE_UPPER=$(echo "$PHASE" | tr '[:lower:]' '[:upper:]')
 
     case "$PHASE" in
         define)
@@ -288,7 +292,6 @@ fi
 # ============================================================
 
 L3_MSG=""
-PHASE_UPPER=$(echo "$PHASE" | tr '[:lower:]' '[:upper:]')
 
 # Helper: append a check message to L3_MSG
 _append_l3() {
@@ -420,9 +423,12 @@ if [ "$PHASE" = "implement" ] || [ "$PHASE" = "review" ]; then
             VERIFY_COUNT=$((VERIFY_COUNT + 1))
             set_pending_verify "$VERIFY_COUNT"
             if [ "$VERIFY_COUNT" -ge 5 ]; then
-                VERIFY_MSG="[Workflow Coach — $PHASE_UPPER] You've edited source code $VERIFY_COUNT times but haven't run tests or verification. Verify your changes before continuing."
+                # Load file as gate (if deleted, message suppressed); count stays inline
+                if load_message "checks/no_verify_after_edits.md" >/dev/null 2>&1; then
+                    VERIFY_MSG="[Workflow Coach — $PHASE_UPPER] You've edited source code $VERIFY_COUNT times but haven't run tests or verification. Verify your changes before continuing."
+                    _append_l3 "$VERIFY_MSG"
+                fi
                 set_pending_verify 0
-                _append_l3 "$VERIFY_MSG"
             fi
         fi
     elif [ "$TOOL_NAME" = "Bash" ]; then
