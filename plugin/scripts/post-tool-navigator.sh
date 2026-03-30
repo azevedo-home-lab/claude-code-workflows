@@ -437,47 +437,29 @@ fi
 # Fires on every tool call when auto + milestones done, so Claude can't ignore it
 AUTONOMY_LEVEL=$(get_autonomy_level 2>/dev/null) || AUTONOMY_LEVEL=""
 if [ "$AUTONOMY_LEVEL" = "auto" ]; then
-    STALL_MSG=""
+    STALL_FIRE=false
     if [ "$PHASE" = "implement" ]; then
         IMPL_MISSING=$(_check_milestones "implement" "plan_written" "plan_read" "tests_passing" "all_tasks_complete" 2>/dev/null) || IMPL_MISSING="skip"
-        if [ -z "$IMPL_MISSING" ]; then
-            STALL_MSG="[Workflow Coach — IMPLEMENT] ⚠ ALL MILESTONES COMPLETE. Auto-transition: run these commands now:
-  .claude/hooks/workflow-cmd.sh agent_set_phase \"review\"
-  .claude/hooks/workflow-cmd.sh reset_review_status
-Then read plugin/commands/review.md for phase instructions. Do not commit, push, or do other work. Auto autonomy requires completing the full pipeline: IMPLEMENT → REVIEW → COMPLETE."
-        fi
+        [ -z "$IMPL_MISSING" ] && STALL_FIRE=true
     elif [ "$PHASE" = "discuss" ]; then
         DISCUSS_DONE=true
         for field in problem_confirmed research_done approach_selected; do
             VAL=$(get_discuss_field "$field" 2>/dev/null) || VAL=""
             [ "$VAL" != "true" ] && DISCUSS_DONE=false && break
         done
-        if [ "$DISCUSS_DONE" = "true" ]; then
-            STALL_MSG="[Workflow Coach — DISCUSS] ⚠ ALL MILESTONES COMPLETE. Auto-transition: run these commands now:
-  .claude/hooks/workflow-cmd.sh agent_set_phase \"implement\"
-  .claude/hooks/workflow-cmd.sh reset_implement_status
-Then read plugin/commands/implement.md for phase instructions. Auto autonomy requires completing the full pipeline: DISCUSS → IMPLEMENT."
-        fi
+        [ "$DISCUSS_DONE" = "true" ] && STALL_FIRE=true
     elif [ "$PHASE" = "review" ]; then
         REVIEW_DONE=true
         for field in verification_complete agents_dispatched findings_presented findings_acknowledged; do
             VAL=$(get_review_field "$field" 2>/dev/null) || VAL=""
             [ "$VAL" != "true" ] && REVIEW_DONE=false && break
         done
-        if [ "$REVIEW_DONE" = "true" ]; then
-            STALL_MSG="[Workflow Coach — REVIEW] ⚠ ALL REVIEW MILESTONES COMPLETE. Auto-transition: run these commands now:
-  .claude/hooks/workflow-cmd.sh agent_set_phase \"complete\"
-  .claude/hooks/workflow-cmd.sh reset_completion_status
-Then read plugin/commands/complete.md for phase instructions. Auto autonomy requires completing the full pipeline: REVIEW → COMPLETE."
-        fi
+        [ "$REVIEW_DONE" = "true" ] && STALL_FIRE=true
     fi
-    if [ -n "$STALL_MSG" ]; then
-        if [ -n "$L3_MSG" ]; then
-            L3_MSG="$L3_MSG
-
-$STALL_MSG"
-        else
-            L3_MSG="$STALL_MSG"
+    if [ "$STALL_FIRE" = "true" ]; then
+        STALL_BODY=$(load_message "checks/stalled_auto_transition/$PHASE.md")
+        if [ -n "$STALL_BODY" ]; then
+            _append_l3 "[Workflow Coach — $PHASE_UPPER] $STALL_BODY"
         fi
     fi
 fi
