@@ -90,6 +90,14 @@ your-project/
 │   ├── state/
 │   │   └── workflow.json              # Workflow state (gitignored)
 │   └── settings.json                  # Hook configuration
+├── plugin/
+│   ├── coaching/                      # Coaching messages (editable prose)
+│   │   ├── objectives/                # Phase entry messages
+│   │   ├── nudges/                    # Contextual reminders
+│   │   ├── checks/                    # Anti-laziness checks
+│   │   └── auto-transition/           # Autonomy=auto appendages
+│   ├── scripts/                       # Hook scripts
+│   └── commands/                      # Phase commands
 ├── docs/
 │   ├── guides/                        # Getting started, claude-mem, statusline
 │   ├── reference/                     # Architecture, hooks, commands
