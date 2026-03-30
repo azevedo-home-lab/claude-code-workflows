@@ -17,6 +17,26 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/workflow-state.sh"
 
+# Coaching message directory — resolved from project root, not SCRIPT_DIR.
+# SCRIPT_DIR resolves to .claude/hooks/ (symlink directory), not plugin/scripts/.
+COACHING_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/coaching"
+
+# Load a coaching message from file. Returns 1 if file missing (message skipped).
+# $1: relative path under COACHING_DIR (e.g., "objectives/define.md")
+# $2: optional PHASE value to substitute for {{PHASE}}
+load_message() {
+    local file="$COACHING_DIR/$1"
+    if [ ! -f "$file" ]; then
+        return 1
+    fi
+    local msg
+    msg=$(cat "$file")
+    if [ -n "${2:-}" ]; then
+        msg=$(echo "$msg" | sed "s/{{PHASE}}/$2/g")
+    fi
+    echo "$msg"
+}
+
 # Read tool name and input from stdin (must happen before any early exits)
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null) || TOOL_NAME=""
