@@ -1,0 +1,1 @@
+Don't downgrade findings. Verify before reporting. Flag systemic issues, not just instances.

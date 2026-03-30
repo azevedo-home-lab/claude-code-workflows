@@ -1,0 +1,1 @@
+If tests fail, diagnose the root cause. Don't patch the test to make it pass. Don't skip tests for small changes.

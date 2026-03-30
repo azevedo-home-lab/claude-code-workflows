@@ -1,0 +1,1 @@
+Be specific about failures. Quantify fix effort. Recommend a next phase, don't just list options.

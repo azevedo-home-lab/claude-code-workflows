@@ -1,0 +1,1 @@
+Challenge vague problem statements. Outcomes must be verifiable. Problem and Goals sections must be concrete. 'Better UX' is aspirational; 'checkout completes in under 3 clicks' is verifiable.

@@ -1,0 +1,1 @@
+Does the spec document the problem clearly? Are approaches compared with trade-offs? Did you document why this approach over alternatives?

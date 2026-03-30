@@ -1,0 +1,1 @@
+Does the handover make sense to a stranger? Is tech debt visible? Does README match reality?

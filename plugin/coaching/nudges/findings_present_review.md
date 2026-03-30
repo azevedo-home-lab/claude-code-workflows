@@ -1,0 +1,1 @@
+Quantify the cost of not fixing. Don't soften with 'but this is minor.' State facts, let user decide.

@@ -184,68 +184,66 @@ if [ "$(get_message_shown)" = "true" ]; then
     TRIGGER=""
     L2_MSG=""
 
+    PHASE_UPPER=$(echo "$PHASE" | tr '[:lower:]' '[:upper:]')
+
     case "$PHASE" in
         define)
             if [ "$TOOL_NAME" = "Agent" ]; then
                 TRIGGER="agent_return_define"
-                L2_MSG="[Workflow Coach — DEFINE] Challenge the first framing. Separate facts from interpretations. Are these findings changing the problem statement?"
             elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
                 if echo "$FILE_PATH" | grep -qE 'docs/plans/'; then
                     TRIGGER="plan_write_define"
-                    L2_MSG="[Workflow Coach — DEFINE] Challenge vague problem statements. Outcomes must be verifiable. Problem and Goals sections must be concrete. 'Better UX' is aspirational; 'checkout completes in under 3 clicks' is verifiable."
                 fi
             fi
             ;;
         discuss)
             if [ "$TOOL_NAME" = "Agent" ]; then
                 TRIGGER="agent_return_discuss"
-                L2_MSG="[Workflow Coach — DISCUSS] Every approach must have stated downsides. Unsourced claims are opinions. Does this trace back to the problem statement?"
             elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-                # Check if writing to a spec file
                 if echo "$FILE_PATH" | grep -qE 'docs/plans/'; then
-                    TRIGGER="plan_write"
-                    L2_MSG="[Workflow Coach — DISCUSS] Does the spec document the problem clearly? Are approaches compared with trade-offs? Did you document why this approach over alternatives?"
+                    TRIGGER="plan_write_discuss"
                 fi
             fi
             ;;
         implement)
             if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-                TRIGGER="source_edit"
-                L2_MSG="[Workflow Coach — IMPLEMENT] Does this follow the plan? Would you be proud to have this reviewed? Tests written first?"
+                TRIGGER="source_edit_implement"
             elif [ "$TOOL_NAME" = "Bash" ]; then
                 COMMAND=$(extract_bash_command)
                 if echo "$COMMAND" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'; then
-                    TRIGGER="test_run"
-                    L2_MSG="[Workflow Coach — IMPLEMENT] If tests fail, diagnose the root cause. Don't patch the test to make it pass. Don't skip tests for small changes."
+                    TRIGGER="test_run_implement"
                 fi
             fi
             ;;
         review)
             if [ "$TOOL_NAME" = "Agent" ]; then
                 TRIGGER="agent_return_review"
-                L2_MSG="[Workflow Coach — REVIEW] Don't downgrade findings. Verify before reporting. Flag systemic issues, not just instances."
             fi
             ;;
         complete)
             if [ "$TOOL_NAME" = "Agent" ]; then
                 TRIGGER="agent_return_complete"
-                L2_MSG="[Workflow Coach — COMPLETE] Be specific about failures. Quantify fix effort. Recommend a next phase, don't just list options."
             elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
                 if echo "$FILE_PATH" | grep -qE 'docs/'; then
-                    TRIGGER="project_docs_edit"
-                    L2_MSG="[Workflow Coach — COMPLETE] Does the handover make sense to a stranger? Is tech debt visible? Does README match reality?"
+                    TRIGGER="project_docs_edit_complete"
                 fi
             elif [ "$TOOL_NAME" = "Bash" ]; then
                 BASH_CMD=$(extract_bash_command)
                 if echo "$BASH_CMD" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'; then
                     TRIGGER="test_run_complete"
-                    L2_MSG="[Workflow Coach — COMPLETE] Be specific about validation failures. If a test fails, diagnose with quantified fix effort. Don't let failures be acknowledged without understanding consequences."
                 fi
             fi
             ;;
     esac
 
-    # Fire Layer 2 only if trigger matched and hasn't fired yet this phase
+    # Load nudge message and fire if trigger matched and hasn't fired yet this phase
+    if [ -n "$TRIGGER" ]; then
+        L2_MSG_BODY=$(load_message "nudges/$TRIGGER.md")
+        if [ -n "$L2_MSG_BODY" ]; then
+            L2_MSG="[Workflow Coach — $PHASE_UPPER] $L2_MSG_BODY"
+        fi
+    fi
+
     if [ -n "$TRIGGER" ] && [ -n "$L2_MSG" ]; then
         if [ "$(has_coaching_fired "$TRIGGER")" != "true" ]; then
             add_coaching_fired "$TRIGGER"
@@ -265,16 +263,19 @@ $L2_MSG"
     if [ "$PHASE" = "review" ]; then
         if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
             if echo "$FILE_PATH" | grep -qE 'docs/specs/'; then
-                FINDINGS_TRIGGER="findings_present"
+                FINDINGS_TRIGGER="findings_present_review"
                 if [ "$(has_coaching_fired "$FINDINGS_TRIGGER")" != "true" ]; then
                     add_coaching_fired "$FINDINGS_TRIGGER"
-                    FINDINGS_MSG="[Workflow Coach — REVIEW] Quantify the cost of not fixing. Don't soften with 'but this is minor.' State facts, let user decide."
-                    if [ -n "$MESSAGES" ]; then
-                        MESSAGES="$MESSAGES
+                    FINDINGS_BODY=$(load_message "nudges/findings_present_review.md")
+                    if [ -n "$FINDINGS_BODY" ]; then
+                        FINDINGS_MSG="[Workflow Coach — REVIEW] $FINDINGS_BODY"
+                        if [ -n "$MESSAGES" ]; then
+                            MESSAGES="$MESSAGES
 
 $FINDINGS_MSG"
-                    else
-                        MESSAGES="$FINDINGS_MSG"
+                        else
+                            MESSAGES="$FINDINGS_MSG"
+                        fi
                     fi
                 fi
             fi
