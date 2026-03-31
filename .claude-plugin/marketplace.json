@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "workflow-manager",
-      "version": "1.12.0",
+      "version": "1.12.1",
       "source": "./plugin",
       "description": "Structured workflow enforcement for Claude Code with phase gates, coaching, and autonomy levels",
       "license": "GPL-3.0-only"
@@ -19,7 +19,7 @@
       "name": "continuous-learning",
       "version": "0.1.0",
       "source": "./cl-plugin",
-      "description": "Continuous Learning — detects patterns and proposes workflow improvements",
+      "description": "Continuous Learning \u2014 detects patterns and proposes workflow improvements",
       "license": "GPL-3.0-only"
     }
   ]
