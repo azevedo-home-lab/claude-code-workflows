@@ -85,7 +85,7 @@ fi
 # output is swallowed, and L1 firing here wastes the once-per-phase coaching message.
 if [ "$TOOL_NAME" = "Bash" ]; then
     _BASH_CMD=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null) || _BASH_CMD=""
-    if echo "$_BASH_CMD" | grep -qE '(workflow-cmd\.sh|workflow-state\.sh)'; then
+    if echo "$_BASH_CMD" | grep -qE '(workflow-cmd\.sh|workflow-state\.sh|user-set-phase\.sh)'; then
         exit 0
     fi
 fi
