@@ -251,7 +251,7 @@ if [ "$(get_message_shown)" != "true" ]; then
                 if [ -n "$ERR_MSG" ]; then
                     MESSAGES="[Workflow Coach — ERROR]
 $ERR_MSG"
-                    _trace "[WFM coach] L1: objectives/error.md — ${ERR_MSG:0:80}..."
+                    _trace "[WFM coach] L1 FIRED: objectives/error.md"
                 fi
                 ;;
             *)
@@ -259,7 +259,7 @@ $ERR_MSG"
                 if [ -n "$OBJ_MSG" ]; then
                     MESSAGES="[Workflow Coach — $PHASE_UPPER]
 $OBJ_MSG"
-                    _trace "[WFM coach] L1: objectives/$PHASE.md — ${OBJ_MSG:0:80}..."
+                    _trace "[WFM coach] L1 FIRED: objectives/$PHASE.md"
                 fi
                 ;;
         esac
