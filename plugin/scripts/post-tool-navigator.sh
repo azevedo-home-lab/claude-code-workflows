@@ -174,16 +174,20 @@ case "$TOOL_NAME" in
     *) # Tool is irrelevant to coaching — output any Layer 1 message and exit
         _trace "[WFM coach] L2: no trigger matched (tool not tracked)"
         if [ -n "$MESSAGES" ] || [ -n "$DEBUG_TRACE" ]; then
-            # coaching → additionalContext (Claude-visible), debug trace → systemMessage (user-visible)
+            # coaching → additionalContext (Claude-visible)
+            # debug trace + coaching → systemMessage (user-visible)
             if [ -n "$DEBUG_TRACE" ] && [ -n "$MESSAGES" ]; then
-                jq -n --arg coach "$MESSAGES" --arg trace "$DEBUG_TRACE" \
-                    '{"systemMessage": $trace, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
+                SHOW_MSG="$DEBUG_TRACE
+
+$MESSAGES"
+                jq -n --arg show "$SHOW_MSG" --arg coach "$MESSAGES" \
+                    '{"systemMessage": $show, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
             elif [ -n "$DEBUG_TRACE" ]; then
                 jq -n --arg trace "$DEBUG_TRACE" \
                     '{"systemMessage": $trace}'
             else
                 jq -n --arg coach "$MESSAGES" \
-                    '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
+                    '{"systemMessage": $coach, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
             fi
         fi
         exit 0
@@ -643,15 +647,19 @@ _trace "[WFM coach] Counters: calls_since_agent=$_COACH_COUNTER, layer2_fired=[$
 if [ -n "$MESSAGES" ] || [ -n "$DEBUG_TRACE" ]; then
     _trace "[WFM coach] Message sent to Claude:"
     echo "$MESSAGES" | while IFS= read -r line; do _show "  $line"; done
-    # coaching → additionalContext (Claude-visible), debug trace → systemMessage (user-visible)
+    # coaching → additionalContext (Claude-visible)
+    # debug trace + coaching → systemMessage (user-visible)
     if [ -n "$DEBUG_TRACE" ] && [ -n "$MESSAGES" ]; then
-        jq -n --arg coach "$MESSAGES" --arg trace "$DEBUG_TRACE" \
-            '{"systemMessage": $trace, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
+        SHOW_MSG="$DEBUG_TRACE
+
+$MESSAGES"
+        jq -n --arg show "$SHOW_MSG" --arg coach "$MESSAGES" \
+            '{"systemMessage": $show, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
     elif [ -n "$DEBUG_TRACE" ]; then
         jq -n --arg trace "$DEBUG_TRACE" \
             '{"systemMessage": $trace}'
     else
         jq -n --arg coach "$MESSAGES" \
-            '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
+            '{"systemMessage": $coach, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
     fi
 fi
