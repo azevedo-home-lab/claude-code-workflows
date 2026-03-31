@@ -170,10 +170,10 @@ $AUTO_MSG"
             set_message_shown
         fi
     else
-        _trace "[WFM coach] L1: already shown, skipped"
+        _log "[WFM coach] L1: already shown, skipped"
     fi
 else
-    _trace "[WFM coach] L1: already shown, skipped"
+    _log "[WFM coach] L1: already shown, skipped"
 fi
 
 # Early exit for tools that don't participate in Layer 2/3
@@ -182,7 +182,7 @@ case "$TOOL_NAME" in
     Agent|Write|Edit|MultiEdit|NotebookEdit|Bash|AskUserQuestion) ;;
     mcp*save_observation|mcp*get_observations) ;;
     *) # Tool is irrelevant to coaching — output any Layer 1 message and exit
-        _trace "[WFM coach] L2: no trigger matched (tool not tracked)"
+        _log "[WFM coach] L2: no trigger matched (tool not tracked)"
         if [ -n "$MESSAGES" ] || [ -n "$DEBUG_TRACE" ]; then
             # coaching → additionalContext (Claude-visible), debug trace → systemMessage (user-visible)
             if [ -n "$DEBUG_TRACE" ] && [ -n "$MESSAGES" ]; then
@@ -298,12 +298,12 @@ $L2_MSG"
             fi
             _trace "[WFM coach] L2: nudges/$TRIGGER.md — ${L2_MSG_BODY:0:80}..."
         else
-            _trace "[WFM coach] L2: trigger=$TRIGGER — already fired, skipped"
+            _log "[WFM coach] L2: trigger=$TRIGGER — already fired, skipped"
         fi
     elif [ -n "$TRIGGER" ]; then
-        _trace "[WFM coach] L2: trigger=$TRIGGER — no message file"
+        _log "[WFM coach] L2: trigger=$TRIGGER — no message file"
     else
-        _trace "[WFM coach] L2: no trigger matched"
+        _log "[WFM coach] L2: no trigger matched"
     fi
 
     # REVIEW Layer 2 trigger: "After presenting findings"
