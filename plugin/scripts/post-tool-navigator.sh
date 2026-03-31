@@ -80,16 +80,6 @@ if [ "$PHASE" = "off" ]; then
     exit 0
 fi
 
-# Skip coaching for infrastructure Bash calls (workflow-cmd.sh, workflow-state.sh)
-# These run during phase transitions and command file processing — their PostToolUse
-# output is swallowed, and L1 firing here wastes the once-per-phase coaching message.
-if [ "$TOOL_NAME" = "Bash" ]; then
-    _BASH_CMD=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null) || _BASH_CMD=""
-    if echo "$_BASH_CMD" | grep -qE '(workflow-cmd\.sh|workflow-state\.sh|user-set-phase\.sh)'; then
-        exit 0
-    fi
-fi
-
 # Read debug flag once for all layers
 DEBUG_MODE=$(get_debug)
 source "$SCRIPT_DIR/debug-log.sh" "post-tool-navigator"
@@ -114,7 +104,7 @@ $1"
 # Compute uppercased phase once for all layers
 PHASE_UPPER=$(echo "$PHASE" | tr '[:lower:]' '[:upper:]')
 
-_log "[WFM coach] Tool: $TOOL_NAME (phase=$PHASE_UPPER)"
+_trace "[WFM coach] Tool: $TOOL_NAME (phase=$PHASE_UPPER)"
 
 # Collect messages from all layers — may combine multiple
 MESSAGES=""
@@ -168,14 +158,12 @@ $AUTO_MSG"
             set_message_shown
         fi
 
-        _L1_FILE="objectives/$PHASE.md"
-        _L1_PREVIEW=$(echo "$MESSAGES" | head -2 | tail -1 | cut -c1-120)
-        _trace "[WFM coach] L1: $_L1_FILE — $_L1_PREVIEW"
+        _trace "[WFM coach] L1: phase entry — FIRED"
     else
-        _log "[WFM coach] L1: already shown, skipped"
+        _trace "[WFM coach] L1: already shown, skipped"
     fi
 else
-    _log "[WFM coach] L1: already shown, skipped"
+    _trace "[WFM coach] L1: already shown, skipped"
 fi
 
 # Early exit for tools that don't participate in Layer 2/3
@@ -184,22 +172,18 @@ case "$TOOL_NAME" in
     Agent|Write|Edit|MultiEdit|NotebookEdit|Bash|AskUserQuestion) ;;
     mcp*save_observation|mcp*get_observations) ;;
     *) # Tool is irrelevant to coaching — output any Layer 1 message and exit
-        _log "[WFM coach] L2: no trigger matched (tool not tracked)"
+        _trace "[WFM coach] L2: no trigger matched (tool not tracked)"
         if [ -n "$MESSAGES" ] || [ -n "$DEBUG_TRACE" ]; then
-            # coaching → additionalContext (Claude-visible)
-            # debug trace + coaching → systemMessage (user-visible)
+            # coaching → additionalContext (Claude-visible), debug trace → systemMessage (user-visible)
             if [ -n "$DEBUG_TRACE" ] && [ -n "$MESSAGES" ]; then
-                SHOW_MSG="$DEBUG_TRACE
-
-$MESSAGES"
-                jq -n --arg show "$SHOW_MSG" --arg coach "$MESSAGES" \
-                    '{"systemMessage": $show, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
+                jq -n --arg coach "$MESSAGES" --arg trace "$DEBUG_TRACE" \
+                    '{"systemMessage": $trace, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
             elif [ -n "$DEBUG_TRACE" ]; then
                 jq -n --arg trace "$DEBUG_TRACE" \
                     '{"systemMessage": $trace}'
             else
                 jq -n --arg coach "$MESSAGES" \
-                    '{"systemMessage": $coach, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
+                    '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
             fi
         fi
         exit 0
@@ -302,15 +286,14 @@ $L2_MSG"
             else
                 MESSAGES="$L2_MSG"
             fi
-            _L2_PREVIEW=$(echo "$L2_MSG_BODY" | head -1 | cut -c1-120)
-            _trace "[WFM coach] L2: nudges/$TRIGGER.md — $_L2_PREVIEW"
+            _trace "[WFM coach] L2: trigger=$TRIGGER — FIRED"
         else
-            _log "[WFM coach] L2: trigger=$TRIGGER — already fired, skipped"
+            _trace "[WFM coach] L2: trigger=$TRIGGER — already fired, skipped"
         fi
     elif [ -n "$TRIGGER" ]; then
-        _log "[WFM coach] L2: trigger=$TRIGGER — no message file"
+        _trace "[WFM coach] L2: trigger=$TRIGGER — no message file"
     else
-        _log "[WFM coach] L2: no trigger matched"
+        _trace "[WFM coach] L2: no trigger matched"
     fi
 
     # REVIEW Layer 2 trigger: "After presenting findings"
@@ -347,9 +330,6 @@ L3_MSG=""
 
 # Helper: append a check message to L3_MSG
 _append_l3() {
-    local _l3_preview
-    _l3_preview=$(echo "$1" | head -1 | sed 's/\[Workflow Coach — [A-Z]*\] //' | cut -c1-120)
-    _trace "[WFM coach] L3: ${2:-check} — $_l3_preview"
     if [ -n "$L3_MSG" ]; then
         L3_MSG="$L3_MSG
 
@@ -376,7 +356,7 @@ if [ "$TOOL_NAME" = "Agent" ]; then
     PROMPT_LEN=$(echo "$INPUT" | jq -r '.tool_input.prompt // "" | length' 2>/dev/null) || PROMPT_LEN=999
     if [ "$PROMPT_LEN" -lt 150 ]; then
         CHECK_BODY=$(load_message "checks/short_agent_prompt.md" "$PHASE_UPPER")
-        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY" "checks/short_agent_prompt.md"
+        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
         _L3_SHORT_AGENT=true
     fi
 fi
@@ -403,7 +383,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
 }) || COMMIT_MSG_LEN=999
         if [ "$COMMIT_MSG_LEN" -lt 30 ]; then
             CHECK_BODY=$(load_message "checks/generic_commit.md" "$PHASE_UPPER")
-            [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY" "checks/generic_commit.md"
+            [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
             _L3_GENERIC_COMMIT=true
         fi
     fi
@@ -432,7 +412,7 @@ if [ "$PHASE" = "review" ] && { [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "
         fi
         if [ "$ALL_SUGGESTIONS" = "true" ]; then
             CHECK_BODY=$(load_message "checks/all_findings_downgraded.md")
-            [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — REVIEW] $CHECK_BODY" "checks/all_findings_downgraded.md"
+            [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — REVIEW] $CHECK_BODY"
             _L3_ALL_DOWNGRADED=true
         fi
     fi
@@ -452,14 +432,14 @@ if echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
     # 4a: Minimal handover (COMPLETE phase only)
     if [ "$PHASE" = "complete" ] && [ "$OBS_LEN" -lt 200 ]; then
         CHECK_BODY=$(load_message "checks/minimal_handover.md")
-        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — COMPLETE] $CHECK_BODY" "checks/minimal_handover.md"
+        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — COMPLETE] $CHECK_BODY"
         _L3_MINIMAL_HANDOVER=true
     fi
 
     # 4b: Missing project field (any phase)
     if [ "$HAS_PROJECT" = "false" ]; then
         CHECK_BODY=$(load_message "checks/missing_project_field.md" "$PHASE_UPPER")
-        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY" "checks/missing_project_field.md"
+        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
         _L3_MISSING_PROJECT=true
     fi
 fi
@@ -470,7 +450,7 @@ if [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ]; then
     COUNTER=$(jq -r '.coaching.tool_calls_since_agent // 0' "$STATE_FILE" 2>/dev/null) || COUNTER=0
     if [ "$COUNTER" -gt 10 ]; then
         CHECK_BODY=$(load_message "checks/skipping_research.md" "$PHASE_UPPER")
-        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY" "checks/skipping_research.md"
+        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
         _L3_SKIP_RESEARCH=true
     fi
 fi
@@ -484,7 +464,7 @@ if [ "$TOOL_NAME" = "AskUserQuestion" ]; then
     AGENTS_RETURNED=$(jq -r '[.coaching.layer2_fired[]? | select(startswith("agent_return"))] | if length > 0 then "true" else "false" end' "$STATE_FILE" 2>/dev/null) || AGENTS_RETURNED="false"
     if [ "$AGENTS_RETURNED" = "true" ]; then
         CHECK_BODY=$(load_message "checks/options_without_recommendation.md" "$PHASE_UPPER")
-        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY" "checks/options_without_recommendation.md"
+        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
         _L3_OPTIONS_NO_REC=true
     fi
 fi
@@ -500,7 +480,7 @@ if [ "$PHASE" = "implement" ] || [ "$PHASE" = "review" ]; then
                 # Load file as gate (if deleted, message suppressed); count stays inline
                 if load_message "checks/no_verify_after_edits.md" >/dev/null 2>&1; then
                     VERIFY_MSG="[Workflow Coach — $PHASE_UPPER] You've edited source code $VERIFY_COUNT times but haven't run tests or verification. Verify your changes before continuing."
-                    _append_l3 "$VERIFY_MSG" "checks/no_verify_after_edits.md"
+                    _append_l3 "$VERIFY_MSG"
                     _L3_NO_VERIFY=true
                 fi
                 set_pending_verify 0
@@ -540,7 +520,7 @@ if [ "$AUTONOMY_LEVEL" = "auto" ]; then
     if [ "$STALL_FIRE" = "true" ]; then
         STALL_BODY=$(load_message "checks/stalled_auto_transition/$PHASE.md")
         if [ -n "$STALL_BODY" ]; then
-            _append_l3 "[Workflow Coach — $PHASE_UPPER] $STALL_BODY" "checks/stalled_auto_transition/$PHASE.md"
+            _append_l3 "[Workflow Coach — $PHASE_UPPER] $STALL_BODY"
             _L3_STALLED=true
         fi
     fi
@@ -633,7 +613,7 @@ elif [ "$PHASE" = "review" ]; then
 fi
 
 if [ -n "$STEP_MSG" ]; then
-    _append_l3 "$STEP_MSG" "checks/step_ordering"
+    _append_l3 "$STEP_MSG"
     _L3_STEP_ORDER=true
 fi
 
@@ -649,33 +629,29 @@ $L3_MSG"
 fi
 
 # Debug summary for L3 checks
-_log "[WFM coach] L3: short_agent=$_L3_SHORT_AGENT, generic_commit=$_L3_GENERIC_COMMIT, all_downgraded=$_L3_ALL_DOWNGRADED, minimal_handover=$_L3_MINIMAL_HANDOVER, missing_project=$_L3_MISSING_PROJECT, skip_research=$_L3_SKIP_RESEARCH, options_no_rec=$_L3_OPTIONS_NO_REC, no_verify=$_L3_NO_VERIFY, stalled=$_L3_STALLED, step_order=$_L3_STEP_ORDER"
+_trace "[WFM coach] L3: short_agent=$_L3_SHORT_AGENT, generic_commit=$_L3_GENERIC_COMMIT, all_downgraded=$_L3_ALL_DOWNGRADED, minimal_handover=$_L3_MINIMAL_HANDOVER, missing_project=$_L3_MISSING_PROJECT, skip_research=$_L3_SKIP_RESEARCH, options_no_rec=$_L3_OPTIONS_NO_REC, no_verify=$_L3_NO_VERIFY, stalled=$_L3_STALLED, step_order=$_L3_STEP_ORDER"
 
 # Counter summary
 _COACH_COUNTER=$(jq -r '.coaching.tool_calls_since_agent // 0' "$STATE_FILE" 2>/dev/null) || _COACH_COUNTER="?"
 _COACH_L2_FIRED=$(jq -r '.coaching.layer2_fired // [] | join(",")' "$STATE_FILE" 2>/dev/null) || _COACH_L2_FIRED="?"
-_log "[WFM coach] Counters: calls_since_agent=$_COACH_COUNTER, layer2_fired=[$_COACH_L2_FIRED]"
+_trace "[WFM coach] Counters: calls_since_agent=$_COACH_COUNTER, layer2_fired=[$_COACH_L2_FIRED]"
 
 # ============================================================
 # OUTPUT: Return combined messages
 # ============================================================
 
 if [ -n "$MESSAGES" ] || [ -n "$DEBUG_TRACE" ]; then
-    [ -n "$MESSAGES" ] && _trace "[WFM coach] Message sent to Claude:"
+    _trace "[WFM coach] Message sent to Claude:"
     echo "$MESSAGES" | while IFS= read -r line; do _show "  $line"; done
-    # coaching → additionalContext (Claude-visible)
-    # debug trace + coaching → systemMessage (user-visible)
+    # coaching → additionalContext (Claude-visible), debug trace → systemMessage (user-visible)
     if [ -n "$DEBUG_TRACE" ] && [ -n "$MESSAGES" ]; then
-        SHOW_MSG="$DEBUG_TRACE
-
-$MESSAGES"
-        jq -n --arg show "$SHOW_MSG" --arg coach "$MESSAGES" \
-            '{"systemMessage": $show, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
+        jq -n --arg coach "$MESSAGES" --arg trace "$DEBUG_TRACE" \
+            '{"systemMessage": $trace, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
     elif [ -n "$DEBUG_TRACE" ]; then
         jq -n --arg trace "$DEBUG_TRACE" \
             '{"systemMessage": $trace}'
     else
         jq -n --arg coach "$MESSAGES" \
-            '{"systemMessage": $coach, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
+            '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
     fi
 fi
