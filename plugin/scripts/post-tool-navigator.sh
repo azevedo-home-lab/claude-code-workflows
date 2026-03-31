@@ -148,6 +148,7 @@ $ERR_MSG"
                 if [ -n "$OBJ_MSG" ]; then
                     MESSAGES="[Workflow Coach — $PHASE_UPPER]
 $OBJ_MSG"
+                    _trace "[WFM coach] L1: objectives/$PHASE.md — ${OBJ_MSG:0:80}..."
                 fi
                 ;;
         esac
@@ -168,8 +169,6 @@ $AUTO_MSG"
         if [ "$PHASE" != "error" ]; then
             set_message_shown
         fi
-
-        _trace "[WFM coach] L1: objectives/$PHASE.md — ${OBJ_MSG:0:80}..."
     else
         _trace "[WFM coach] L1: already shown, skipped"
     fi
