@@ -69,7 +69,7 @@ RESTRICTED_WRITE_WHITELIST='(\.claude/state/|docs/plans/|docs/specs/|/tmp/|\.cla
 # Docs-allowed tier: COMPLETE phase
 # NOTE: .claude/commands/ deliberately excluded — no phase may rewrite command files.
 # Command files define phase behavior; an AI rewriting them under pressure is a backdoor.
-COMPLETE_WRITE_WHITELIST='(\.claude/state/|docs/|^[^/]*\.md$)'
+COMPLETE_WRITE_WHITELIST='(\.claude/state/|\.claude-plugin/|docs/|^[^/]*\.md$)'
 
 # ---------------------------------------------------------------------------
 # Shared hook helpers
