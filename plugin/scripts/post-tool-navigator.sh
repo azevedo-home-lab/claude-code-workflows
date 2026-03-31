@@ -80,6 +80,16 @@ if [ "$PHASE" = "off" ]; then
     exit 0
 fi
 
+# Skip coaching for infrastructure Bash calls (workflow-cmd.sh, workflow-state.sh)
+# These run during phase transitions and command file processing — their PostToolUse
+# output is swallowed, and L1 firing here wastes the once-per-phase coaching message.
+if [ "$TOOL_NAME" = "Bash" ]; then
+    _BASH_CMD=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null) || _BASH_CMD=""
+    if echo "$_BASH_CMD" | grep -qE '(workflow-cmd\.sh|workflow-state\.sh)'; then
+        exit 0
+    fi
+fi
+
 # Read debug flag once for all layers
 DEBUG_MODE=$(get_debug)
 source "$SCRIPT_DIR/debug-log.sh" "post-tool-navigator"
