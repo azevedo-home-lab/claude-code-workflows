@@ -114,7 +114,8 @@ $1"
 # Compute uppercased phase once for all layers
 PHASE_UPPER=$(echo "$PHASE" | tr '[:lower:]' '[:upper:]')
 
-_trace "[WFM coach] Tool: $TOOL_NAME (phase=$PHASE_UPPER)"
+_TOOL_HEADER="[WFM coach] Tool: $TOOL_NAME (phase=$PHASE_UPPER)"
+_log "$_TOOL_HEADER"
 
 # Collect messages from all layers — may combine multiple
 MESSAGES=""
@@ -183,7 +184,13 @@ case "$TOOL_NAME" in
     mcp*save_observation|mcp*get_observations) ;;
     *) # Tool is irrelevant to coaching — output any Layer 1 message and exit
         _log "[WFM coach] L2: no trigger matched (tool not tracked)"
-        if [ -n "$MESSAGES" ] || [ -n "$DEBUG_TRACE" ]; then
+        # Prepend tool header to DEBUG_TRACE only when there is coaching output
+if [ -n "$DEBUG_TRACE" ]; then
+    DEBUG_TRACE="$_TOOL_HEADER
+$DEBUG_TRACE"
+fi
+
+if [ -n "$MESSAGES" ] || [ -n "$DEBUG_TRACE" ]; then
             # coaching → additionalContext (Claude-visible), debug trace → systemMessage (user-visible)
             if [ -n "$DEBUG_TRACE" ] && [ -n "$MESSAGES" ]; then
                 jq -n --arg coach "$MESSAGES" --arg trace "$DEBUG_TRACE" \
@@ -667,6 +674,12 @@ _log "[WFM coach] Counters: calls_since_agent=$_COACH_COUNTER, layer2_fired=[$_C
 # ============================================================
 # OUTPUT: Return combined messages
 # ============================================================
+
+# Prepend tool header to DEBUG_TRACE only when there is coaching output
+if [ -n "$DEBUG_TRACE" ]; then
+    DEBUG_TRACE="$_TOOL_HEADER
+$DEBUG_TRACE"
+fi
 
 if [ -n "$MESSAGES" ] || [ -n "$DEBUG_TRACE" ]; then
     _log "[WFM coach] Message sent to Claude:"
