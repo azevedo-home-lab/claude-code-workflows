@@ -199,3 +199,34 @@ echo '{"tool_name":"Bash","tool_input":{"command":"workflow-cmd.sh get_phase"}}'
 echo '{"tool_name":"Bash","tool_input":{"command":"echo test"}}' | bash plugin/scripts/post-tool-navigator.sh | jq .
 # Expected: valid JSON with systemMessage
 ```
+
+## Review Findings
+
+### Critical (must fix before merge)
+None
+
+### Warnings (fixed)
+- [QUAL] Infrastructure skip regex matched substrings — anchored to command start `(^|/)`
+- [QUAL] Duplicated L2 trigger block for findings_present_review — unified into main dispatch
+- [QUAL] Check 7 hardcoded message body — now uses coaching file content
+- [QUAL] Direct jq on STATE_FILE bypasses accessor — TODO added (no accessor exists yet)
+- [ARCH] Infrastructure skip spec claimed counter state preserved — spec updated to match reality
+- [ARCH] findings_present_review trace unguarded — fixed by unifying into main L2 block
+- [GOV] Implementation plan in docs/specs/ — moved to docs/plans/
+- [GOV] gh issue close without confirmation gate — will require user approval in COMPLETE phase
+- [HYG] L1 "already shown, skipped" misleading when tool not eligible — fixed trace message
+- [HYG] Plan doc referenced wrong coaching file path — fixed example
+
+### Suggestions (fixed or noted)
+- [QUAL] Repeated Write/Edit/MultiEdit checks — extracted IS_WRITE_TOOL helper
+- [QUAL] String concatenation in _trace — pre-existing pattern, safe under current usage
+- [ARCH] "already shown" traces _trace vs _log — resolved: downgraded to _log
+- [ARCH] Version bump not in plan tasks — acceptable operational step
+- [GOV] COACHING_DIR pwd fallback silent — added early exit if directory missing
+- [HYG] Plan spec checkboxes unchecked — plan is a reference doc, checkboxes not tracked
+- [HYG] Abandoned worktrees — managed by Claude Code, not cleaned up
+
+### Pre-existing tech debt (not introduced by this PR)
+- Inline commit message length extraction (Check 2) is opaque — candidate for helper function
+- No automated test suite for hook scripts — all verification is manual
+- Direct jq calls on STATE_FILE in 3 locations — need accessor functions in workflow-state.sh
