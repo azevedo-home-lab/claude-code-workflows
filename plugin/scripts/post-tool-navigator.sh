@@ -21,6 +21,11 @@ source "$SCRIPT_DIR/workflow-state.sh"
 # SCRIPT_DIR resolves to .claude/hooks/ (symlink directory), not plugin/scripts/.
 COACHING_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/coaching"
 
+# Validate coaching directory exists — silent degradation if misconfigured
+if [ ! -d "$COACHING_DIR" ]; then
+    exit 0
+fi
+
 # Load a coaching message from file. Returns 1 if file missing (message skipped).
 # $1: relative path under COACHING_DIR (e.g., "objectives/define.md")
 # $2: optional PHASE value to substitute for {{PHASE}}
@@ -51,7 +56,7 @@ extract_bash_command() {
 # its once-per-phase message on an invisible call.
 if [ "$TOOL_NAME" = "Bash" ]; then
     _INFRA_CMD=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null) || _INFRA_CMD=""
-    if echo "$_INFRA_CMD" | grep -qE '(user-set-phase\.sh|workflow-cmd\.sh|workflow-state\.sh)'; then
+    if echo "$_INFRA_CMD" | grep -qE '(^|/)(user-set-phase\.sh|workflow-cmd\.sh|workflow-state\.sh)'; then
         exit 0
     fi
 fi
@@ -171,7 +176,7 @@ $AUTO_MSG"
             set_message_shown
         fi
     else
-        _log "[WFM coach] L1: already shown, skipped"
+        _log "[WFM coach] L1: tool not eligible, skipped"
     fi
 else
     _log "[WFM coach] L1: already shown, skipped"
@@ -470,6 +475,7 @@ fi
 # Check 5: Skipping research in DEFINE/DISCUSS (fires on every match per spec Layer 3)
 # Moved from Layer 2 to Layer 3 because spec says this fires on every match, not once per phase
 if [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ]; then
+    # TODO: Add get_tool_calls_since_agent accessor to workflow-state.sh
     COUNTER=$(jq -r '.coaching.tool_calls_since_agent // 0' "$STATE_FILE" 2>/dev/null) || COUNTER=0
     if [ "$COUNTER" -gt 10 ]; then
         CHECK_BODY=$(load_message "checks/skipping_research.md" "$PHASE_UPPER")
@@ -503,8 +509,9 @@ if [ "$PHASE" = "implement" ] || [ "$PHASE" = "review" ]; then
             set_pending_verify "$VERIFY_COUNT"
             if [ "$VERIFY_COUNT" -ge 5 ]; then
                 # Load file as gate (if deleted, message suppressed); count stays inline
-                if load_message "checks/no_verify_after_edits.md" >/dev/null 2>&1; then
-                    _VERIFY_BODY="You've edited source code $VERIFY_COUNT times but haven't run tests or verification. Verify your changes before continuing."
+                _VERIFY_BODY=$(load_message "checks/no_verify_after_edits.md")
+                if [ -n "$_VERIFY_BODY" ]; then
+                    _VERIFY_BODY="$_VERIFY_BODY ($VERIFY_COUNT edits without test run)"
                     VERIFY_MSG="[Workflow Coach — $PHASE_UPPER] $_VERIFY_BODY"
                     _append_l3 "$VERIFY_MSG"
                     _trace "[WFM coach] L3: checks/no_verify_after_edits.md — ${_VERIFY_BODY:0:80}..."
