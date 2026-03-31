@@ -10,9 +10,20 @@
 
 DATA=$(cat)
 
-# Parse fields (single jq call, tab-separated)
-IFS=$'\t' read -r CC_VERSION MODEL USED_PCT USED_TOKENS TOTAL_TOKENS CWD WORKTREE_NAME WORKTREE_BRANCH < <(
-  echo "$DATA" | jq -r '[
+# Parse fields (single jq call, newline-separated to handle empty values)
+{
+  read -r CC_VERSION
+  read -r MODEL
+  read -r USED_PCT
+  read -r USED_TOKENS
+  read -r TOTAL_TOKENS
+  read -r CWD
+  read -r WORKTREE_NAME
+  read -r WORKTREE_BRANCH
+  read -r LIMIT_5H
+  read -r LIMIT_7D
+} < <(
+  echo "$DATA" | jq -r '
     (.version // "?"),
     (.model.display_name // "?"),
     ((.context_window.used_percentage // 0) | floor | tostring),
@@ -20,8 +31,10 @@ IFS=$'\t' read -r CC_VERSION MODEL USED_PCT USED_TOKENS TOTAL_TOKENS CWD WORKTRE
     ((.context_window.context_window_size // 0) | tostring),
     (.cwd // ""),
     (.worktree.name // ""),
-    (.worktree.branch // "")
-  ] | @tsv'
+    (.worktree.branch // ""),
+    ((.rate_limits.five_hour.used_percentage // -1) | floor | tostring),
+    ((.rate_limits.seven_day.used_percentage // -1) | floor | tostring)
+  '
 )
 
 # Colors
@@ -64,6 +77,26 @@ BAR=""
 for ((i = 0; i < FILLED; i++)); do BAR+="▓"; done
 for ((i = 0; i < EMPTY; i++)); do BAR+="░"; done
 
+# Rate limit color: green <50%, yellow 50-80%, red >=80%
+_limit_color() {
+  local pct="$1"
+  if [ "$pct" -lt 50 ] 2>/dev/null; then echo "$GREEN"
+  elif [ "$pct" -lt 80 ] 2>/dev/null; then echo "$YELLOW"
+  else echo "$RED"; fi
+}
+
+# Format rate limits block (only if data available)
+LIMITS_INFO=""
+if [ "$LIMIT_5H" -ge 0 ] 2>/dev/null || [ "$LIMIT_7D" -ge 0 ] 2>/dev/null; then
+  LIMITS_INFO="  ${DIM}│${RESET}  Limits:"
+  if [ "$LIMIT_5H" -ge 0 ] 2>/dev/null; then
+    LIMITS_INFO+=" $(_limit_color "$LIMIT_5H")5h(${LIMIT_5H}%)${RESET}"
+  fi
+  if [ "$LIMIT_7D" -ge 0 ] 2>/dev/null; then
+    LIMITS_INFO+=" $(_limit_color "$LIMIT_7D")7d(${LIMIT_7D}%)${RESET}"
+  fi
+fi
+
 # Shorten home directory in path
 SHORT_CWD="${CWD/#$HOME/~}"
 # Show only last 2 path components if long
@@ -83,26 +116,20 @@ else
   BRANCH=""
 fi
 
-# CCProxy: override model display if proxy is active
-ACTIVE_PROVIDER_FILE="$HOME/.config/ccproxy/active-provider"
-if [ -f "$ACTIVE_PROVIDER_FILE" ]; then
-  CCPROXY_PROVIDER=$(head -1 "$ACTIVE_PROVIDER_FILE" 2>/dev/null)
-  if [ -n "$CCPROXY_PROVIDER" ] && [ "$CCPROXY_PROVIDER" != "claude" ]; then
-    MODEL="[ccproxy] ${CCPROXY_PROVIDER}"
-  fi
-fi
-
 # Assemble output
 OUTPUT=""
 
 # Model
-OUTPUT+="${BOLD}${MODEL}${RESET}"
+OUTPUT+="Model: ${BOLD}${MODEL}${RESET}"
 
 # Separator
 OUTPUT+="  ${DIM}│${RESET}  "
 
 # Context bar
-OUTPUT+="${BAR_COLOR}${BAR}${RESET} ${USED_PCT}%${TOKEN_INFO}"
+OUTPUT+="Context: ${BAR_COLOR}${BAR}${RESET} ${USED_PCT}%${TOKEN_INFO}"
+
+# Rate limits
+OUTPUT+="${LIMITS_INFO}"
 
 # Sanitize worktree/branch inputs before use
 WORKTREE_NAME="${WORKTREE_NAME//\\/\\\\}"
@@ -110,7 +137,7 @@ BRANCH="${BRANCH//\\/\\\\}"
 
 # Branch
 if [ -n "$BRANCH" ]; then
-  OUTPUT+="  ${DIM}│${RESET}  ${CYAN} ${BRANCH}${RESET}"
+  OUTPUT+="  ${DIM}│${RESET}  Branch: ${CYAN}${BRANCH}${RESET}"
 fi
 
 # Worktree indicator
@@ -119,14 +146,14 @@ if [ -n "$WORKTREE_NAME" ]; then
 fi
 
 # Directory
-OUTPUT+="  ${DIM}│${RESET}  ${DIM}${SHORT_CWD}${RESET}"
+OUTPUT+="  ${DIM}│${RESET}  Path: ${DIM}${SHORT_CWD}${RESET}"
 
 # --- Line 2: CC version + components ---
 
 OUTPUT+="\n"
 
 # CC Version
-OUTPUT+="${GREEN}CC ${CC_VERSION} ✓${RESET}  ${DIM}│${RESET}  "
+OUTPUT+="CC Version: ${GREEN}${CC_VERSION} ✓${RESET}  ${DIM}│${RESET}  "
 
 # Shared state file used by all three components
 WM_STATE_FILE="${CWD}/.claude/state/workflow.json"
@@ -253,30 +280,6 @@ if [ -d "$CM_PLUGIN_DIR" ]; then
   OUTPUT+="  ${DIM}│${RESET}  ${GREEN}Claude-Mem ${CM_VERSION} ✓${RESET}${CM_SUFFIX}"
 else
   OUTPUT+="  ${DIM}│${RESET}  ${DIM}Claude-Mem ✗${RESET}"
-fi
-
-# CCProxy provider indicator — only shown when proxy is running
-CCPROXY_STATE="$HOME/.config/ccproxy/active-provider"
-CCPROXY_PID_FILE="$HOME/.config/ccproxy/ccproxy.pid"
-if [ -f "$CCPROXY_STATE" ] && [ -f "$CCPROXY_PID_FILE" ]; then
-  CCPROXY_PID_VAL=$(tr -d '[:space:]' < "$CCPROXY_PID_FILE" 2>/dev/null || true)
-  # Validate PID is a positive integer before kill -0 (negative PIDs signal process groups)
-  if [[ "$CCPROXY_PID_VAL" =~ ^[0-9]+$ ]] && kill -0 "$CCPROXY_PID_VAL" 2>/dev/null; then
-    # Read both lines in one pass (atomic: head -1 / sed -n '2p' would open file twice)
-    { IFS= read -r ACTIVE_PROVIDER; IFS= read -r CCPROXY_PORT; } < "$CCPROXY_STATE" 2>/dev/null || true
-    # Validate port is a valid TCP port (1-65535); clear if not
-    { [[ "$CCPROXY_PORT" =~ ^[0-9]{1,5}$ ]] && [ "$CCPROXY_PORT" -ge 1 ] && [ "$CCPROXY_PORT" -le 65535 ]; } || CCPROXY_PORT=""
-    # Sanitize ACTIVE_PROVIDER against printf '%b' backslash injection (matches existing pattern)
-    # Port is already validated numeric — no sanitization needed
-    ACTIVE_PROVIDER="${ACTIVE_PROVIDER//\\/\\\\}"
-    case "$ACTIVE_PROVIDER" in
-      codex)  PROVIDER_LABEL="Codex"  ; PROVIDER_COLOR="$YELLOW" ;;
-      claude) PROVIDER_LABEL="Claude" ; PROVIDER_COLOR="$GREEN"  ;;
-      *)      PROVIDER_LABEL="$ACTIVE_PROVIDER" ; PROVIDER_COLOR="$DIM" ;;
-    esac
-    OUTPUT+="  ${DIM}│${RESET}  ${PROVIDER_COLOR}⇄ ${PROVIDER_LABEL}${RESET}"
-    [ -n "$CCPROXY_PORT" ] && OUTPUT+=" ${DIM}:${CCPROXY_PORT}${RESET}"
-  fi
 fi
 
 printf '%b' "$OUTPUT"
