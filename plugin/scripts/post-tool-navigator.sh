@@ -46,6 +46,16 @@ extract_bash_command() {
     echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null || echo ""
 }
 
+# Skip coaching entirely for infrastructure Bash calls (phase transitions, state queries).
+# PostToolUse output for these is swallowed by Claude Code, so L1 would waste
+# its once-per-phase message on an invisible call.
+if [ "$TOOL_NAME" = "Bash" ]; then
+    _INFRA_CMD=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null) || _INFRA_CMD=""
+    if echo "$_INFRA_CMD" | grep -qE '(user-set-phase\.sh|workflow-cmd\.sh|workflow-state\.sh)'; then
+        exit 0
+    fi
+fi
+
 # ---------------------------------------------------------------------------
 # Claude-mem observation ID tracking
 # Extracts observation ID from save_observation (dict response) or
