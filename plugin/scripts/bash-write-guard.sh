@@ -17,25 +17,44 @@ set -euo pipefail
 
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/workflow-state.sh"
+source "$SCRIPT_DIR/state-io.sh"
+source "$SCRIPT_DIR/phase.sh"
+source "$SCRIPT_DIR/settings.sh"
+
+# Stub _log before debug-log.sh is sourced (called in early-exit paths)
+_log() { :; }
 
 # Write pattern — detects file-writing operations (named fragments for readability)
+
+# --- Shell operators (redirects, heredocs, echo redirect) ---
 REDIRECT_OPS='(>[^&]|>>)'
+HEREDOCS='(cat[[:space:]].*<<|bash[[:space:]].*<<|sh[[:space:]].*<<|python[3]?[[:space:]].*<<)'
+ECHO_REDIRECT='(echo[[:space:]].*>)'
+
+# --- Editors and writers (sed -i, perl -i, tee) ---
 INPLACE_EDITORS='(sed[[:space:]]+-i|perl[[:space:]]+-i|ruby[[:space:]]+-i)'
 STREAM_WRITERS='(tee[[:space:]])'
-HEREDOCS='(cat[[:space:]].*<<|bash[[:space:]].*<<|sh[[:space:]].*<<|python[3]?[[:space:]].*<<)'
+
+# --- File operations (cp, mv, rm, touch, etc.) ---
 FILE_OPS='((^|[;&|[:space:]])(cp|mv|rm|install|patch|ln|touch|truncate)[[:space:]])'
+
+# --- Network operations (curl, wget) ---
 DOWNLOADS='(curl[[:space:]].*-o[[:space:]]|wget[[:space:]].*-O[[:space:]])'
+
+# --- Archive/block operations (tar, unzip, dd, rsync) ---
 ARCHIVE_OPS='(tar[[:space:]].*-?x|unzip[[:space:]])'
 BLOCK_OPS='(dd[[:space:]].*of=)'
 SYNC_OPS='(rsync[[:space:]])'
+
+# --- Execution wrappers (eval, bash -c, pipe-to-shell, process substitution, xargs) ---
 EXEC_WRAPPERS='(eval[[:space:]]|bash[[:space:]]+-c|sh[[:space:]]+-c)'
-ECHO_REDIRECT='(echo[[:space:]].*>)'
 # Matches: | bash, | env bash, | /bin/bash, | /usr/bin/env bash, | fish, | csh, | tcsh
-PIPE_SHELL='(\|[[:space:]]*(/[^[:space:]]*/)?((env[[:space:]]+(/[^[:space:]]*/)?)?'
-PIPE_SHELL+='(bash|sh|zsh|dash|ksh|fish|csh|tcsh))(\b|$))'
+PIPE_SHELL='(\|[[:space:]]*(/[^[:space:]]*/)?((env[[:space:]]+(/[^[:space:]]*/)?)?'\
+'(bash|sh|zsh|dash|ksh|fish|csh|tcsh))(\b|$))'
 PROC_SUB='((/[^[:space:]]*/)?((bash|sh|zsh|dash|ksh|fish|csh|tcsh)|source|\.)[[:space:]]+<\()'
 XARGS_EXEC='(\|[[:space:]]*xargs[[:space:]]+(bash|sh|rm|mv|cp|tee|sed))'
+
+# --- External tools (gh) ---
 GH_OPS='(gh[[:space:]])'
 
 WRITE_PATTERN="$REDIRECT_OPS|$INPLACE_EDITORS|$STREAM_WRITERS|$HEREDOCS|$FILE_OPS|$DOWNLOADS|$ARCHIVE_OPS|$BLOCK_OPS|$SYNC_OPS|$EXEC_WRAPPERS|$ECHO_REDIRECT|$PIPE_SHELL|$PROC_SUB|$XARGS_EXEC|$GH_OPS"
@@ -74,7 +93,7 @@ fi
 # (prevents bypass by chaining: source workflow-state.sh && echo pwned > evil)
 if echo "$COMMAND" | grep -qE '^[[:space:]]*(source[[:space:]]|\.[ /]).*workflow-state\.sh'; then
     if ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
-        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: workflow state command" >&2; fi
+        _log "ALLOW: workflow state command"
         exit 0
     fi
 fi
@@ -84,52 +103,57 @@ fi
 # autonomy mode — blocking it traps the workflow in the current phase forever.
 if echo "$COMMAND" | grep -qE '(^|[[:space:]/])workflow-cmd\.sh[[:space:]]'; then
     if ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
-        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: workflow-cmd.sh call" >&2; fi
+        _log "ALLOW: workflow-cmd.sh call"
         exit 0
     fi
 fi
 
-# Allow git commit — writes to git object store, not arbitrary files.
-# Commit message quality monitored by Layer 3 coaching.
-# Chain guard: check only the portion before the -m flag for shell operators,
-# since the commit message body may legitimately contain &&, ||, ; in examples.
-# A chained command like 'git commit -m "msg" && rm -rf /' embeds the chain
-# AFTER the quoted message ends — detect by checking the first line only
-# (before heredoc expansion) for operators outside the git commit prefix.
-if echo "$COMMAND" | grep -qE '^[[:space:]]*(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+commit\b'; then
-    # Extract only the first line of the command (before any heredoc body)
-    FIRST_LINE=$(echo "$COMMAND" | head -1)
-    # Check for shell operators that appear after the closing quote of -m "..."
-    # Strategy: strip the -m "..." or -m '...' inline value, then check for &&/||/;
-    STRIPPED=$(echo "$FIRST_LINE" | sed -E 's/-m "[^"]*"/-m MSG/g; s/-m '"'"'[^'"'"']*'"'"'/-m MSG/g; s/-m [^ ;|&]+/-m MSG/g')
-    if ! echo "$STRIPPED" | grep -qE '(&&|\|\||;)'; then
-        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: git commit" >&2; fi
-        exit 0
-    fi
-    emit_deny "BLOCKED: 'git commit' chained with other commands is not allowed. Run git commit as a standalone command."
-    exit 0
-fi
+# Returns 0 if the command is an allowed git commit (standalone or safe chain)
+# Returns 1 if the commit is chained with unsafe commands (should be denied)
+# Returns 2 if the command is not a git commit at all
+_check_git_commit() {
+    local cmd="$1"
 
-# Allow safe git chains: git add/status/diff/log && git commit
-# Splits command on chain operators, checks every non-commit segment is a safe git op
-if echo "$COMMAND" | grep -qE '(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+commit\b'; then
-    SAFE=true
-    while IFS= read -r segment; do
-        segment=$(echo "$segment" | sed 's/^[[:space:]]*//')
-        [ -z "$segment" ] && continue
-        # Skip the git commit segment itself
-        echo "$segment" | grep -qE '^(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+commit\b' && continue
-        # Allow only safe git ops: add, status, diff, stash, log, show
-        if ! echo "$segment" | grep -qE '^(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+(add|status|diff|stash|log|show)\b'; then
-            SAFE=false
-            break
+    # Strategy 1: single commit command (may have -m message with shell chars)
+    # Chain guard: strip the -m "..." value, then check for &&/||/;
+    if echo "$cmd" | grep -qE '^[[:space:]]*(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+commit\b'; then
+        local first_line stripped
+        first_line=$(echo "$cmd" | head -1)
+        stripped=$(echo "$first_line" | sed -E 's/-m "[^"]*"/-m MSG/g; s/-m '"'"'[^'"'"']*'"'"'/-m MSG/g; s/-m [^ ;|&]+/-m MSG/g')
+        if ! echo "$stripped" | grep -qE '(&&|\|\||;)'; then
+            return 0  # standalone commit
         fi
-    done < <(echo "$COMMAND" | head -1 | sed -E 's/-m "[^"]*"/-m MSG/g; s/-m '"'"'[^'"'"']*'"'"'/-m MSG/g; s/-m [^ ;|&]+/-m MSG/g' | sed 's/&&/\n/g; s/||/\n/g; s/;/\n/g; s/|/\n/g')
-    if [ "$SAFE" = true ]; then
-        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: safe git chain with commit" >&2; fi
-        exit 0
+        return 1  # commit chained with unsafe commands
     fi
-fi
+
+    # Strategy 2: safe git chain (git add && git commit)
+    # Splits on chain operators, checks every non-commit segment is a safe git op
+    if echo "$cmd" | grep -qE '(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+commit\b'; then
+        local safe=true segment
+        while IFS= read -r segment; do
+            segment=$(echo "$segment" | sed 's/^[[:space:]]*//')
+            [ -z "$segment" ] && continue
+            echo "$segment" | grep -qE '^(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+commit\b' && continue
+            if ! echo "$segment" | grep -qE '^(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+(add|status|diff|stash|log|show)\b'; then
+                safe=false
+                break
+            fi
+        done < <(echo "$cmd" | head -1 | sed -E 's/-m "[^"]*"/-m MSG/g; s/-m '"'"'[^'"'"']*'"'"'/-m MSG/g; s/-m [^ ;|&]+/-m MSG/g' | sed 's/&&/\n/g; s/||/\n/g; s/;/\n/g; s/|/\n/g')
+        if [ "$safe" = true ]; then
+            return 0  # safe chain
+        fi
+        # Unsafe chain — fall through to "not a commit" so normal write checks apply
+    fi
+
+    return 2  # not a git commit
+}
+
+_check_git_commit "$COMMAND"
+case $? in
+    0) _log "ALLOW: git commit"; exit 0 ;;
+    1) emit_deny "BLOCKED: 'git commit' chained with other commands is not allowed. Run git commit as a standalone command."; exit 0 ;;
+    2) ;;  # not a commit, continue checking
+esac
 
 # Strip safe redirects before checking write patterns
 # 2>/dev/null, 2>&1, 1>&2 etc. are not file writes
@@ -178,7 +202,7 @@ fi
 STATE_FILE_PATTERN='\.claude/(state/workflow\.json|state/phase-intent\.json)'
 if echo "$COMMAND" | grep -qE "$STATE_FILE_PATTERN"; then
     if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ] || [ "$NODE_WRITE" = "true" ] || [ "$RUBY_WRITE" = "true" ] || [ "$PERL_WRITE" = "true" ]; then
-        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: Direct writes to workflow state files are not allowed." >&2; fi
+        _log "DENY: direct write to workflow state file"
         emit_deny "BLOCKED: Direct writes to workflow state files are not allowed."
         exit 0
     fi
@@ -195,7 +219,7 @@ fi
 # Block execution of user-set-phase.sh — !backtick only, never a Bash tool call.
 # Matches execution contexts (direct call, source, bash -c) but not read-only ops (cat, git diff).
 if echo "$COMMAND" | grep -qE '(^|[;&|[:space:]])(\\./|source[[:space:]]|bash[[:space:]]|sh[[:space:]]|/)[^[:space:]]*user-set-phase\.sh'; then
-    if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: user-set-phase.sh called via Bash tool" >&2; fi
+    _log "DENY: user-set-phase.sh called via Bash tool"
     emit_deny "BLOCKED: user-set-phase.sh is the user-only phase transition path. It cannot be called via Bash tool — only from !backtick command files."
     exit 0
 fi
@@ -208,7 +232,7 @@ fi
 
 DESTRUCTIVE_GIT='(git|/usr/bin/git|/usr/local/bin/git)[[:space:]]+(reset[[:space:]]+--hard|push[[:space:]]+--force|push[[:space:]]+-f[[:space:]]|branch[[:space:]]+-D[[:space:]]|checkout[[:space:]]+--[[:space:]]\.|clean[[:space:]]+-f|rebase[[:space:]]+--abort)'
 if echo "$COMMAND" | grep -qE "$DESTRUCTIVE_GIT"; then
-    if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: destructive git operation blocked" >&2; fi
+    _log "DENY: destructive git operation blocked"
     emit_deny "BLOCKED: Destructive git operation detected (reset --hard, push --force, branch -D, checkout --, clean -f, rebase --abort). These operations can cause irreversible data loss. Use !backtick if you need to run this command."
     exit 0
 fi
@@ -219,7 +243,7 @@ fi
 
 # Allow everything in implement and review phases
 case "$PHASE" in
-    implement|review) if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: phase=$PHASE allows all bash" >&2; fi; exit 0 ;;
+    implement|review) _log "ALLOW: phase=$PHASE allows all bash"; exit 0 ;;
 esac
 
 # Select whitelist based on phase
@@ -247,13 +271,13 @@ _gh_safe_chain() {
 if echo "$COMMAND" | grep -qE '^[[:space:]]*(gh)[[:space:]]'; then
     if [ "$PHASE" = "complete" ] && _gh_safe_chain; then
         # COMPLETE: all gh ops allowed (issue create, pr create, etc.)
-        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: gh command in COMPLETE" >&2; fi
+        _log "ALLOW: gh command in COMPLETE"
         exit 0
     elif [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ] || [ "$PHASE" = "error" ]; then
         # DEFINE/DISCUSS: read-only gh ops + issue comment (for plan→issue linking)
         if echo "$COMMAND" | grep -qE '^[[:space:]]*gh[[:space:]]+(repo[[:space:]]+view|issue[[:space:]]+view|issue[[:space:]]+list|issue[[:space:]]+comment|pr[[:space:]]+view|pr[[:space:]]+list|release[[:space:]]+(view|list))' && \
            _gh_safe_chain; then
-            if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: gh read-only in $PHASE" >&2; fi
+            _log "ALLOW: gh read-only in $PHASE"
             exit 0
         fi
     fi
@@ -266,7 +290,7 @@ if [ "$PHASE" = "complete" ]; then
        echo "$_rm_stripped" | grep -qE '\.claude/tmp/' && \
        ! echo "$_rm_stripped" | grep -qE '\.\.' && \
        ! echo "$_rm_stripped" | grep -qE '(&&|\|\||;|\|)'; then
-        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: rm .claude/tmp/ in COMPLETE" >&2; fi
+        _log "ALLOW: rm .claude/tmp/ in COMPLETE"
         exit 0
     fi
 fi
@@ -276,7 +300,7 @@ fi
 GUARD_SYSTEM_PATTERN='(\.claude/hooks/|plugin/scripts/|plugin/commands/)'
 if echo "$COMMAND" | grep -qE "$GUARD_SYSTEM_PATTERN"; then
     if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ] || [ "$NODE_WRITE" = "true" ] || [ "$RUBY_WRITE" = "true" ] || [ "$PERL_WRITE" = "true" ]; then
-        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: write to enforcement file blocked" >&2; fi
+        _log "DENY: write to enforcement file blocked"
         emit_deny "BLOCKED: Writes to enforcement files (.claude/hooks/, plugin/scripts/, plugin/commands/) are not allowed in any phase. These files define the workflow rules. Use !backtick if you need to make legitimate changes."
         exit 0
     fi
@@ -298,7 +322,7 @@ if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ]
 
     # If we can identify a write target, check it against the whitelist
     if [ -n "$WRITE_TARGET" ] && echo "$WRITE_TARGET" | grep -qE "$WHITELIST"; then
-        if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: write target whitelisted ($WRITE_TARGET)" >&2; fi
+        _log "ALLOW: write target whitelisted ($WRITE_TARGET)"
         exit 0
     fi
     # Phase-aware deny message
@@ -310,11 +334,11 @@ if echo "$CLEAN_CMD" | grep -qE "$WRITE_PATTERN" || [ "$PYTHON_WRITE" = "true" ]
         *)        REASON="BLOCKED: Unexpected phase ($PHASE)." ;;
     esac
 
-    if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash DENY: $REASON" >&2; fi
+    _log "DENY: $REASON"
     emit_deny "$REASON"
     exit 0
 fi
 
 # Read-only Bash commands are allowed
-if [ "$DEBUG_MODE" = "true" ]; then echo "[WFM DEBUG] Bash ALLOW: no write pattern detected" >&2; fi
+_log "ALLOW: no write pattern detected"
 exit 0

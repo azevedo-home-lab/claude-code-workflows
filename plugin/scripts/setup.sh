@@ -94,9 +94,10 @@ if [ -f "$SOURCE_PLUGIN_JSON" ] && [ -d "$CACHE_DIR" ]; then
         [ ! -e "$CACHE_DIR/$SOURCE_VERSION/$entry" ] && cp -r "$item" "$CACHE_DIR/$SOURCE_VERSION/$entry"
       done
     fi
-    # Ensure agents/ and config/ are in the cache (may be missing from older versions)
-    for dir in agents config; do
-      if [ -d "$PLUGIN_ROOT/$dir" ] && [ ! -d "$CACHE_DIR/$SOURCE_VERSION/$dir" ]; then
+    # Always refresh key directories from source (overrides stale copies from old cache)
+    for dir in agents config statusline; do
+      if [ -d "$PLUGIN_ROOT/$dir" ]; then
+        rm -rf "$CACHE_DIR/$SOURCE_VERSION/$dir"
         cp -r "$PLUGIN_ROOT/$dir" "$CACHE_DIR/$SOURCE_VERSION/$dir"
       fi
     done
@@ -152,6 +153,15 @@ for script_path in "$PLUGIN_ROOT"/scripts/*.sh; do
   [ "$script" = "setup.sh" ] && continue
   if [ ! -e "$HOOKS_DIR/$script" ]; then
     ln -s "../../plugin/scripts/$script" "$HOOKS_DIR/$script"
+  fi
+done
+
+# Symlink script subdirectories (e.g., checks/) — coaching check modules
+for subdir in "$PLUGIN_ROOT"/scripts/*/; do
+  [ -d "$subdir" ] || continue
+  dirname=$(basename "$subdir")
+  if [ ! -e "$HOOKS_DIR/$dirname" ]; then
+    ln -s "../../plugin/scripts/$dirname" "$HOOKS_DIR/$dirname"
   fi
 done
 

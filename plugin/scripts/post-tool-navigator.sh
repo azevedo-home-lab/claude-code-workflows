@@ -163,72 +163,8 @@ _log "$_TOOL_HEADER"
 # Collect messages from all layers — may combine multiple
 MESSAGES=""
 
-# ---------------------------------------------------------------------------
-# Coaching Throttle — rate-limiting and grace period for coaching checks
-# Reduces coaching noise by:
-#   1. Grace period: Don't fire until N tool calls after condition first becomes true
-#   2. Rate limit: After grace period, only fire every Nth tool call
-# Configurable via coaching state or defaults below.
-# ---------------------------------------------------------------------------
-_COACHING_GRACE_PERIOD=3    # tool calls before first fire after condition becomes true
-_COACHING_RATE_LIMIT=5      # fire every Nth attempt after grace period
-
-# Load overrides from state file if configured
-_COACHING_GRACE_OVERRIDE=$(jq -r '.coaching.grace_period // empty' "$STATE_FILE" 2>/dev/null) || _COACHING_GRACE_OVERRIDE=""
-_COACHING_RATE_OVERRIDE=$(jq -r '.coaching.rate_limit // empty' "$STATE_FILE" 2>/dev/null) || _COACHING_RATE_OVERRIDE=""
-[ -n "$_COACHING_GRACE_OVERRIDE" ] && _COACHING_GRACE_PERIOD="$_COACHING_GRACE_OVERRIDE"
-[ -n "$_COACHING_RATE_OVERRIDE" ] && _COACHING_RATE_LIMIT="$_COACHING_RATE_OVERRIDE"
-
-# Get current total tool call count for throttle tracking
-_COACHING_CALL_COUNT=$(jq -r '.coaching.tool_calls_since_agent // 0' "$STATE_FILE" 2>/dev/null) || _COACHING_CALL_COUNT=0
-
-# _should_fire CHECK_NAME
-# Returns 0 (true) if the check should fire, 1 (false) if throttled.
-# Tracks per-check state in coaching.l3_throttle.<check_name>
-_should_fire() {
-    local check_name="$1"
-    local first_true fire_count
-
-    # Read per-check throttle state
-    first_true=$(jq -r ".coaching.throttle["${check_name}"].first_true // 0" "$STATE_FILE" 2>/dev/null) || first_true=0
-    fire_count=$(jq -r ".coaching.throttle["${check_name}"].fire_count // 0" "$STATE_FILE" 2>/dev/null) || fire_count=0
-
-    # First time this check is true — record the call count
-    if [ "$first_true" -eq 0 ]; then
-        _update_state ".coaching.throttle["${check_name}"].first_true = $_COACHING_CALL_COUNT"
-        first_true=$_COACHING_CALL_COUNT
-    fi
-
-    # Grace period: don't fire until N calls after first_true
-    local calls_since=$(( _COACHING_CALL_COUNT - first_true ))
-    if [ "$calls_since" -lt "$_COACHING_GRACE_PERIOD" ]; then
-        _log "[WFM coach] throttle: $check_name — grace period ($calls_since/$_COACHING_GRACE_PERIOD)"
-        return 1
-    fi
-
-    # Rate limit: fire every Nth attempt
-    fire_count=$(( fire_count + 1 ))
-    _update_state ".coaching.throttle["${check_name}"].fire_count = $fire_count"
-
-    if [ $(( fire_count % _COACHING_RATE_LIMIT )) -ne 1 ] && [ "$fire_count" -ne 1 ]; then
-        _log "[WFM coach] throttle: $check_name — rate limited ($fire_count, every $_COACHING_RATE_LIMIT)"
-        return 1
-    fi
-
-    return 0
-}
-
-# Reset throttle state for a check when its condition becomes false
-_reset_throttle() {
-    local check_name="$1"
-    local has_state
-    has_state=$(jq -r ".coaching.throttle["${check_name}"] // empty" "$STATE_FILE" 2>/dev/null) || has_state=""
-    if [ -n "$has_state" ]; then
-        _update_state "del(.coaching.throttle["${check_name}"])"
-    fi
-}
-
-
+# Source coaching throttle engine (provides _should_fire, _reset_throttle, _append_l3)
+source "$SCRIPT_DIR/coaching-runner.sh"
 
 # ============================================================
 # LAYER 1: Phase entry message (fires once per phase transition)
@@ -433,332 +369,43 @@ $FINDINGS_MSG"
 fi
 
 # ============================================================
-# LAYER 3: Anti-laziness checks (fires on every match)
+# LAYER 3: Anti-laziness checks (dispatched from individual files)
 # ============================================================
 
 L3_MSG=""
 
-# Helper: append a check message to L3_MSG
-_append_l3() {
-    if [ -n "$L3_MSG" ]; then
-        L3_MSG="$L3_MSG
+# Source individual check files
+source "$SCRIPT_DIR/checks/short-agent-prompt.sh"
+source "$SCRIPT_DIR/checks/generic-commit.sh"
+source "$SCRIPT_DIR/checks/all-findings-downgraded.sh"
+source "$SCRIPT_DIR/checks/save-observation-quality.sh"
+source "$SCRIPT_DIR/checks/skipping-research.sh"
+source "$SCRIPT_DIR/checks/options-without-recommendation.sh"
+source "$SCRIPT_DIR/checks/no-verify-after-edits.sh"
+source "$SCRIPT_DIR/checks/stalled-auto-transition.sh"
+source "$SCRIPT_DIR/checks/step-ordering.sh"
 
-$1"
-    else
-        L3_MSG="$1"
-    fi
-}
+# Dispatch all checks — each sets CHECK_RESULT if it fires
+# save_observation_quality uses _append_l3 directly (two sub-checks)
+_L3_CHECKS_FIRED=""
+for _check_fn in \
+    check_short_agent_prompt \
+    check_generic_commit \
+    check_all_findings_downgraded \
+    check_save_observation_quality \
+    check_skipping_research \
+    check_options_without_recommendation \
+    check_no_verify_after_edits \
+    check_stalled_auto_transition \
+    check_step_ordering; do
 
-# Track which coaching checks fired for debug summary
-_L3_SHORT_AGENT=false
-_L3_GENERIC_COMMIT=false
-_L3_ALL_DOWNGRADED=false
-_L3_MINIMAL_HANDOVER=false
-_L3_MISSING_PROJECT=false
-_L3_SKIP_RESEARCH=false
-_L3_OPTIONS_NO_REC=false
-_L3_NO_VERIFY=false
-_L3_STALLED=false
-_L3_STEP_ORDER=false
-
-# Check 1: Short agent prompts (< 150 chars)
-if [ "$TOOL_NAME" = "Agent" ]; then
-    PROMPT_LEN=$(echo "$INPUT" | jq -r '.tool_input.prompt // "" | length' 2>/dev/null) || PROMPT_LEN=999
-    if [ "$PROMPT_LEN" -lt 150 ]; then
-        CHECK_BODY=$(load_message "checks/short_agent_prompt.md" "$PHASE_UPPER")
-        if [ -n "$CHECK_BODY" ] && _should_fire "short_agent_prompt"; then
-            _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
-            _trace "[WFM coach] L3: checks/short_agent_prompt.md — ${CHECK_BODY:0:80}..."
-        fi
-        _L3_SHORT_AGENT=true
+    CHECK_RESULT=""
+    "$_check_fn"
+    if [ -n "$CHECK_RESULT" ]; then
+        _append_l3 "$CHECK_RESULT"
+        _L3_CHECKS_FIRED="$_L3_CHECKS_FIRED ${_check_fn#check_}"
     fi
-fi
-
-# Check 2: Generic commit messages (< 30 chars)
-if [ "$TOOL_NAME" = "Bash" ]; then
-    COMMAND=$(extract_bash_command)
-    if echo "$COMMAND" | grep -qE 'git commit'; then
-        COMMIT_MSG_LEN=$(echo "$INPUT" | jq -r '.tool_input.command // ""' 2>/dev/null | {
-    cmd=$(cat)
-    # Try -m "..." or -m '...' (single-line, no HEREDOC)
-    msg=$(echo "$cmd" | sed -n 's/.*-m[[:space:]]*"\([^"]*\)".*/\1/p; s/.*-m[[:space:]]*'"'"'\([^'"'"']*\)'"'"'.*/\1/p' | head -1)
-    if [ -n "$msg" ] && ! echo "$msg" | grep -qE '(\$\(cat|<<)'; then
-        echo "${#msg}"
-    else
-        # Try HEREDOC: normalise literal \n to real newlines, then extract first line after EOF
-        first_line=$(echo "$cmd" | sed 's/\\n/\n/g' | awk 'found && !/^EOF/{print; exit} /EOF/{found=1}' | head -1)
-        if [ -n "$first_line" ]; then
-            echo "${#first_line}"
-        else
-            echo "999"
-        fi
-    fi
-}) || COMMIT_MSG_LEN=999
-        if [ "$COMMIT_MSG_LEN" -lt 30 ]; then
-            CHECK_BODY=$(load_message "checks/generic_commit.md" "$PHASE_UPPER")
-            if [ -n "$CHECK_BODY" ] && _should_fire "generic_commit"; then
-                _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
-                _trace "[WFM coach] L3: checks/generic_commit.md — ${CHECK_BODY:0:80}..."
-            fi
-            _L3_GENERIC_COMMIT=true
-        fi
-    fi
-fi
-
-# Check 3: All findings downgraded (REVIEW phase, writing to spec)
-if [ "$PHASE" = "review" ] && { [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; }; then
-    if echo "$FILE_PATH" | grep -qE 'docs/specs/'; then
-        # Check if all findings are under Suggestions with no Critical or Warning entries
-        ALL_SUGGESTIONS="false"
-        if [ -f "$FILE_PATH" ]; then
-            IN_REVIEW=false
-            HAS_CRITICAL=false
-            HAS_WARNING=false
-            while IFS= read -r line; do
-                if echo "$line" | grep -q '## Review Findings'; then IN_REVIEW=true; fi
-                if [ "$IN_REVIEW" = "true" ] && echo "$line" | grep -qE '^## ' && ! echo "$line" | grep -q 'Review Findings'; then break; fi
-                if [ "$IN_REVIEW" = "true" ]; then
-                    if echo "$line" | grep -q '### Critical'; then HAS_CRITICAL=true; fi
-                    if echo "$line" | grep -q '### Warning'; then HAS_WARNING=true; fi
-                fi
-            done < "$FILE_PATH"
-            if [ "$IN_REVIEW" = "true" ] && [ "$HAS_CRITICAL" = "false" ] && [ "$HAS_WARNING" = "false" ]; then
-                ALL_SUGGESTIONS="true"
-            fi
-        fi
-        if [ "$ALL_SUGGESTIONS" = "true" ]; then
-            CHECK_BODY=$(load_message "checks/all_findings_downgraded.md")
-            if [ -n "$CHECK_BODY" ] && _should_fire "all_findings_downgraded"; then
-                _append_l3 "[Workflow Coach — REVIEW] $CHECK_BODY"
-                _trace "[WFM coach] L3: checks/all_findings_downgraded.md — ${CHECK_BODY:0:80}..."
-            fi
-            _L3_ALL_DOWNGRADED=true
-        fi
-    fi
-fi
-
-# Check 4: save_observation quality (handover length + project field)
-# Single jq call extracts both text length and project presence
-if echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
-    OBS_CHECK=$(echo "$INPUT" | jq -r '
-        (.tool_input.narrative // .tool_input.text // "") as $t |
-        (.tool_input.project // "") as $p |
-        "\($t | length) \(if $p != "" then "true" else "false" end)"
-    ' 2>/dev/null) || OBS_CHECK="999 true"
-    OBS_LEN="${OBS_CHECK%% *}"
-    HAS_PROJECT="${OBS_CHECK##* }"
-
-    # 4a: Minimal handover (COMPLETE phase only)
-    if [ "$PHASE" = "complete" ] && [ "$OBS_LEN" -lt 200 ]; then
-        CHECK_BODY=$(load_message "checks/minimal_handover.md")
-        if [ -n "$CHECK_BODY" ] && _should_fire "minimal_handover"; then
-            _append_l3 "[Workflow Coach — COMPLETE] $CHECK_BODY"
-            _trace "[WFM coach] L3: checks/minimal_handover.md — ${CHECK_BODY:0:80}..."
-        fi
-        _L3_MINIMAL_HANDOVER=true
-    fi
-
-    # 4b: Missing project field (any phase)
-    if [ "$HAS_PROJECT" = "false" ]; then
-        CHECK_BODY=$(load_message "checks/missing_project_field.md" "$PHASE_UPPER")
-        if [ -n "$CHECK_BODY" ] && _should_fire "missing_project_field"; then
-            _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
-            _trace "[WFM coach] L3: checks/missing_project_field.md — ${CHECK_BODY:0:80}..."
-        fi
-        _L3_MISSING_PROJECT=true
-    fi
-fi
-
-# Check 5: Skipping research in DEFINE/DISCUSS (fires on every match per spec Layer 3)
-# Moved from Layer 2 to Layer 3 because spec says this fires on every match, not once per phase
-if [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ]; then
-    # TODO: Add get_tool_calls_since_agent accessor to workflow-state.sh
-    COUNTER=$(jq -r '.coaching.tool_calls_since_agent // 0' "$STATE_FILE" 2>/dev/null) || COUNTER=0
-    if [ "$COUNTER" -gt 10 ]; then
-        CHECK_BODY=$(load_message "checks/skipping_research.md" "$PHASE_UPPER")
-        if [ -n "$CHECK_BODY" ] && _should_fire "skipping_research"; then
-            _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
-            _trace "[WFM coach] L3: checks/skipping_research.md — ${CHECK_BODY:0:80}..."
-        fi
-        _L3_SKIP_RESEARCH=true
-    fi
-fi
-
-# Check 6: Options without recommendation (best-effort heuristic)
-# The hook can't read Claude's text, but can detect AskUserQuestion tool
-# following agent returns without an intervening recommendation signal.
-# This is approximate — may produce false positives. Fires in any active phase.
-if [ "$TOOL_NAME" = "AskUserQuestion" ]; then
-    # Check if any agent has returned in this phase (any agent_return_* trigger fired)
-    AGENTS_RETURNED=$(jq -r '[.coaching.layer2_fired[]? | select(startswith("agent_return"))] | if length > 0 then "true" else "false" end' "$STATE_FILE" 2>/dev/null) || AGENTS_RETURNED="false"
-    if [ "$AGENTS_RETURNED" = "true" ]; then
-        CHECK_BODY=$(load_message "checks/options_without_recommendation.md" "$PHASE_UPPER")
-        if [ -n "$CHECK_BODY" ] && _should_fire "options_without_recommendation"; then
-            _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
-            _trace "[WFM coach] L3: checks/options_without_recommendation.md — ${CHECK_BODY:0:80}..."
-        fi
-        _L3_OPTIONS_NO_REC=true
-    fi
-fi
-
-# Check 7: No verify after code change (source edits without test run)
-if [ "$PHASE" = "implement" ] || [ "$PHASE" = "review" ]; then
-    if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-        if [ -n "$FILE_PATH" ] && ! echo "$FILE_PATH" | grep -qE '(test|spec|docs/|plans/|specs/|\.md$)'; then
-            VERIFY_COUNT=$(get_pending_verify)
-            VERIFY_COUNT=$((VERIFY_COUNT + 1))
-            set_pending_verify "$VERIFY_COUNT"
-            if [ "$VERIFY_COUNT" -ge 5 ]; then
-                # Load file as gate (if deleted, message suppressed); count stays inline
-                _VERIFY_BODY=$(load_message "checks/no_verify_after_edits.md")
-                if [ -n "$_VERIFY_BODY" ] && _should_fire "no_verify_after_edits"; then
-                    _VERIFY_BODY="$_VERIFY_BODY ($VERIFY_COUNT edits without test run)"
-                    VERIFY_MSG="[Workflow Coach — $PHASE_UPPER] $_VERIFY_BODY"
-                    _append_l3 "$VERIFY_MSG"
-                    _trace "[WFM coach] L3: checks/no_verify_after_edits.md — ${_VERIFY_BODY:0:80}..."
-                    _L3_NO_VERIFY=true
-                fi
-                set_pending_verify 0
-            fi
-        fi
-    elif [ "$TOOL_NAME" = "Bash" ]; then
-        BASH_CMD=$(extract_bash_command)
-        if echo "$BASH_CMD" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'; then
-            set_pending_verify 0
-        fi
-    fi
-fi
-
-# Check 8: Stalled auto-transition — milestones complete but Claude hasn't moved to next phase
-# Fires on every tool call when auto + milestones done, so Claude can't ignore it
-AUTONOMY_LEVEL=$(get_autonomy_level 2>/dev/null) || AUTONOMY_LEVEL=""
-if [ "$AUTONOMY_LEVEL" = "auto" ]; then
-    STALL_FIRE=false
-    if [ "$PHASE" = "implement" ]; then
-        IMPL_MISSING=$(_check_milestones "implement" "plan_written" "plan_read" "tests_passing" "all_tasks_complete" 2>/dev/null) || IMPL_MISSING="skip"
-        [ -z "$IMPL_MISSING" ] && STALL_FIRE=true
-    elif [ "$PHASE" = "discuss" ]; then
-        DISCUSS_DONE=true
-        for field in problem_confirmed research_done approach_selected; do
-            VAL=$(get_discuss_field "$field" 2>/dev/null) || VAL=""
-            [ "$VAL" != "true" ] && DISCUSS_DONE=false && break
-        done
-        [ "$DISCUSS_DONE" = "true" ] && STALL_FIRE=true
-    elif [ "$PHASE" = "review" ]; then
-        REVIEW_DONE=true
-        for field in verification_complete agents_dispatched findings_presented findings_acknowledged; do
-            VAL=$(get_review_field "$field" 2>/dev/null) || VAL=""
-            [ "$VAL" != "true" ] && REVIEW_DONE=false && break
-        done
-        [ "$REVIEW_DONE" = "true" ] && STALL_FIRE=true
-    fi
-    if [ "$STALL_FIRE" = "true" ]; then
-        STALL_BODY=$(load_message "checks/stalled_auto_transition/$PHASE.md")
-        if [ -n "$STALL_BODY" ] && _should_fire "stalled_$PHASE"; then
-            _append_l3 "[Workflow Coach — $PHASE_UPPER] $STALL_BODY"
-            _trace "[WFM coach] L3: checks/stalled_auto_transition/$PHASE.md — ${STALL_BODY:0:80}..."
-            _L3_STALLED=true
-        fi
-    fi
-fi
-
-# Check 9: Within-phase step ordering — fires on every match (all autonomy modes)
-# Helper: load step ordering message and set STEP_MSG
-_load_step() {
-    local body
-    body=$(load_message "checks/step_ordering/$1.md")
-    if [ -n "$body" ]; then
-        STEP_MSG="[Workflow Coach — $PHASE_UPPER] $body"
-        STEP_FILE="checks/step_ordering/$1.md"
-        STEP_BODY="$body"
-    fi
-}
-
-STEP_MSG=""
-STEP_FILE=""
-STEP_BODY=""
-
-if [ "$PHASE" = "complete" ]; then
-    if [ "$(_section_exists "completion")" = "true" ]; then
-        if [ "$TOOL_NAME" = "Bash" ]; then
-            BASH_CMD=$(extract_bash_command)
-            if echo "$BASH_CMD" | grep -qE 'git[[:space:]]+commit'; then
-                if [ "$(get_completion_field "results_presented")" != "true" ]; then
-                    _load_step "complete_commit_before_validation"
-                elif [ "$(get_completion_field "docs_checked")" != "true" ]; then
-                    _load_step "complete_commit_before_docs"
-                fi
-            fi
-            if echo "$BASH_CMD" | grep -qE 'git[[:space:]]+push'; then
-                if [ "$(get_completion_field "committed")" != "true" ]; then
-                    _load_step "complete_push_before_commit"
-                fi
-            fi
-        fi
-        if echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
-            if [ "$(get_completion_field "tech_debt_audited")" != "true" ]; then
-                _load_step "complete_handover_before_audit"
-            fi
-        fi
-        # Pipeline-abandoned: pushed but later steps not done
-        if [ "$(get_completion_field "pushed")" = "true" ] && [ "$(get_completion_field "handover_saved")" != "true" ]; then
-            _load_step "complete_pipeline_incomplete"
-        fi
-    fi
-elif [ "$PHASE" = "discuss" ]; then
-    if [ "$(_section_exists "discuss")" = "true" ]; then
-        if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-            if echo "$FILE_PATH" | grep -qE 'docs/plans/'; then
-                if [ "$(get_discuss_field "research_done")" != "true" ]; then
-                    _load_step "discuss_plan_before_research"
-                elif [ "$(get_discuss_field "approach_selected")" != "true" ]; then
-                    _load_step "discuss_plan_before_approach"
-                fi
-            fi
-        fi
-    fi
-elif [ "$PHASE" = "implement" ]; then
-    if [ "$(_section_exists "implement")" = "true" ]; then
-        if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-            if [ -n "$FILE_PATH" ] && ! echo "$FILE_PATH" | grep -qE '(test|spec|docs/|plans/|specs/|\.md$)'; then
-                if [ "$(get_implement_field "plan_written")" != "true" ]; then
-                    _load_step "implement_code_before_plan"
-                elif [ "$(get_implement_field "plan_read")" != "true" ]; then
-                    _load_step "implement_code_before_plan_read"
-                fi
-            fi
-        fi
-        # Pipeline-abandoned: tasks complete but tests not run
-        if [ "$(get_implement_field "all_tasks_complete")" = "true" ] && [ "$(get_implement_field "tests_passing")" != "true" ]; then
-            _load_step "implement_pipeline_incomplete"
-        fi
-    fi
-elif [ "$PHASE" = "review" ]; then
-    if [ "$(_section_exists "review")" = "true" ]; then
-        if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-            if echo "$FILE_PATH" | grep -qE 'docs/specs/'; then
-                if [ "$(get_review_field "agents_dispatched")" != "true" ]; then
-                    _load_step "review_findings_before_agents"
-                fi
-            fi
-        fi
-        if [ "$TOOL_NAME" = "AskUserQuestion" ]; then
-            if [ "$(get_review_field "findings_presented")" != "true" ]; then
-                _load_step "review_ack_before_findings"
-            fi
-        fi
-        # Pipeline-abandoned: agents dispatched but findings not presented
-        if [ "$(get_review_field "agents_dispatched")" = "true" ] && [ "$(get_review_field "findings_presented")" != "true" ]; then
-            _load_step "review_pipeline_incomplete"
-        fi
-    fi
-fi
-
-if [ -n "$STEP_MSG" ] && _should_fire "step_ordering"; then
-    _append_l3 "$STEP_MSG"
-    _trace "[WFM coach] L3: $STEP_FILE — ${STEP_BODY:0:80}..."
-    _L3_STEP_ORDER=true
-fi
+done
 
 # Append Layer 3 message if any
 if [ -n "$L3_MSG" ]; then
@@ -772,7 +419,7 @@ $L3_MSG"
 fi
 
 # Debug summary for coaching checks
-_log "[WFM coach] L3: short_agent=$_L3_SHORT_AGENT, generic_commit=$_L3_GENERIC_COMMIT, all_downgraded=$_L3_ALL_DOWNGRADED, minimal_handover=$_L3_MINIMAL_HANDOVER, missing_project=$_L3_MISSING_PROJECT, skip_research=$_L3_SKIP_RESEARCH, options_no_rec=$_L3_OPTIONS_NO_REC, no_verify=$_L3_NO_VERIFY, stalled=$_L3_STALLED, step_order=$_L3_STEP_ORDER"
+_log "[WFM coach] L3: fired=[${_L3_CHECKS_FIRED:- none}]"
 
 # Counter summary
 _COACH_COUNTER=$(jq -r '.coaching.tool_calls_since_agent // 0' "$STATE_FILE" 2>/dev/null) || _COACH_COUNTER="?"
