@@ -294,25 +294,7 @@ case "$TOOL_NAME" in
     mcp*save_observation|mcp*get_observations) ;;
     *) # Tool is irrelevant to coaching — output any Layer 1 message and exit
         _log "[WFM coach] L2: no trigger matched (tool not tracked)"
-        # Prepend tool header to DEBUG_TRACE only when there is coaching output
-if [ -n "$DEBUG_TRACE" ]; then
-    DEBUG_TRACE="$_TOOL_HEADER
-$DEBUG_TRACE"
-fi
-
-if [ -n "$MESSAGES" ] || [ -n "$DEBUG_TRACE" ]; then
-            # coaching → additionalContext (Claude-visible), debug trace → systemMessage (user-visible)
-            if [ -n "$DEBUG_TRACE" ] && [ -n "$MESSAGES" ]; then
-                jq -n --arg coach "$MESSAGES" --arg trace "$DEBUG_TRACE" \
-                    '{"systemMessage": $trace, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
-            elif [ -n "$DEBUG_TRACE" ]; then
-                jq -n --arg trace "$DEBUG_TRACE" \
-                    '{"systemMessage": $trace}'
-            else
-                jq -n --arg coach "$MESSAGES" \
-                    '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
-            fi
-        fi
+        _emit_output
         exit 0
         ;;
 esac
