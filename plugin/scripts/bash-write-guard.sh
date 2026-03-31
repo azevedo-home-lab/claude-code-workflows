@@ -148,8 +148,8 @@ _check_git_commit() {
     return 2  # not a git commit
 }
 
-_check_git_commit "$COMMAND"
-case $? in
+_git_rc=0; _check_git_commit "$COMMAND" || _git_rc=$?
+case $_git_rc in
     0) _log "ALLOW: git commit"; exit 0 ;;
     1) emit_deny "BLOCKED: 'git commit' chained with other commands is not allowed. Run git commit as a standalone command."; exit 0 ;;
     2) ;;  # not a commit, continue checking
