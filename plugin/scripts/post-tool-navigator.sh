@@ -104,7 +104,7 @@ $1"
 # Compute uppercased phase once for all layers
 PHASE_UPPER=$(echo "$PHASE" | tr '[:lower:]' '[:upper:]')
 
-_trace "[WFM coach] Tool: $TOOL_NAME (phase=$PHASE_UPPER)"
+_log "[WFM coach] Tool: $TOOL_NAME (phase=$PHASE_UPPER)"
 
 # Collect messages from all layers — may combine multiple
 MESSAGES=""
@@ -651,7 +651,7 @@ _log "[WFM coach] Counters: calls_since_agent=$_COACH_COUNTER, layer2_fired=[$_C
 # ============================================================
 
 if [ -n "$MESSAGES" ] || [ -n "$DEBUG_TRACE" ]; then
-    _trace "[WFM coach] Message sent to Claude:"
+    [ -n "$MESSAGES" ] && _trace "[WFM coach] Message sent to Claude:"
     echo "$MESSAGES" | while IFS= read -r line; do _show "  $line"; done
     # coaching → additionalContext (Claude-visible)
     # debug trace + coaching → systemMessage (user-visible)
