@@ -140,6 +140,7 @@ if [ "$(get_message_shown)" != "true" ]; then
                 if [ -n "$ERR_MSG" ]; then
                     MESSAGES="[Workflow Coach — ERROR]
 $ERR_MSG"
+                    _trace "[WFM coach] L1: objectives/error.md — ${ERR_MSG:0:80}..."
                 fi
                 ;;
             *)
@@ -168,7 +169,7 @@ $AUTO_MSG"
             set_message_shown
         fi
 
-        _trace "[WFM coach] L1: phase entry — FIRED"
+        _trace "[WFM coach] L1: objectives/$PHASE.md — ${OBJ_MSG:0:80}..."
     else
         _trace "[WFM coach] L1: already shown, skipped"
     fi
@@ -296,7 +297,7 @@ $L2_MSG"
             else
                 MESSAGES="$L2_MSG"
             fi
-            _trace "[WFM coach] L2: trigger=$TRIGGER — FIRED"
+            _trace "[WFM coach] L2: nudges/$TRIGGER.md — ${L2_MSG_BODY:0:80}..."
         else
             _trace "[WFM coach] L2: trigger=$TRIGGER — already fired, skipped"
         fi
@@ -316,6 +317,7 @@ $L2_MSG"
                 if [ "$(has_coaching_fired "$FINDINGS_TRIGGER")" != "true" ]; then
                     add_coaching_fired "$FINDINGS_TRIGGER"
                     FINDINGS_BODY=$(load_message "nudges/findings_present_review.md")
+                    [ -n "$FINDINGS_BODY" ] && _trace "[WFM coach] L2: nudges/findings_present_review.md — ${FINDINGS_BODY:0:80}..."
                     if [ -n "$FINDINGS_BODY" ]; then
                         FINDINGS_MSG="[Workflow Coach — REVIEW] $FINDINGS_BODY"
                         if [ -n "$MESSAGES" ]; then
@@ -367,6 +369,7 @@ if [ "$TOOL_NAME" = "Agent" ]; then
     if [ "$PROMPT_LEN" -lt 150 ]; then
         CHECK_BODY=$(load_message "checks/short_agent_prompt.md" "$PHASE_UPPER")
         [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
+        [ -n "$CHECK_BODY" ] && _trace "[WFM coach] L3: checks/short_agent_prompt.md — ${CHECK_BODY:0:80}..."
         _L3_SHORT_AGENT=true
     fi
 fi
@@ -394,6 +397,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
         if [ "$COMMIT_MSG_LEN" -lt 30 ]; then
             CHECK_BODY=$(load_message "checks/generic_commit.md" "$PHASE_UPPER")
             [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
+            [ -n "$CHECK_BODY" ] && _trace "[WFM coach] L3: checks/generic_commit.md — ${CHECK_BODY:0:80}..."
             _L3_GENERIC_COMMIT=true
         fi
     fi
@@ -423,6 +427,7 @@ if [ "$PHASE" = "review" ] && { [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "
         if [ "$ALL_SUGGESTIONS" = "true" ]; then
             CHECK_BODY=$(load_message "checks/all_findings_downgraded.md")
             [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — REVIEW] $CHECK_BODY"
+            [ -n "$CHECK_BODY" ] && _trace "[WFM coach] L3: checks/all_findings_downgraded.md — ${CHECK_BODY:0:80}..."
             _L3_ALL_DOWNGRADED=true
         fi
     fi
@@ -443,6 +448,7 @@ if echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
     if [ "$PHASE" = "complete" ] && [ "$OBS_LEN" -lt 200 ]; then
         CHECK_BODY=$(load_message "checks/minimal_handover.md")
         [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — COMPLETE] $CHECK_BODY"
+        [ -n "$CHECK_BODY" ] && _trace "[WFM coach] L3: checks/minimal_handover.md — ${CHECK_BODY:0:80}..."
         _L3_MINIMAL_HANDOVER=true
     fi
 
@@ -450,6 +456,7 @@ if echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
     if [ "$HAS_PROJECT" = "false" ]; then
         CHECK_BODY=$(load_message "checks/missing_project_field.md" "$PHASE_UPPER")
         [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
+        [ -n "$CHECK_BODY" ] && _trace "[WFM coach] L3: checks/missing_project_field.md — ${CHECK_BODY:0:80}..."
         _L3_MISSING_PROJECT=true
     fi
 fi
@@ -461,6 +468,7 @@ if [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ]; then
     if [ "$COUNTER" -gt 10 ]; then
         CHECK_BODY=$(load_message "checks/skipping_research.md" "$PHASE_UPPER")
         [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
+        [ -n "$CHECK_BODY" ] && _trace "[WFM coach] L3: checks/skipping_research.md — ${CHECK_BODY:0:80}..."
         _L3_SKIP_RESEARCH=true
     fi
 fi
@@ -475,6 +483,7 @@ if [ "$TOOL_NAME" = "AskUserQuestion" ]; then
     if [ "$AGENTS_RETURNED" = "true" ]; then
         CHECK_BODY=$(load_message "checks/options_without_recommendation.md" "$PHASE_UPPER")
         [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
+        [ -n "$CHECK_BODY" ] && _trace "[WFM coach] L3: checks/options_without_recommendation.md — ${CHECK_BODY:0:80}..."
         _L3_OPTIONS_NO_REC=true
     fi
 fi
@@ -491,6 +500,7 @@ if [ "$PHASE" = "implement" ] || [ "$PHASE" = "review" ]; then
                 if load_message "checks/no_verify_after_edits.md" >/dev/null 2>&1; then
                     VERIFY_MSG="[Workflow Coach — $PHASE_UPPER] You've edited source code $VERIFY_COUNT times but haven't run tests or verification. Verify your changes before continuing."
                     _append_l3 "$VERIFY_MSG"
+                    _trace "[WFM coach] L3: checks/no_verify_after_edits.md — ${VERIFY_MSG:0:80}..."
                     _L3_NO_VERIFY=true
                 fi
                 set_pending_verify 0
@@ -531,6 +541,7 @@ if [ "$AUTONOMY_LEVEL" = "auto" ]; then
         STALL_BODY=$(load_message "checks/stalled_auto_transition/$PHASE.md")
         if [ -n "$STALL_BODY" ]; then
             _append_l3 "[Workflow Coach — $PHASE_UPPER] $STALL_BODY"
+            _trace "[WFM coach] L3: checks/stalled_auto_transition/$PHASE.md — ${STALL_BODY:0:80}..."
             _L3_STALLED=true
         fi
     fi
@@ -624,6 +635,7 @@ fi
 
 if [ -n "$STEP_MSG" ]; then
     _append_l3 "$STEP_MSG"
+    _trace "[WFM coach] L3: step_ordering — ${STEP_MSG:0:80}..."
     _L3_STEP_ORDER=true
 fi
 
@@ -639,20 +651,20 @@ $L3_MSG"
 fi
 
 # Debug summary for L3 checks
-_trace "[WFM coach] L3: short_agent=$_L3_SHORT_AGENT, generic_commit=$_L3_GENERIC_COMMIT, all_downgraded=$_L3_ALL_DOWNGRADED, minimal_handover=$_L3_MINIMAL_HANDOVER, missing_project=$_L3_MISSING_PROJECT, skip_research=$_L3_SKIP_RESEARCH, options_no_rec=$_L3_OPTIONS_NO_REC, no_verify=$_L3_NO_VERIFY, stalled=$_L3_STALLED, step_order=$_L3_STEP_ORDER"
+_log "[WFM coach] L3: short_agent=$_L3_SHORT_AGENT, generic_commit=$_L3_GENERIC_COMMIT, all_downgraded=$_L3_ALL_DOWNGRADED, minimal_handover=$_L3_MINIMAL_HANDOVER, missing_project=$_L3_MISSING_PROJECT, skip_research=$_L3_SKIP_RESEARCH, options_no_rec=$_L3_OPTIONS_NO_REC, no_verify=$_L3_NO_VERIFY, stalled=$_L3_STALLED, step_order=$_L3_STEP_ORDER"
 
 # Counter summary
 _COACH_COUNTER=$(jq -r '.coaching.tool_calls_since_agent // 0' "$STATE_FILE" 2>/dev/null) || _COACH_COUNTER="?"
 _COACH_L2_FIRED=$(jq -r '.coaching.layer2_fired // [] | join(",")' "$STATE_FILE" 2>/dev/null) || _COACH_L2_FIRED="?"
-_trace "[WFM coach] Counters: calls_since_agent=$_COACH_COUNTER, layer2_fired=[$_COACH_L2_FIRED]"
+_log "[WFM coach] Counters: calls_since_agent=$_COACH_COUNTER, layer2_fired=[$_COACH_L2_FIRED]"
 
 # ============================================================
 # OUTPUT: Return combined messages
 # ============================================================
 
 if [ -n "$MESSAGES" ] || [ -n "$DEBUG_TRACE" ]; then
-    _trace "[WFM coach] Message sent to Claude:"
-    echo "$MESSAGES" | while IFS= read -r line; do _show "  $line"; done
+    _log "[WFM coach] Message sent to Claude:"
+    echo "$MESSAGES" | while IFS= read -r line; do _log "  $line"; done
     # coaching → additionalContext (Claude-visible), debug trace → systemMessage (user-visible)
     if [ -n "$DEBUG_TRACE" ] && [ -n "$MESSAGES" ]; then
         jq -n --arg coach "$MESSAGES" --arg trace "$DEBUG_TRACE" \
