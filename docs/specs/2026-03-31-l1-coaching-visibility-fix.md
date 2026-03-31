@@ -123,3 +123,201 @@ _emit_output
 - **User sees:** L2 nudge content in `systemMessage` when it fires
 - Disable show mode: `.claude/hooks/workflow-cmd.sh set_debug "off"`
 - Verify no `systemMessage` output — coaching goes to `additionalContext` only (no user-visible change from current behavior)
+
+---
+
+# Coaching Visibility Fix — Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Make WFM coaching messages visible to the user when debug show mode is active.
+
+**Architecture:** Extract `_emit_output()` helper that routes `MESSAGES` to both `additionalContext` (Claude) and `systemMessage` (user) in show mode. Replace duplicated output blocks. Enrich L1 trace.
+
+**Tech Stack:** Bash, jq
+
+---
+
+### Task 1: Add `_emit_output()` helper function
+
+**Files:**
+- Modify: `plugin/scripts/post-tool-navigator.sh:118` (insert after `_trace()` definition)
+
+- [ ] **Step 1: Insert `_emit_output()` after line 117**
+
+Add immediately after the closing `fi` of `_trace()` (line 117):
+
+```bash
+# Emit coaching output as JSON to stdout.
+# - MESSAGES → additionalContext (Claude-visible, always)
+# - In show mode, MESSAGES also → systemMessage (user-visible)
+# - DEBUG_TRACE → systemMessage (user-visible, show mode only)
+_emit_output() {
+    if [ -n "$DEBUG_TRACE" ]; then
+        DEBUG_TRACE="$_TOOL_HEADER
+$DEBUG_TRACE"
+    fi
+
+    # In show mode, include coaching messages in systemMessage for user visibility
+    local user_msg="$DEBUG_TRACE"
+    if [ "$_WFM_DEBUG_LEVEL" = "show" ] && [ -n "$MESSAGES" ]; then
+        if [ -n "$user_msg" ]; then
+            user_msg="$user_msg
+$MESSAGES"
+        else
+            user_msg="$_TOOL_HEADER
+$MESSAGES"
+        fi
+    fi
+
+    if [ -n "$MESSAGES" ] || [ -n "$user_msg" ]; then
+        _log "[WFM coach] Message sent to Claude:"
+        echo "$MESSAGES" | while IFS= read -r line; do _log "  $line"; done
+        if [ -n "$user_msg" ] && [ -n "$MESSAGES" ]; then
+            jq -n --arg coach "$MESSAGES" --arg trace "$user_msg" \
+                '{"systemMessage": $trace, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
+        elif [ -n "$user_msg" ]; then
+            jq -n --arg trace "$user_msg" \
+                '{"systemMessage": $trace}'
+        else
+            jq -n --arg coach "$MESSAGES" \
+                '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
+        fi
+    fi
+}
+```
+
+- [ ] **Step 2: Verify script still parses**
+
+Run: `bash -n plugin/scripts/post-tool-navigator.sh`
+Expected: No output (syntax OK)
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add plugin/scripts/post-tool-navigator.sh
+git commit -m "feat: add _emit_output() helper for coaching visibility in show mode"
+```
+
+### Task 2: Enrich L1 trace messages
+
+**Files:**
+- Modify: `plugin/scripts/post-tool-navigator.sh:216,224` (L1 `_trace()` calls)
+
+- [ ] **Step 1: Update error phase trace (line 216)**
+
+Replace:
+```bash
+_trace "[WFM coach] L1: objectives/error.md — ${ERR_MSG:0:80}..."
+```
+With:
+```bash
+_trace "[WFM coach] L1 FIRED: objectives/error.md"
+```
+
+- [ ] **Step 2: Update normal phase trace (line 224)**
+
+Replace:
+```bash
+_trace "[WFM coach] L1: objectives/$PHASE.md — ${OBJ_MSG:0:80}..."
+```
+With:
+```bash
+_trace "[WFM coach] L1 FIRED: objectives/$PHASE.md"
+```
+
+- [ ] **Step 3: Verify script still parses**
+
+Run: `bash -n plugin/scripts/post-tool-navigator.sh`
+Expected: No output (syntax OK)
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add plugin/scripts/post-tool-navigator.sh
+git commit -m "fix: enrich L1 trace with FIRED confirmation"
+```
+
+### Task 3: Replace early exit output block
+
+**Files:**
+- Modify: `plugin/scripts/post-tool-navigator.sh:257-279` (early exit `*)` case arm)
+
+- [ ] **Step 1: Replace the `*)` case arm content**
+
+Replace everything from line 257 (`*) # Tool is irrelevant...`) through line 279 (`;;`) with:
+
+```bash
+    *) # Tool is irrelevant to coaching — output any Layer 1 message and exit
+        _log "[WFM coach] L2: no trigger matched (tool not tracked)"
+        _emit_output
+        exit 0
+        ;;
+```
+
+This removes: the misindented `DEBUG_TRACE` prepend block (lines 260-263) and the duplicated jq output block (lines 265-277). Both are now handled by `_emit_output()`.
+
+- [ ] **Step 2: Verify script still parses**
+
+Run: `bash -n plugin/scripts/post-tool-navigator.sh`
+Expected: No output (syntax OK)
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add plugin/scripts/post-tool-navigator.sh
+git commit -m "refactor: replace early exit output block with _emit_output()"
+```
+
+### Task 4: Replace main exit output block
+
+**Files:**
+- Modify: `plugin/scripts/post-tool-navigator.sh` (end of file, main output section)
+
+- [ ] **Step 1: Replace the main output section**
+
+Find the block starting with `# Prepend tool header to DEBUG_TRACE` (around line 748 after prior edits shifted line numbers) through the end of the file. Replace everything from that comment through the final `fi` with:
+
+```bash
+_emit_output
+```
+
+This removes: the duplicated `DEBUG_TRACE` prepend (lines 767-770), the `_log` + jq output block (lines 772-785). All handled by `_emit_output()`.
+
+- [ ] **Step 2: Verify script still parses**
+
+Run: `bash -n plugin/scripts/post-tool-navigator.sh`
+Expected: No output (syntax OK)
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add plugin/scripts/post-tool-navigator.sh
+git commit -m "refactor: replace main exit output block with _emit_output()"
+```
+
+### Task 5: Manual verification
+
+- [ ] **Step 1: Enable show mode**
+
+Run: `.claude/hooks/workflow-cmd.sh set_debug "show"`
+
+- [ ] **Step 2: Trigger a phase transition and verify L1 is visible**
+
+Transition to a phase and make a tool call. Verify `systemMessage` appears in the output with the coaching objective text.
+
+- [ ] **Step 3: Verify L2 nudge visibility**
+
+Make a tool call that triggers an L2 nudge. Verify the nudge text appears in `systemMessage`.
+
+- [ ] **Step 4: Disable show mode and verify no regression**
+
+Run: `.claude/hooks/workflow-cmd.sh set_debug "off"`
+Make tool calls and verify no `systemMessage` output — coaching goes to `additionalContext` only.
+
+- [ ] **Step 5: Final commit with version bump**
+
+```bash
+git add plugin/scripts/post-tool-navigator.sh
+git commit -m "fix: coaching messages visible to user in debug show mode (Issue #33)"
+```
