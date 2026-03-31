@@ -158,7 +158,9 @@ $AUTO_MSG"
             set_message_shown
         fi
 
-        _trace "[WFM coach] L1: phase entry — FIRED"
+        _L1_FILE="objectives/$PHASE.md"
+        _L1_PREVIEW=$(echo "$MESSAGES" | head -2 | tail -1 | cut -c1-120)
+        _trace "[WFM coach] L1: $_L1_FILE — $_L1_PREVIEW"
     else
         _log "[WFM coach] L1: already shown, skipped"
     fi
@@ -290,7 +292,8 @@ $L2_MSG"
             else
                 MESSAGES="$L2_MSG"
             fi
-            _trace "[WFM coach] L2: trigger=$TRIGGER — FIRED"
+            _L2_PREVIEW=$(echo "$L2_MSG_BODY" | head -1 | cut -c1-120)
+            _trace "[WFM coach] L2: nudges/$TRIGGER.md — $_L2_PREVIEW"
         else
             _log "[WFM coach] L2: trigger=$TRIGGER — already fired, skipped"
         fi
@@ -334,7 +337,9 @@ L3_MSG=""
 
 # Helper: append a check message to L3_MSG
 _append_l3() {
-    _trace "[WFM coach] L3: check fired"
+    local _l3_preview
+    _l3_preview=$(echo "$1" | head -1 | sed 's/\[Workflow Coach — [A-Z]*\] //' | cut -c1-120)
+    _trace "[WFM coach] L3: ${2:-check} — $_l3_preview"
     if [ -n "$L3_MSG" ]; then
         L3_MSG="$L3_MSG
 
@@ -361,7 +366,7 @@ if [ "$TOOL_NAME" = "Agent" ]; then
     PROMPT_LEN=$(echo "$INPUT" | jq -r '.tool_input.prompt // "" | length' 2>/dev/null) || PROMPT_LEN=999
     if [ "$PROMPT_LEN" -lt 150 ]; then
         CHECK_BODY=$(load_message "checks/short_agent_prompt.md" "$PHASE_UPPER")
-        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
+        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY" "checks/short_agent_prompt.md"
         _L3_SHORT_AGENT=true
     fi
 fi
@@ -388,7 +393,7 @@ if [ "$TOOL_NAME" = "Bash" ]; then
 }) || COMMIT_MSG_LEN=999
         if [ "$COMMIT_MSG_LEN" -lt 30 ]; then
             CHECK_BODY=$(load_message "checks/generic_commit.md" "$PHASE_UPPER")
-            [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
+            [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY" "checks/generic_commit.md"
             _L3_GENERIC_COMMIT=true
         fi
     fi
@@ -417,7 +422,7 @@ if [ "$PHASE" = "review" ] && { [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "
         fi
         if [ "$ALL_SUGGESTIONS" = "true" ]; then
             CHECK_BODY=$(load_message "checks/all_findings_downgraded.md")
-            [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — REVIEW] $CHECK_BODY"
+            [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — REVIEW] $CHECK_BODY" "checks/all_findings_downgraded.md"
             _L3_ALL_DOWNGRADED=true
         fi
     fi
@@ -437,14 +442,14 @@ if echo "$TOOL_NAME" | grep -qE 'mcp.*save_observation'; then
     # 4a: Minimal handover (COMPLETE phase only)
     if [ "$PHASE" = "complete" ] && [ "$OBS_LEN" -lt 200 ]; then
         CHECK_BODY=$(load_message "checks/minimal_handover.md")
-        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — COMPLETE] $CHECK_BODY"
+        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — COMPLETE] $CHECK_BODY" "checks/minimal_handover.md"
         _L3_MINIMAL_HANDOVER=true
     fi
 
     # 4b: Missing project field (any phase)
     if [ "$HAS_PROJECT" = "false" ]; then
         CHECK_BODY=$(load_message "checks/missing_project_field.md" "$PHASE_UPPER")
-        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
+        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY" "checks/missing_project_field.md"
         _L3_MISSING_PROJECT=true
     fi
 fi
@@ -455,7 +460,7 @@ if [ "$PHASE" = "define" ] || [ "$PHASE" = "discuss" ]; then
     COUNTER=$(jq -r '.coaching.tool_calls_since_agent // 0' "$STATE_FILE" 2>/dev/null) || COUNTER=0
     if [ "$COUNTER" -gt 10 ]; then
         CHECK_BODY=$(load_message "checks/skipping_research.md" "$PHASE_UPPER")
-        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
+        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY" "checks/skipping_research.md"
         _L3_SKIP_RESEARCH=true
     fi
 fi
@@ -469,7 +474,7 @@ if [ "$TOOL_NAME" = "AskUserQuestion" ]; then
     AGENTS_RETURNED=$(jq -r '[.coaching.layer2_fired[]? | select(startswith("agent_return"))] | if length > 0 then "true" else "false" end' "$STATE_FILE" 2>/dev/null) || AGENTS_RETURNED="false"
     if [ "$AGENTS_RETURNED" = "true" ]; then
         CHECK_BODY=$(load_message "checks/options_without_recommendation.md" "$PHASE_UPPER")
-        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY"
+        [ -n "$CHECK_BODY" ] && _append_l3 "[Workflow Coach — $PHASE_UPPER] $CHECK_BODY" "checks/options_without_recommendation.md"
         _L3_OPTIONS_NO_REC=true
     fi
 fi
@@ -485,7 +490,7 @@ if [ "$PHASE" = "implement" ] || [ "$PHASE" = "review" ]; then
                 # Load file as gate (if deleted, message suppressed); count stays inline
                 if load_message "checks/no_verify_after_edits.md" >/dev/null 2>&1; then
                     VERIFY_MSG="[Workflow Coach — $PHASE_UPPER] You've edited source code $VERIFY_COUNT times but haven't run tests or verification. Verify your changes before continuing."
-                    _append_l3 "$VERIFY_MSG"
+                    _append_l3 "$VERIFY_MSG" "checks/no_verify_after_edits.md"
                     _L3_NO_VERIFY=true
                 fi
                 set_pending_verify 0
@@ -525,7 +530,7 @@ if [ "$AUTONOMY_LEVEL" = "auto" ]; then
     if [ "$STALL_FIRE" = "true" ]; then
         STALL_BODY=$(load_message "checks/stalled_auto_transition/$PHASE.md")
         if [ -n "$STALL_BODY" ]; then
-            _append_l3 "[Workflow Coach — $PHASE_UPPER] $STALL_BODY"
+            _append_l3 "[Workflow Coach — $PHASE_UPPER] $STALL_BODY" "checks/stalled_auto_transition/$PHASE.md"
             _L3_STALLED=true
         fi
     fi
@@ -618,7 +623,7 @@ elif [ "$PHASE" = "review" ]; then
 fi
 
 if [ -n "$STEP_MSG" ]; then
-    _append_l3 "$STEP_MSG"
+    _append_l3 "$STEP_MSG" "checks/step_ordering"
     _L3_STEP_ORDER=true
 fi
 
