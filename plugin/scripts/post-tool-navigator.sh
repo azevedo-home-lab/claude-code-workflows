@@ -160,10 +160,10 @@ $AUTO_MSG"
 
         _trace "[WFM coach] L1: phase entry — FIRED"
     else
-        _trace "[WFM coach] L1: already shown, skipped"
+        _log "[WFM coach] L1: already shown, skipped"
     fi
 else
-    _trace "[WFM coach] L1: already shown, skipped"
+    _log "[WFM coach] L1: already shown, skipped"
 fi
 
 # Early exit for tools that don't participate in Layer 2/3
@@ -172,7 +172,7 @@ case "$TOOL_NAME" in
     Agent|Write|Edit|MultiEdit|NotebookEdit|Bash|AskUserQuestion) ;;
     mcp*save_observation|mcp*get_observations) ;;
     *) # Tool is irrelevant to coaching — output any Layer 1 message and exit
-        _trace "[WFM coach] L2: no trigger matched (tool not tracked)"
+        _log "[WFM coach] L2: no trigger matched (tool not tracked)"
         if [ -n "$MESSAGES" ] || [ -n "$DEBUG_TRACE" ]; then
             # coaching → additionalContext (Claude-visible)
             # debug trace + coaching → systemMessage (user-visible)
@@ -292,12 +292,12 @@ $L2_MSG"
             fi
             _trace "[WFM coach] L2: trigger=$TRIGGER — FIRED"
         else
-            _trace "[WFM coach] L2: trigger=$TRIGGER — already fired, skipped"
+            _log "[WFM coach] L2: trigger=$TRIGGER — already fired, skipped"
         fi
     elif [ -n "$TRIGGER" ]; then
-        _trace "[WFM coach] L2: trigger=$TRIGGER — no message file"
+        _log "[WFM coach] L2: trigger=$TRIGGER — no message file"
     else
-        _trace "[WFM coach] L2: no trigger matched"
+        _log "[WFM coach] L2: no trigger matched"
     fi
 
     # REVIEW Layer 2 trigger: "After presenting findings"
@@ -633,12 +633,12 @@ $L3_MSG"
 fi
 
 # Debug summary for L3 checks
-_trace "[WFM coach] L3: short_agent=$_L3_SHORT_AGENT, generic_commit=$_L3_GENERIC_COMMIT, all_downgraded=$_L3_ALL_DOWNGRADED, minimal_handover=$_L3_MINIMAL_HANDOVER, missing_project=$_L3_MISSING_PROJECT, skip_research=$_L3_SKIP_RESEARCH, options_no_rec=$_L3_OPTIONS_NO_REC, no_verify=$_L3_NO_VERIFY, stalled=$_L3_STALLED, step_order=$_L3_STEP_ORDER"
+_log "[WFM coach] L3: short_agent=$_L3_SHORT_AGENT, generic_commit=$_L3_GENERIC_COMMIT, all_downgraded=$_L3_ALL_DOWNGRADED, minimal_handover=$_L3_MINIMAL_HANDOVER, missing_project=$_L3_MISSING_PROJECT, skip_research=$_L3_SKIP_RESEARCH, options_no_rec=$_L3_OPTIONS_NO_REC, no_verify=$_L3_NO_VERIFY, stalled=$_L3_STALLED, step_order=$_L3_STEP_ORDER"
 
 # Counter summary
 _COACH_COUNTER=$(jq -r '.coaching.tool_calls_since_agent // 0' "$STATE_FILE" 2>/dev/null) || _COACH_COUNTER="?"
 _COACH_L2_FIRED=$(jq -r '.coaching.layer2_fired // [] | join(",")' "$STATE_FILE" 2>/dev/null) || _COACH_L2_FIRED="?"
-_trace "[WFM coach] Counters: calls_since_agent=$_COACH_COUNTER, layer2_fired=[$_COACH_L2_FIRED]"
+_log "[WFM coach] Counters: calls_since_agent=$_COACH_COUNTER, layer2_fired=[$_COACH_L2_FIRED]"
 
 # ============================================================
 # OUTPUT: Return combined messages
