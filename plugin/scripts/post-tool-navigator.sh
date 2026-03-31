@@ -116,6 +116,44 @@ $1"
     fi
 }
 
+# Emit coaching output as JSON to stdout.
+# - MESSAGES → additionalContext (Claude-visible, always)
+# - In show mode, MESSAGES also → systemMessage (user-visible)
+# - DEBUG_TRACE → systemMessage (user-visible, show mode only)
+_emit_output() {
+    if [ -n "$DEBUG_TRACE" ]; then
+        DEBUG_TRACE="$_TOOL_HEADER
+$DEBUG_TRACE"
+    fi
+
+    # In show mode, include coaching messages in systemMessage for user visibility
+    local user_msg="$DEBUG_TRACE"
+    if [ "$_WFM_DEBUG_LEVEL" = "show" ] && [ -n "$MESSAGES" ]; then
+        if [ -n "$user_msg" ]; then
+            user_msg="$user_msg
+$MESSAGES"
+        else
+            user_msg="$_TOOL_HEADER
+$MESSAGES"
+        fi
+    fi
+
+    if [ -n "$MESSAGES" ] || [ -n "$user_msg" ]; then
+        _log "[WFM coach] Message sent to Claude:"
+        echo "$MESSAGES" | while IFS= read -r line; do _log "  $line"; done
+        if [ -n "$user_msg" ] && [ -n "$MESSAGES" ]; then
+            jq -n --arg coach "$MESSAGES" --arg trace "$user_msg" \
+                '{"systemMessage": $trace, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
+        elif [ -n "$user_msg" ]; then
+            jq -n --arg trace "$user_msg" \
+                '{"systemMessage": $trace}'
+        else
+            jq -n --arg coach "$MESSAGES" \
+                '{"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
+        fi
+    fi
+}
+
 # Compute uppercased phase once for all layers
 PHASE_UPPER=$(echo "$PHASE" | tr '[:lower:]' '[:upper:]')
 
