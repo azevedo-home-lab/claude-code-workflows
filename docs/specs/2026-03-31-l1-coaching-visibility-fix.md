@@ -1,12 +1,18 @@
-# Spec: L1 Coaching Visibility Fix (Issue #33)
+# Spec: Coaching Visibility Fix (Issue #33)
 
 ## Problem
 
-After `agent_set_phase("complete")`, L1 coaching output may not appear to the user even with debug `show` mode active. The `PostToolUse:Read` system-reminder tag was not visible in the conversation, suggesting the coaching message either failed to deliver or was not emitted correctly.
+With debug `show` mode active, coaching messages (L1 objectives, L2 nudges, L3 checks) are invisible to the user. The user sees zero WFM coach output despite coaching firing correctly and reaching Claude via `additionalContext`.
 
-**Root cause:** The output logic in `post-tool-navigator.sh` is duplicated between two exit paths (early exit at line 265 and main exit at line 772). The early exit path — which handles Read, Grep, Glob, and other non-tracked tools — has inconsistent indentation (lines 260-263 are flush-left inside a case arm) and is missing the `_log` call present in the main path. This makes the two paths diverge silently and complicates debugging.
+**Root cause:** Coaching messages (`MESSAGES`) only go to `additionalContext` (Claude-visible). They never go to `systemMessage` (user-visible). The `_trace()` function populates `DEBUG_TRACE` → `systemMessage`, but:
 
-**Secondary issue:** The `_trace()` messages for L1 don't confirm delivery channel, making it hard for users in `show` mode to verify coaching reached Claude.
+1. **L1 trace is metadata only** — `_trace()` logs `"L1: objectives/discuss.md — first 80 chars..."`, not the full coaching message. Even in show mode, the user sees a truncated trace line, not the actual objective.
+2. **L2/L3 never call `_trace()` for their content** — L2 nudges and L3 checks append to `MESSAGES` only. No trace is emitted, so `DEBUG_TRACE` stays empty and no `systemMessage` is produced.
+3. **Result:** In show mode, the user sees nothing. The coaching reaches Claude but the user has no evidence it fired.
+
+**Secondary issues:**
+- The output logic is duplicated between two exit paths (early exit at line 265, main exit at line 772), with inconsistent indentation and a missing `_log` call in the early exit path.
+- The `_trace()` messages don't confirm delivery channel.
 
 ## Approaches Considered (DISCUSS phase — diverge)
 
@@ -27,10 +33,10 @@ After `agent_set_phase("complete")`, L1 coaching output may not appear to the us
 
 ## Decision (DISCUSS phase — converge)
 
-- **Chosen approach:** B — Fix early exit + enrich debug trace + extract helper
-- **Rationale:** Fixes the actual bug and observability gap while preserving the early exit performance optimization. The `_emit_output()` helper eliminates the duplicated output block, reducing future divergence risk.
-- **Trade-offs accepted:** `_emit_output()` reads globals rather than parameters, consistent with the script's existing pattern but not independently testable.
-- **Risks identified:** The helper function must produce identical JSON output to the current paths. Any regression breaks coaching delivery for all tools.
+- **Chosen approach:** B — Fix early exit + show coaching in systemMessage + extract helper
+- **Rationale:** Fixes the actual bug (coaching invisible to user in show mode) by routing `MESSAGES` to `systemMessage` when show mode is on. The `_emit_output()` helper eliminates the duplicated output block, reducing future divergence risk. Early exit performance optimization preserved.
+- **Trade-offs accepted:** `_emit_output()` reads globals rather than parameters, consistent with the script's existing pattern but not independently testable. Show mode output is more verbose (full coaching text in `systemMessage`).
+- **Risks identified:** The helper function must produce identical JSON output to the current paths when show mode is off. Any regression breaks coaching delivery for all tools.
 - **Constraints applied:** Single file change (`plugin/scripts/post-tool-navigator.sh`). No state schema changes.
 - **Tech debt acknowledged:** The early exit path remains a separate control flow branch. Approach C would eliminate it but at too high a cost for this fix.
 
@@ -38,20 +44,35 @@ After `agent_set_phase("complete")`, L1 coaching output may not appear to the us
 
 ### 1. Extract `_emit_output()` helper (~line 118, after `_trace()`)
 
+In show mode, include the coaching content in `systemMessage` so the user can see what coaching fired. In normal mode, behavior is unchanged — coaching goes to `additionalContext` only.
+
 ```bash
 _emit_output() {
     if [ -n "$DEBUG_TRACE" ]; then
         DEBUG_TRACE="$_TOOL_HEADER
 $DEBUG_TRACE"
     fi
-    if [ -n "$MESSAGES" ] || [ -n "$DEBUG_TRACE" ]; then
+
+    # In show mode, include coaching messages in systemMessage for user visibility
+    local user_msg="$DEBUG_TRACE"
+    if [ "$_WFM_DEBUG_LEVEL" = "show" ] && [ -n "$MESSAGES" ]; then
+        if [ -n "$user_msg" ]; then
+            user_msg="$user_msg
+$MESSAGES"
+        else
+            user_msg="$_TOOL_HEADER
+$MESSAGES"
+        fi
+    fi
+
+    if [ -n "$MESSAGES" ] || [ -n "$user_msg" ]; then
         _log "[WFM coach] Message sent to Claude:"
         echo "$MESSAGES" | while IFS= read -r line; do _log "  $line"; done
-        if [ -n "$DEBUG_TRACE" ] && [ -n "$MESSAGES" ]; then
-            jq -n --arg coach "$MESSAGES" --arg trace "$DEBUG_TRACE" \
+        if [ -n "$user_msg" ] && [ -n "$MESSAGES" ]; then
+            jq -n --arg coach "$MESSAGES" --arg trace "$user_msg" \
                 '{"systemMessage": $trace, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $coach}}'
-        elif [ -n "$DEBUG_TRACE" ]; then
-            jq -n --arg trace "$DEBUG_TRACE" \
+        elif [ -n "$user_msg" ]; then
+            jq -n --arg trace "$user_msg" \
                 '{"systemMessage": $trace}'
         else
             jq -n --arg coach "$MESSAGES" \
@@ -61,10 +82,15 @@ $DEBUG_TRACE"
 }
 ```
 
+**Key change:** When `_WFM_DEBUG_LEVEL=show`, `MESSAGES` content is appended to `user_msg` (which becomes `systemMessage`). This means:
+- **show mode off:** `MESSAGES` → `additionalContext` only (Claude sees it, user doesn't). No behavior change.
+- **show mode on, with trace:** `DEBUG_TRACE` + `MESSAGES` → `systemMessage` (user sees both trace and coaching). `MESSAGES` → `additionalContext` (Claude sees coaching).
+- **show mode on, no trace:** `_TOOL_HEADER` + `MESSAGES` → `systemMessage` (user sees coaching with tool context). `MESSAGES` → `additionalContext` (Claude sees coaching).
+
 ### 2. Enrich L1 `_trace()` messages with delivery confirmation
 
-- Error phase (line 216): `_trace "[WFM coach] L1 FIRED: objectives/error.md → additionalContext"`
-- Normal phases (line 224): `_trace "[WFM coach] L1 FIRED: objectives/$PHASE.md → additionalContext"`
+- Error phase (line 216): `_trace "[WFM coach] L1 FIRED: objectives/error.md"`
+- Normal phases (line 224): `_trace "[WFM coach] L1 FIRED: objectives/$PHASE.md"`
 
 ### 3. Replace early exit output block (lines 259-278)
 
@@ -89,8 +115,11 @@ _emit_output
 ## Verification
 
 - Enable debug show mode: `.claude/hooks/workflow-cmd.sh set_debug "show"`
-- Transition to a new phase
+- Transition to a new phase (e.g., `/implement`)
 - Execute a Read tool call
-- Confirm `systemMessage` contains `L1 FIRED: objectives/<phase>.md → additionalContext`
-- Confirm `additionalContext` contains the coaching objective message
-- Verify tracked tools (Write, Edit, Bash) still receive L2/L3 coaching
+- **User sees:** `systemMessage` with `[WFM coach] Tool: Read (phase=IMPLEMENT)` header and the full L1 objective text
+- **Claude sees:** `additionalContext` with the coaching objective (unchanged)
+- Transition again, execute a Write tool call
+- **User sees:** L2 nudge content in `systemMessage` when it fires
+- Disable show mode: `.claude/hooks/workflow-cmd.sh set_debug "off"`
+- Verify no `systemMessage` output — coaching goes to `additionalContext` only (no user-visible change from current behavior)
