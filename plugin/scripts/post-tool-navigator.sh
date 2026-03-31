@@ -497,9 +497,10 @@ if [ "$PHASE" = "implement" ] || [ "$PHASE" = "review" ]; then
             if [ "$VERIFY_COUNT" -ge 5 ]; then
                 # Load file as gate (if deleted, message suppressed); count stays inline
                 if load_message "checks/no_verify_after_edits.md" >/dev/null 2>&1; then
-                    VERIFY_MSG="[Workflow Coach — $PHASE_UPPER] You've edited source code $VERIFY_COUNT times but haven't run tests or verification. Verify your changes before continuing."
+                    _VERIFY_BODY="You've edited source code $VERIFY_COUNT times but haven't run tests or verification. Verify your changes before continuing."
+                    VERIFY_MSG="[Workflow Coach — $PHASE_UPPER] $_VERIFY_BODY"
                     _append_l3 "$VERIFY_MSG"
-                    _trace "[WFM coach] L3: checks/no_verify_after_edits.md — ${VERIFY_MSG:0:80}..."
+                    _trace "[WFM coach] L3: checks/no_verify_after_edits.md — ${_VERIFY_BODY:0:80}..."
                     _L3_NO_VERIFY=true
                 fi
                 set_pending_verify 0
@@ -551,10 +552,16 @@ fi
 _load_step() {
     local body
     body=$(load_message "checks/step_ordering/$1.md")
-    [ -n "$body" ] && STEP_MSG="[Workflow Coach — $PHASE_UPPER] $body"
+    if [ -n "$body" ]; then
+        STEP_MSG="[Workflow Coach — $PHASE_UPPER] $body"
+        STEP_FILE="checks/step_ordering/$1.md"
+        STEP_BODY="$body"
+    fi
 }
 
 STEP_MSG=""
+STEP_FILE=""
+STEP_BODY=""
 
 if [ "$PHASE" = "complete" ]; then
     if [ "$(_section_exists "completion")" = "true" ]; then
@@ -634,7 +641,7 @@ fi
 
 if [ -n "$STEP_MSG" ]; then
     _append_l3 "$STEP_MSG"
-    _trace "[WFM coach] L3: step_ordering — ${STEP_MSG:0:80}..."
+    _trace "[WFM coach] L3: $STEP_FILE — ${STEP_BODY:0:80}..."
     _L3_STEP_ORDER=true
 fi
 
