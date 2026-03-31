@@ -334,6 +334,7 @@ L3_MSG=""
 
 # Helper: append a check message to L3_MSG
 _append_l3() {
+    _trace "[WFM coach] L3: check fired"
     if [ -n "$L3_MSG" ]; then
         L3_MSG="$L3_MSG
 
