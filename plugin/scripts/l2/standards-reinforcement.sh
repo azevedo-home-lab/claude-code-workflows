@@ -9,7 +9,7 @@
 # Matches phase + tool patterns to fire coaching messages from plugin/coaching/nudges/.
 #
 # Expected variables from caller (post-tool-coaching.sh):
-#   PHASE, PHASE_UPPER, TOOL_NAME, INPUT, FILE_PATH, MESSAGES
+#   PHASE, PHASE_UPPER, TOOL_NAME, INPUT, FILE_PATH, IS_WRITE_TOOL, MESSAGES, _TEST_CMD_REGEX
 # Expected functions from caller:
 #   load_message, extract_bash_command, get_message_shown,
 #   check_coaching_refresh, reset_coaching_counter, increment_coaching_counter,
@@ -42,7 +42,7 @@ _run_l2() {
         define)
             if [ "$TOOL_NAME" = "Agent" ]; then
                 trigger="agent_return_define"
-            elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+            elif [ "$IS_WRITE_TOOL" = true ]; then
                 if echo "$FILE_PATH" | grep -qE 'docs/plans/'; then
                     trigger="plan_write_define"
                 fi
@@ -51,19 +51,19 @@ _run_l2() {
         discuss)
             if [ "$TOOL_NAME" = "Agent" ]; then
                 trigger="agent_return_discuss"
-            elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+            elif [ "$IS_WRITE_TOOL" = true ]; then
                 if echo "$FILE_PATH" | grep -qE 'docs/plans/'; then
                     trigger="plan_write_discuss"
                 fi
             fi
             ;;
         implement)
-            if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+            if [ "$IS_WRITE_TOOL" = true ]; then
                 trigger="source_edit_implement"
             elif [ "$TOOL_NAME" = "Bash" ]; then
                 local cmd
                 cmd=$(extract_bash_command)
-                if echo "$cmd" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'; then
+                if echo "$cmd" | grep -qE "$_TEST_CMD_REGEX"; then
                     trigger="test_run_implement"
                 fi
             fi
@@ -76,14 +76,14 @@ _run_l2() {
         complete)
             if [ "$TOOL_NAME" = "Agent" ]; then
                 trigger="agent_return_complete"
-            elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+            elif [ "$IS_WRITE_TOOL" = true ]; then
                 if echo "$FILE_PATH" | grep -qE 'docs/'; then
                     trigger="project_docs_edit_complete"
                 fi
             elif [ "$TOOL_NAME" = "Bash" ]; then
                 local bash_cmd
                 bash_cmd=$(extract_bash_command)
-                if echo "$bash_cmd" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'; then
+                if echo "$bash_cmd" | grep -qE "$_TEST_CMD_REGEX"; then
                     trigger="test_run_complete"
                 fi
             fi
@@ -116,7 +116,7 @@ _run_l2() {
     # REVIEW Layer 2 trigger: "After presenting findings"
     # Fires when writing review findings (Write/Edit/MultiEdit to spec in review phase)
     if [ "$PHASE" = "review" ]; then
-        if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+        if [ "$IS_WRITE_TOOL" = true ]; then
             if echo "$FILE_PATH" | grep -qE 'docs/specs/'; then
                 local findings_trigger="findings_present_review"
                 if [ "$(has_coaching_fired "$findings_trigger")" != "true" ]; then

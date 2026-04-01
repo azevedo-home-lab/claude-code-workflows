@@ -52,7 +52,7 @@ check_step_ordering() {
         fi
     elif [ "$PHASE" = "discuss" ]; then
         if [ "$(_section_exists "discuss")" = "true" ]; then
-            if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+            if [ "$IS_WRITE_TOOL" = true ]; then
                 if echo "$FILE_PATH" | grep -qE 'docs/plans/'; then
                     if [ "$(get_discuss_field "research_done")" != "true" ]; then
                         _load_step "discuss_plan_before_research"
@@ -64,7 +64,7 @@ check_step_ordering() {
         fi
     elif [ "$PHASE" = "implement" ]; then
         if [ "$(_section_exists "implement")" = "true" ]; then
-            if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+            if [ "$IS_WRITE_TOOL" = true ]; then
                 if [ -n "$FILE_PATH" ] && ! echo "$FILE_PATH" | grep -qE '(test|spec|docs/|plans/|specs/|\.md$)'; then
                     if [ "$(get_implement_field "plan_written")" != "true" ]; then
                         _load_step "implement_code_before_plan"
@@ -80,7 +80,7 @@ check_step_ordering() {
         fi
     elif [ "$PHASE" = "review" ]; then
         if [ "$(_section_exists "review")" = "true" ]; then
-            if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+            if [ "$IS_WRITE_TOOL" = true ]; then
                 if echo "$FILE_PATH" | grep -qE 'docs/specs/'; then
                     if [ "$(get_review_field "agents_dispatched")" != "true" ]; then
                         _load_step "review_findings_before_agents"

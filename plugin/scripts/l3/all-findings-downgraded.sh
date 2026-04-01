@@ -10,7 +10,7 @@
 check_all_findings_downgraded() {
     CHECK_RESULT=""
     [ "$PHASE" = "review" ] || return 0
-    { [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; } || return 0
+    [ "$IS_WRITE_TOOL" = true ] || return 0
     echo "$FILE_PATH" | grep -qE 'docs/specs/' || return 0
 
     # Check if all findings are under Suggestions with no Critical or Warning entries

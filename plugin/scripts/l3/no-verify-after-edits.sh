@@ -12,7 +12,7 @@ check_no_verify_after_edits() {
     CHECK_RESULT=""
     { [ "$PHASE" = "implement" ] || [ "$PHASE" = "review" ]; } || return 0
 
-    if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
+    if [ "$IS_WRITE_TOOL" = true ]; then
         if [ -n "$FILE_PATH" ] && ! echo "$FILE_PATH" | grep -qE '(test|spec|docs/|plans/|specs/|\.md$)'; then
             local verify_count
             verify_count=$(get_pending_verify)
@@ -32,7 +32,7 @@ check_no_verify_after_edits() {
     elif [ "$TOOL_NAME" = "Bash" ]; then
         local bash_cmd
         bash_cmd=$(extract_bash_command)
-        if echo "$bash_cmd" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'; then
+        if echo "$bash_cmd" | grep -qE "$_TEST_CMD_REGEX"; then
             set_pending_verify 0
         fi
     fi
