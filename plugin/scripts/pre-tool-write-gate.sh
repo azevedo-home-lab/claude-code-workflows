@@ -19,6 +19,7 @@ SCRIPT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null ||
 source "$SCRIPT_DIR/infrastructure/hook-preamble.sh" "workflow-gate" || exit 0
 
 source "$SCRIPT_DIR/infrastructure/deny-messages.sh"
+source "$SCRIPT_DIR/infrastructure/patterns.sh"
 
 # --- Parse file path ---
 INPUT=$(cat)
@@ -56,7 +57,6 @@ NORMALIZED_PATH="$FILE_PATH"
 _log "NORMALIZED_PATH=$NORMALIZED_PATH"
 
 # --- Guard-system self-protection (ALL phases) ---
-GUARD_SYSTEM_PATTERN='(\.claude/hooks/|(^|[^a-z-])plugin/scripts/|(^|[^a-z-])plugin/commands/)'
 if [ -n "$NORMALIZED_PATH" ] && echo "$NORMALIZED_PATH" | grep -qE "$GUARD_SYSTEM_PATTERN"; then
     _log "DENY: guard-system match on '$NORMALIZED_PATH'"
     emit_deny "$(_phase_deny_message "$PHASE" "guard-system")"

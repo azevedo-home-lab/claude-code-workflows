@@ -23,6 +23,7 @@ source "$SCRIPT_DIR/infrastructure/git-safety.sh"
 source "$SCRIPT_DIR/infrastructure/gh-safety.sh"
 source "$SCRIPT_DIR/infrastructure/write-patterns.sh"
 source "$SCRIPT_DIR/infrastructure/read-allowlist.sh"
+source "$SCRIPT_DIR/infrastructure/patterns.sh"
 
 # --- Parse command ---
 INPUT=$(cat)
@@ -56,24 +57,11 @@ case $_git_rc in
     2) ;;  # not a commit, continue
 esac
 
-# --- Strip safe redirects for write detection ---
-CLEAN_CMD=$(echo "$COMMAND" | sed -E 's/[0-9]+>\/dev\/null//g; s/[0-9]*>&[0-9]+//g; s/>>[[:space:]]*\/dev\/null//g; s/>[[:space:]]*\/dev\/null//g')
-
 # --- Destructive git (ALL phases including implement/review) ---
 if _is_destructive_git "$COMMAND"; then
     _log "DENY: destructive git"
     emit_deny "$(_phase_deny_message "$PHASE" "destructive-git")"
     exit 0
-fi
-
-# --- State file write protection (ALL phases) ---
-STATE_FILE_PATTERN='\.claude/(state/workflow\.json|state/phase-intent\.json)'
-if echo "$COMMAND" | grep -qE "$STATE_FILE_PATTERN"; then
-    if _detect_write_operation "$COMMAND"; then
-        _log "DENY: write to state file"
-        emit_deny "$(_phase_deny_message "$PHASE" "state-file")"
-        exit 0
-    fi
 fi
 
 # --- user-set-phase.sh execution block (ALL phases) ---
@@ -83,13 +71,22 @@ if echo "$COMMAND" | grep -qE '(^|[;&|[:space:]])(\\./|source[[:space:]]|bash[[:
     exit 0
 fi
 
-# --- Guard-system write protection (ALL phases including implement/review) ---
-GUARD_SYSTEM_PATTERN='(\.claude/hooks/|(^|[^a-z-])plugin/scripts/|(^|[^a-z-])plugin/commands/)'
-if echo "$COMMAND" | grep -qE "$GUARD_SYSTEM_PATTERN"; then
-    if _detect_write_operation "$COMMAND"; then
-        _log "DENY: write to enforcement file"
-        emit_deny "$(_phase_deny_message "$PHASE" "guard-system")"
-        exit 0
+# --- Write target protection (ALL phases including implement/review) ---
+# Check write target against state-file and guard-system patterns.
+# Uses _extract_write_target to match the actual destination, not the full command string.
+if _detect_write_operation "$COMMAND"; then
+    write_target=$(_extract_write_target "$COMMAND")
+    if [ -n "$write_target" ]; then
+        if echo "$write_target" | grep -qE "$STATE_FILE_PATTERN"; then
+            _log "DENY: write to state file ($write_target)"
+            emit_deny "$(_phase_deny_message "$PHASE" "state-file")"
+            exit 0
+        fi
+        if echo "$write_target" | grep -qE "$GUARD_SYSTEM_PATTERN"; then
+            _log "DENY: write to enforcement file ($write_target)"
+            emit_deny "$(_phase_deny_message "$PHASE" "guard-system")"
+            exit 0
+        fi
     fi
 fi
 

@@ -22,7 +22,7 @@ _check_gh_command() {
     if [ "$phase" = "complete" ] && _gh_safe_chain "$cmd"; then
         return 0
     elif [ "$phase" = "define" ] || [ "$phase" = "discuss" ] || [ "$phase" = "error" ]; then
-        if echo "$cmd" | grep -qE '^[[:space:]]*gh[[:space:]]+(repo[[:space:]]+view|issue[[:space:]]+view|issue[[:space:]]+list|issue[[:space:]]+comment|pr[[:space:]]+view|pr[[:space:]]+list|release[[:space:]]+(view|list))' && \
+        if echo "$cmd" | grep -qE '^[[:space:]]*gh[[:space:]]+(repo[[:space:]]+view|issue[[:space:]]+(view|list|comment)|pr[[:space:]]+(view|list)|release[[:space:]]+(view|list)|api[[:space:]])' && \
            _gh_safe_chain "$cmd"; then
             return 0
         fi
@@ -34,9 +34,10 @@ _check_gh_command() {
 # Check if a gh command has safe chaining (no shell injection vectors).
 _gh_safe_chain() {
     local cmd="$1"
-    # Strip harmless "|| true" / "|| echo ..." suffixes before chain check
+    # Strip harmless fallback suffixes before chain check:
+    # || true, || echo ..., || gh ... (retry/fallback patterns)
     local stripped
-    stripped=$(echo "$cmd" | sed -E 's/\|\|[[:space:]]*(true|echo[[:space:]][^;&|]*)$//')
+    stripped=$(echo "$cmd" | sed -E 's/\|\|[[:space:]]*(true|echo[[:space:]][^;&|]*|gh[[:space:]].*)$//')
     ! echo "$stripped" | grep -qE '(&&|\|\||;)' && \
     ! echo "$cmd" | grep -qE '\|[[:space:]]*(/[^[:space:]]*/)?((env[[:space:]]+(/[^[:space:]]*/)?)?'\
 '(bash|sh|zsh|dash|ksh|fish|csh|tcsh))(\b|$)' && \
