@@ -96,16 +96,29 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # B. Plugin updates — keep all plugins at latest version
 # ─────────────────────────────────────────────────────────────────────────────
-# Claude Code doesn't auto-update plugins. Update external dependencies via
-# `claude plugin update`. For workflow-manager itself, sync the cache directly
-# from SOURCE_ROOT since the marketplace resolver doesn't pick up new versions.
+# Claude Code doesn't auto-update plugins or marketplace clones.
+#
+# For external dependencies: `claude plugin update` handles it.
+# For workflow-manager: Claude Code resolves versions from its marketplace
+# clone at ~/.claude/plugins/marketplaces/azevedo-home-lab/ which is a
+# stale git checkout. We must git pull it, then sync the cache and registry.
 
+# Update external dependencies
 if command -v claude &>/dev/null; then
   for plugin in \
     "superpowers@superpowers-marketplace" \
     "claude-mem@thedotmack"; do
     claude plugin update "$plugin" 2>/dev/null || true
   done
+fi
+
+# Update workflow-manager marketplace clone (the root cause of stale versions).
+# Claude Code's plugin loader may have dirtied the clone, so reset before pulling.
+WM_MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/azevedo-home-lab"
+if [ -d "$WM_MARKETPLACE_DIR/.git" ]; then
+  git -C "$WM_MARKETPLACE_DIR" reset --hard HEAD --quiet 2>/dev/null || true
+  git -C "$WM_MARKETPLACE_DIR" clean -fd --quiet 2>/dev/null || true
+  git -C "$WM_MARKETPLACE_DIR" pull origin main --quiet 2>/dev/null || true
 fi
 
 # Sync workflow-manager cache from local source
