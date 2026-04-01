@@ -55,7 +55,7 @@ if [ "$new_phase" = "off" ]; then
     preserved_skill=""
     preserved_decision=""
     preserved_tests_passed=""
-    preserved_debug="off"
+
 else
     # Clear active skill on every phase transition — new phase starts fresh
     preserved_skill=""
