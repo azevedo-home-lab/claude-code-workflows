@@ -83,39 +83,17 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# B. Plugin cache version sync
+# B. Plugin updates — keep all plugins at latest version
 # ─────────────────────────────────────────────────────────────────────────────
-# Claude Code caches plugins by version directory but doesn't auto-update
-# the cache when the source repo bumps its version. Sync the cache so the
-# statusline displays the correct version.
+# Claude Code doesn't auto-update plugins. Run `claude plugin update` for
+# each dependency so installed_plugins.json and the cache stay current.
 
-SOURCE_PLUGIN_JSON="$SOURCE_ROOT/.claude-plugin/plugin.json"
-CACHE_DIR="$HOME/.claude/plugins/cache/azevedo-home-lab/workflow-manager"
-
-if [ -f "$SOURCE_PLUGIN_JSON" ] && [ -d "$CACHE_DIR" ]; then
-  SOURCE_VERSION=$(jq -r '.version // ""' "$SOURCE_PLUGIN_JSON" 2>/dev/null)
-  CACHED_VERSION=$(ls -1 "$CACHE_DIR" 2>/dev/null | sort -V | tail -1)
-
-  # Always refresh the current version's key directories from SOURCE_ROOT.
-  # This ensures local edits propagate to cache even when versions match.
-  if [ -n "$SOURCE_VERSION" ]; then
-    mkdir -p "$CACHE_DIR/$SOURCE_VERSION/.claude-plugin"
-    cp "$SOURCE_PLUGIN_JSON" "$CACHE_DIR/$SOURCE_VERSION/.claude-plugin/plugin.json"
-
-    for dir in agents config statusline; do
-      if [ -d "$SOURCE_ROOT/$dir" ]; then
-        [ -n "$CACHE_DIR" ] && [ -n "$SOURCE_VERSION" ] && [ -n "$dir" ] && rm -rf "$CACHE_DIR/$SOURCE_VERSION/$dir"
-        cp -r "$SOURCE_ROOT/$dir" "$CACHE_DIR/$SOURCE_VERSION/$dir"
-      fi
-    done
-  fi
-
-  # Remove stale cache versions — only keep the current version
-  for old_dir in "$CACHE_DIR"/*/; do
-    [ -d "$old_dir" ] || continue
-    old_ver=$(basename "$old_dir")
-    [ "$old_ver" = "$SOURCE_VERSION" ] && continue
-    [[ "$old_dir" == "$CACHE_DIR"/* ]] && rm -rf "$old_dir"
+if command -v claude &>/dev/null; then
+  for plugin in \
+    "workflow-manager@azevedo-home-lab" \
+    "superpowers@superpowers-marketplace" \
+    "claude-mem@thedotmack"; do
+    claude plugin update "$plugin" 2>/dev/null || true
   done
 fi
 
