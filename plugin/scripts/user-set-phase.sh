@@ -19,6 +19,7 @@ set -euo pipefail
 
 SCRIPT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/scripts"
 source "$SCRIPT_DIR/workflow-facade.sh"
+source "$SCRIPT_DIR/infrastructure/phase-coaching.sh"
 
 new_phase="${1:-}"
 
@@ -115,3 +116,7 @@ _show "[WFM phase] State rebuilt — preserved: plan_path=$preserved_decision, a
 _show "[WFM phase] Milestones reset: discuss={}, implement={}, review={}, completion={}"
 
 echo "Phase set to ${new_phase}. Re-evaluate."
+
+# Emit L1 coaching immediately at transition — not deferred to next tool call.
+PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+_emit_phase_coaching "$new_phase" "$preserved_autonomy"

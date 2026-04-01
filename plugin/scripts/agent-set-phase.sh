@@ -15,6 +15,7 @@ _WFM_AGENT_SET_PHASE_LOADED=1
 
 SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 source "$SCRIPT_DIR/infrastructure/gate-checks.sh"
+source "$SCRIPT_DIR/infrastructure/phase-coaching.sh"
 
 agent_set_phase() {
     local new_phase="$1"
@@ -117,4 +118,8 @@ agent_set_phase() {
     )
 
     echo "Phase advanced to ${new_phase}. Re-evaluate."
+
+    # Emit L1 coaching immediately at transition — not deferred to next tool call.
+    PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+    _emit_phase_coaching "$new_phase" "$preserved_autonomy"
 }

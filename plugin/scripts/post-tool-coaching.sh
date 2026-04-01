@@ -168,12 +168,8 @@ MESSAGES=""
 # Source coaching throttle engine (provides _should_fire, _reset_throttle, _append_l3)
 source "$SCRIPT_DIR/l3/coaching-runner.sh"
 
-# ============================================================
-# LAYER 1: Phase entry message (fires once per phase transition)
-# ============================================================
-
-source "$SCRIPT_DIR/l1/phase-entry.sh"
-_run_l1
+# L1 (phase entry coaching) now fires at transition time in user-set-phase.sh
+# and agent-set-phase.sh — no longer deferred to the next tool call.
 
 # Early exit for tools that don't participate in Layer 2/3
 # These tools don't need coaching evaluation or counter tracking
