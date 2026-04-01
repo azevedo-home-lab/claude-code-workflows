@@ -39,6 +39,6 @@ check_generic_commit() {
     check_body=$(load_message "checks/generic_commit.md" "$PHASE_UPPER")
     if [ -n "$check_body" ] && _should_fire "generic_commit"; then
         CHECK_RESULT="[Workflow Coach — $PHASE_UPPER] $check_body"
-        _trace "[WFM coach] L3: checks/generic_commit.md — ${check_body:0:80}..."
+        _log "[WFM coach] L3: checks/generic_commit.md — ${check_body:0:80}..."
     fi
 }

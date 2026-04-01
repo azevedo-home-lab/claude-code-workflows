@@ -20,6 +20,6 @@ check_skipping_research() {
     check_body=$(load_message "checks/skipping_research.md" "$PHASE_UPPER")
     if [ -n "$check_body" ] && _should_fire "skipping_research"; then
         CHECK_RESULT="[Workflow Coach — $PHASE_UPPER] $check_body"
-        _trace "[WFM coach] L3: checks/skipping_research.md — ${check_body:0:80}..."
+        _log "[WFM coach] L3: checks/skipping_research.md — ${check_body:0:80}..."
     fi
 }

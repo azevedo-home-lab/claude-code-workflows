@@ -41,6 +41,6 @@ check_stalled_auto_transition() {
     stall_body=$(load_message "checks/stalled_auto_transition/$PHASE.md")
     if [ -n "$stall_body" ] && _should_fire "stalled_$PHASE"; then
         CHECK_RESULT="[Workflow Coach — $PHASE_UPPER] $stall_body"
-        _trace "[WFM coach] L3: checks/stalled_auto_transition/$PHASE.md — ${stall_body:0:80}..."
+        _log "[WFM coach] L3: checks/stalled_auto_transition/$PHASE.md — ${stall_body:0:80}..."
     fi
 }

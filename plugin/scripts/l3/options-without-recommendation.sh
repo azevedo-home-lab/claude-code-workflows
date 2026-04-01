@@ -21,6 +21,6 @@ check_options_without_recommendation() {
     check_body=$(load_message "checks/options_without_recommendation.md" "$PHASE_UPPER")
     if [ -n "$check_body" ] && _should_fire "options_without_recommendation"; then
         CHECK_RESULT="[Workflow Coach — $PHASE_UPPER] $check_body"
-        _trace "[WFM coach] L3: checks/options_without_recommendation.md — ${check_body:0:80}..."
+        _log "[WFM coach] L3: checks/options_without_recommendation.md — ${check_body:0:80}..."
     fi
 }

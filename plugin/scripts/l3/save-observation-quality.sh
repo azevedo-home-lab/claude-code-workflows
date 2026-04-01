@@ -29,7 +29,7 @@ check_save_observation_quality() {
         check_body=$(load_message "checks/minimal_handover.md")
         if [ -n "$check_body" ] && _should_fire "minimal_handover"; then
             _append_l3 "[Workflow Coach — COMPLETE] $check_body"
-            _trace "[WFM coach] L3: checks/minimal_handover.md — ${check_body:0:80}..."
+            _log "[WFM coach] L3: checks/minimal_handover.md — ${check_body:0:80}..."
         fi
     fi
 
@@ -38,7 +38,7 @@ check_save_observation_quality() {
         check_body=$(load_message "checks/missing_project_field.md" "$PHASE_UPPER")
         if [ -n "$check_body" ] && _should_fire "missing_project_field"; then
             _append_l3 "[Workflow Coach — $PHASE_UPPER] $check_body"
-            _trace "[WFM coach] L3: checks/missing_project_field.md — ${check_body:0:80}..."
+            _log "[WFM coach] L3: checks/missing_project_field.md — ${check_body:0:80}..."
         fi
     fi
 }

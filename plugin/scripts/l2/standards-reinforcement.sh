@@ -13,7 +13,7 @@
 # Expected functions from caller:
 #   load_message, extract_bash_command, get_message_shown,
 #   check_coaching_refresh, reset_coaching_counter, increment_coaching_counter,
-#   has_coaching_fired, add_coaching_fired, _trace, _log
+#   has_coaching_fired, add_coaching_fired, _log
 
 [ -n "${_WFM_L2_LOADED:-}" ] && return 0
 _WFM_L2_LOADED=1
@@ -109,7 +109,7 @@ $l2_msg"
             else
                 MESSAGES="$l2_msg"
             fi
-            _trace "[WFM coach] L2: nudges/$trigger.md — ${l2_msg_body:0:80}..."
+            _log "[WFM coach] L2: nudges/$trigger.md — ${l2_msg_body:0:80}..."
         else
             _log "[WFM coach] L2: trigger=$trigger — already fired, skipped"
         fi
@@ -129,7 +129,7 @@ $l2_msg"
                     add_coaching_fired "$findings_trigger"
                     local findings_body
                     findings_body=$(load_message "nudges/findings_present_review.md")
-                    [ -n "$findings_body" ] && _trace "[WFM coach] L2: nudges/findings_present_review.md — ${findings_body:0:80}..."
+                    [ -n "$findings_body" ] && _log "[WFM coach] L2: nudges/findings_present_review.md — ${findings_body:0:80}..."
                     if [ -n "$findings_body" ]; then
                         local findings_msg="[Workflow Coach — REVIEW] $findings_body"
                         if [ -n "$MESSAGES" ]; then

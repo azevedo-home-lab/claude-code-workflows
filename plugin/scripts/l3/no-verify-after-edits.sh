@@ -24,7 +24,7 @@ check_no_verify_after_edits() {
                 if [ -n "$verify_body" ] && _should_fire "no_verify_after_edits"; then
                     verify_body="$verify_body ($verify_count edits without test run)"
                     CHECK_RESULT="[Workflow Coach — $PHASE_UPPER] $verify_body"
-                    _trace "[WFM coach] L3: checks/no_verify_after_edits.md — ${verify_body:0:80}..."
+                    _log "[WFM coach] L3: checks/no_verify_after_edits.md — ${verify_body:0:80}..."
                 fi
                 set_pending_verify 0
             fi

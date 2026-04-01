@@ -101,6 +101,6 @@ check_step_ordering() {
 
     if [ -n "$step_msg" ] && _should_fire "step_ordering"; then
         CHECK_RESULT="$step_msg"
-        _trace "[WFM coach] L3: $step_file — ${step_body:0:80}..."
+        _log "[WFM coach] L3: $step_file — ${step_body:0:80}..."
     fi
 }

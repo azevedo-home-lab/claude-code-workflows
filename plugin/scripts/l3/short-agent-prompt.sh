@@ -19,6 +19,6 @@ check_short_agent_prompt() {
     check_body=$(load_message "checks/short_agent_prompt.md" "$PHASE_UPPER")
     if [ -n "$check_body" ] && _should_fire "short_agent_prompt"; then
         CHECK_RESULT="[Workflow Coach — $PHASE_UPPER] $check_body"
-        _trace "[WFM coach] L3: checks/short_agent_prompt.md — ${check_body:0:80}..."
+        _log "[WFM coach] L3: checks/short_agent_prompt.md — ${check_body:0:80}..."
     fi
 }

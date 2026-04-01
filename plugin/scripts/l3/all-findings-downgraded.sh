@@ -36,6 +36,6 @@ check_all_findings_downgraded() {
     check_body=$(load_message "checks/all_findings_downgraded.md")
     if [ -n "$check_body" ] && _should_fire "all_findings_downgraded"; then
         CHECK_RESULT="[Workflow Coach — REVIEW] $check_body"
-        _trace "[WFM coach] L3: checks/all_findings_downgraded.md — ${check_body:0:80}..."
+        _log "[WFM coach] L3: checks/all_findings_downgraded.md — ${check_body:0:80}..."
     fi
 }
