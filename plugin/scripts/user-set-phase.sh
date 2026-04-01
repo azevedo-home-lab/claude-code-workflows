@@ -10,15 +10,15 @@
 # The user's intent is expressed by the fact they typed a slash command.
 #
 # SECURITY: This script must NOT be callable via Bash tool.
-# bash-write-guard.sh blocks any Bash tool call containing user-set-phase.sh.
+# pre-tool-bash-guard.sh blocks any Bash tool call containing user-set-phase.sh.
 #
 # Usage: user-set-phase.sh <phase>
 # Phases: off define discuss implement review complete
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/workflow-state.sh"
+SCRIPT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/scripts"
+source "$SCRIPT_DIR/workflow-facade.sh"
 
 new_phase="${1:-}"
 
@@ -55,6 +55,9 @@ if [ "$new_phase" = "off" ]; then
     preserved_autonomy=""
     preserved_tests_passed=""
     preserved_debug="off"
+else
+    # Clear active skill on every phase transition — new phase starts fresh
+    preserved_skill=""
 fi
 
 # Initialize autonomy to "ask" when starting a fresh cycle from off
@@ -64,7 +67,7 @@ fi
 
 # Debug logging for phase transitions (read preserved_debug BEFORE sourcing debug-log.sh)
 DEBUG_MODE="$preserved_debug"
-source "$SCRIPT_DIR/debug-log.sh" "user-set-phase"
+source "$SCRIPT_DIR/infrastructure/debug-log.sh" "user-set-phase"
 _show "[WFM phase] User transition: $current_phase → $new_phase"
 
 tracked_json="[]"
@@ -111,4 +114,4 @@ ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 _show "[WFM phase] State rebuilt — preserved: plan_path=$preserved_decision, autonomy=$preserved_autonomy, debug=$preserved_debug"
 _show "[WFM phase] Milestones reset: discuss={}, implement={}, review={}, completion={}"
 
-echo "Phase set to ${new_phase}."
+echo "Phase set to ${new_phase}. Re-evaluate."

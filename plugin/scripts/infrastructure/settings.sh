@@ -11,7 +11,7 @@
 _WFM_SETTINGS_LOADED=1
 
 SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-source "$SCRIPT_DIR/state-io.sh"
+source "$SCRIPT_DIR/infrastructure/state-io.sh"
 
 get_autonomy_level() {
     if [ ! -f "$STATE_FILE" ]; then

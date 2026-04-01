@@ -11,7 +11,7 @@
 _WFM_TRACKING_LOADED=1
 
 SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-source "$SCRIPT_DIR/state-io.sh"
+source "$SCRIPT_DIR/infrastructure/state-io.sh"
 
 # ---------------------------------------------------------------------------
 # Last observation ID tracking (claude-mem)

@@ -14,12 +14,14 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/workflow-state.sh"
+SCRIPT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/scripts"
+source "$SCRIPT_DIR/workflow-facade.sh"
 
 # Coaching message directory — resolved from project root, not SCRIPT_DIR.
 # SCRIPT_DIR resolves to .claude/hooks/ (symlink directory), not plugin/scripts/.
-COACHING_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/coaching"
+_PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+COACHING_DIR="$_PROJECT_ROOT/plugin/coaching"
+PHASES_DIR="$_PROJECT_ROOT/plugin/phases"
 
 # Validate coaching directory exists — silent degradation if misconfigured
 if [ ! -d "$COACHING_DIR" ]; then
@@ -97,7 +99,7 @@ fi
 
 # Read debug flag once for all layers
 DEBUG_MODE=$(get_debug)
-source "$SCRIPT_DIR/debug-log.sh" "post-tool-navigator"
+source "$SCRIPT_DIR/infrastructure/debug-log.sh" "post-tool-navigator"
 
 # Collect debug trace for systemMessage injection (show mode only).
 # _trace() logs via _show (file + stderr) AND collects into DEBUG_TRACE
@@ -164,64 +166,14 @@ _log "$_TOOL_HEADER"
 MESSAGES=""
 
 # Source coaching throttle engine (provides _should_fire, _reset_throttle, _append_l3)
-source "$SCRIPT_DIR/coaching-runner.sh"
+source "$SCRIPT_DIR/l3/coaching-runner.sh"
 
 # ============================================================
 # LAYER 1: Phase entry message (fires once per phase transition)
 # ============================================================
 
-if [ "$(get_message_shown)" != "true" ]; then
-    # IMPLEMENT phase: only fire on Write/Edit/Bash, skip Read/Grep/Glob
-    FIRE_LAYER1=true
-    if [ "$PHASE" = "implement" ]; then
-        case "$TOOL_NAME" in
-            Write|Edit|MultiEdit|NotebookEdit|Bash) ;;
-            *) FIRE_LAYER1=false ;;
-        esac
-    fi
-
-    if [ "$FIRE_LAYER1" = "true" ]; then
-        case "$PHASE" in
-            error)
-                ERR_MSG=$(load_message "objectives/error.md")
-                if [ -n "$ERR_MSG" ]; then
-                    MESSAGES="[Workflow Coach — ERROR]
-$ERR_MSG"
-                    _trace "[WFM coach] L1 FIRED: objectives/error.md"
-                fi
-                ;;
-            *)
-                OBJ_MSG=$(load_message "objectives/$PHASE.md")
-                if [ -n "$OBJ_MSG" ]; then
-                    MESSAGES="[Workflow Coach — $PHASE_UPPER]
-$OBJ_MSG"
-                    _trace "[WFM coach] L1 FIRED: objectives/$PHASE.md"
-                fi
-                ;;
-        esac
-        # Append auto-transition guidance if autonomy is "auto"
-        AUTONOMY_LEVEL=$(get_autonomy_level)
-        if [ "$AUTONOMY_LEVEL" = "auto" ] && [ -n "$MESSAGES" ]; then
-            AUTO_MSG=$(load_message "auto-transition/$PHASE.md")
-            if [ -z "$AUTO_MSG" ]; then
-                AUTO_MSG=$(load_message "auto-transition/default.md")
-            fi
-            if [ -n "$AUTO_MSG" ]; then
-                MESSAGES="$MESSAGES
-$AUTO_MSG"
-            fi
-        fi
-
-        # Skip state update in error phase — state is corrupt, writes will fail
-        if [ "$PHASE" != "error" ]; then
-            set_message_shown
-        fi
-    else
-        _log "[WFM coach] L1: tool not eligible, skipped"
-    fi
-else
-    _log "[WFM coach] L1: already shown, skipped"
-fi
+source "$SCRIPT_DIR/l1/phase-entry.sh"
+_run_l1
 
 # Early exit for tools that don't participate in Layer 2/3
 # These tools don't need coaching evaluation or counter tracking
@@ -247,126 +199,8 @@ case "$TOOL_NAME" in
         ;;
 esac
 
-# Only fire if Layer 1 has already fired (message_shown = true means we're past entry)
-if [ "$(get_message_shown)" = "true" ]; then
-    # Refresh Layer 2 triggers after 30 calls of silence (before counter reset)
-    check_coaching_refresh
-
-    # Track agent dispatch counter
-    if [ "$TOOL_NAME" = "Agent" ]; then
-        reset_coaching_counter
-    else
-        increment_coaching_counter
-    fi
-
-    # Determine trigger type based on phase + tool pattern
-    TRIGGER=""
-    L2_MSG=""
-
-    case "$PHASE" in
-        define)
-            if [ "$TOOL_NAME" = "Agent" ]; then
-                TRIGGER="agent_return_define"
-            elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-                if echo "$FILE_PATH" | grep -qE 'docs/plans/'; then
-                    TRIGGER="plan_write_define"
-                fi
-            fi
-            ;;
-        discuss)
-            if [ "$TOOL_NAME" = "Agent" ]; then
-                TRIGGER="agent_return_discuss"
-            elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-                if echo "$FILE_PATH" | grep -qE 'docs/plans/'; then
-                    TRIGGER="plan_write_discuss"
-                fi
-            fi
-            ;;
-        implement)
-            if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-                TRIGGER="source_edit_implement"
-            elif [ "$TOOL_NAME" = "Bash" ]; then
-                COMMAND=$(extract_bash_command)
-                if echo "$COMMAND" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'; then
-                    TRIGGER="test_run_implement"
-                fi
-            fi
-            ;;
-        review)
-            if [ "$TOOL_NAME" = "Agent" ]; then
-                TRIGGER="agent_return_review"
-            fi
-            ;;
-        complete)
-            if [ "$TOOL_NAME" = "Agent" ]; then
-                TRIGGER="agent_return_complete"
-            elif [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-                if echo "$FILE_PATH" | grep -qE 'docs/'; then
-                    TRIGGER="project_docs_edit_complete"
-                fi
-            elif [ "$TOOL_NAME" = "Bash" ]; then
-                BASH_CMD=$(extract_bash_command)
-                if echo "$BASH_CMD" | grep -qE '(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'; then
-                    TRIGGER="test_run_complete"
-                fi
-            fi
-            ;;
-    esac
-
-    # Load nudge message and fire if trigger matched and hasn't fired yet this phase
-    if [ -n "$TRIGGER" ]; then
-        L2_MSG_BODY=$(load_message "nudges/$TRIGGER.md")
-        if [ -n "$L2_MSG_BODY" ]; then
-            L2_MSG="[Workflow Coach — $PHASE_UPPER] $L2_MSG_BODY"
-        fi
-    fi
-
-    if [ -n "$TRIGGER" ] && [ -n "$L2_MSG" ]; then
-        if [ "$(has_coaching_fired "$TRIGGER")" != "true" ]; then
-            add_coaching_fired "$TRIGGER"
-            if [ -n "$MESSAGES" ]; then
-                MESSAGES="$MESSAGES
-
-$L2_MSG"
-            else
-                MESSAGES="$L2_MSG"
-            fi
-            _trace "[WFM coach] L2: nudges/$TRIGGER.md — ${L2_MSG_BODY:0:80}..."
-        else
-            _log "[WFM coach] L2: trigger=$TRIGGER — already fired, skipped"
-        fi
-    elif [ -n "$TRIGGER" ]; then
-        _log "[WFM coach] L2: trigger=$TRIGGER — no message file"
-    else
-        _log "[WFM coach] L2: no trigger matched"
-    fi
-
-    # REVIEW Layer 2 trigger: "After presenting findings"
-    # Fires when writing review findings (Write/Edit/MultiEdit to spec in review phase)
-    # This is separate from the agent_return_review trigger above
-    if [ "$PHASE" = "review" ]; then
-        if [ "$TOOL_NAME" = "Write" ] || [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "MultiEdit" ]; then
-            if echo "$FILE_PATH" | grep -qE 'docs/specs/'; then
-                FINDINGS_TRIGGER="findings_present_review"
-                if [ "$(has_coaching_fired "$FINDINGS_TRIGGER")" != "true" ]; then
-                    add_coaching_fired "$FINDINGS_TRIGGER"
-                    FINDINGS_BODY=$(load_message "nudges/findings_present_review.md")
-                    [ -n "$FINDINGS_BODY" ] && _trace "[WFM coach] L2: nudges/findings_present_review.md — ${FINDINGS_BODY:0:80}..."
-                    if [ -n "$FINDINGS_BODY" ]; then
-                        FINDINGS_MSG="[Workflow Coach — REVIEW] $FINDINGS_BODY"
-                        if [ -n "$MESSAGES" ]; then
-                            MESSAGES="$MESSAGES
-
-$FINDINGS_MSG"
-                        else
-                            MESSAGES="$FINDINGS_MSG"
-                        fi
-                    fi
-                fi
-            fi
-        fi
-    fi
-fi
+source "$SCRIPT_DIR/l2/standards-reinforcement.sh"
+_run_l2
 
 # ============================================================
 # LAYER 3: Anti-laziness checks (dispatched from individual files)
@@ -375,15 +209,15 @@ fi
 L3_MSG=""
 
 # Source individual check files
-source "$SCRIPT_DIR/checks/short-agent-prompt.sh"
-source "$SCRIPT_DIR/checks/generic-commit.sh"
-source "$SCRIPT_DIR/checks/all-findings-downgraded.sh"
-source "$SCRIPT_DIR/checks/save-observation-quality.sh"
-source "$SCRIPT_DIR/checks/skipping-research.sh"
-source "$SCRIPT_DIR/checks/options-without-recommendation.sh"
-source "$SCRIPT_DIR/checks/no-verify-after-edits.sh"
-source "$SCRIPT_DIR/checks/stalled-auto-transition.sh"
-source "$SCRIPT_DIR/checks/step-ordering.sh"
+source "$SCRIPT_DIR/l3/short-agent-prompt.sh"
+source "$SCRIPT_DIR/l3/generic-commit.sh"
+source "$SCRIPT_DIR/l3/all-findings-downgraded.sh"
+source "$SCRIPT_DIR/l3/save-observation-quality.sh"
+source "$SCRIPT_DIR/l3/skipping-research.sh"
+source "$SCRIPT_DIR/l3/options-without-recommendation.sh"
+source "$SCRIPT_DIR/l3/no-verify-after-edits.sh"
+source "$SCRIPT_DIR/l3/stalled-auto-transition.sh"
+source "$SCRIPT_DIR/l3/step-ordering.sh"
 
 # Dispatch all checks — each sets CHECK_RESULT if it fires
 # save_observation_quality uses _append_l3 directly (two sub-checks)

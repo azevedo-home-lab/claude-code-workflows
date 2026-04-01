@@ -5,7 +5,7 @@
 # This file is part of Claude Code Workflows.
 # See LICENSE for details.
 
-# Shell-independent wrapper for workflow-state.sh functions.
+# Shell-independent wrapper for workflow-facade.sh functions.
 # Always runs under bash (via shebang) regardless of the user's shell.
 #
 # Usage from command templates:
@@ -20,12 +20,12 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/workflow-state.sh"
+SCRIPT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/scripts"
+source "$SCRIPT_DIR/workflow-facade.sh"
 
 # Initialize debug logging for state mutation visibility
 DEBUG_MODE=$(get_debug 2>/dev/null) || DEBUG_MODE="off"
-source "$SCRIPT_DIR/debug-log.sh" "workflow-cmd"
+source "$SCRIPT_DIR/infrastructure/debug-log.sh" "workflow-cmd"
 
 # ---------------------------------------------------------------------------
 # dispatch_agent: load and return an agent prompt from plugin/agents/

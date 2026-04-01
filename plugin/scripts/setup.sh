@@ -24,7 +24,12 @@ if ! command -v jq &>/dev/null; then
     return 1 2>/dev/null || exit 1  # return when sourced, exit when run directly
 fi
 
-PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Prefer CLAUDE_PLUGIN_ROOT (set by Claude Code hook runner) over BASH_SOURCE fallback
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+  PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
+else
+  PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -102,6 +107,14 @@ if [ -f "$SOURCE_PLUGIN_JSON" ] && [ -d "$CACHE_DIR" ]; then
       fi
     done
   fi
+
+  # Remove stale cache versions — only keep the current version
+  for old_dir in "$CACHE_DIR"/*/; do
+    [ -d "$old_dir" ] || continue
+    old_ver=$(basename "$old_dir")
+    [ "$old_ver" = "$SOURCE_VERSION" ] && continue
+    rm -rf "$old_dir"
+  done
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -173,15 +186,15 @@ if [ -f "$PROJECT_SETTINGS" ]; then
   HAS_PTU=$(jq 'has("hooks") and (.hooks | has("PreToolUse"))' "$PROJECT_SETTINGS" 2>/dev/null)
   if [ "$HAS_PTU" != "true" ]; then
     jq '.hooks.PreToolUse = [
-      {"matcher": "Write|Edit|MultiEdit|NotebookEdit", "hooks": [{"type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-gate.sh"}]},
-      {"matcher": "Bash", "hooks": [{"type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/bash-write-guard.sh"}]}
+      {"matcher": "Write|Edit|MultiEdit|NotebookEdit", "hooks": [{"type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-tool-write-gate.sh"}]},
+      {"matcher": "Bash", "hooks": [{"type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-tool-bash-guard.sh"}]}
     ]' "$PROJECT_SETTINGS" > "$PROJECT_SETTINGS.tmp" && mv "$PROJECT_SETTINGS.tmp" "$PROJECT_SETTINGS" || true
   fi
 
   # Ensure PostToolUse hook exists
   HAS_POST=$(jq 'has("hooks") and (.hooks | has("PostToolUse"))' "$PROJECT_SETTINGS" 2>/dev/null)
   if [ "$HAS_POST" != "true" ]; then
-    jq '.hooks.PostToolUse = [{"hooks": [{"type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-navigator.sh"}]}]' \
+    jq '.hooks.PostToolUse = [{"hooks": [{"type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-coaching.sh"}]}]' \
       "$PROJECT_SETTINGS" > "$PROJECT_SETTINGS.tmp" && mv "$PROJECT_SETTINGS.tmp" "$PROJECT_SETTINGS" || true
   fi
 fi || true

@@ -14,10 +14,10 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/state-io.sh"
-source "$SCRIPT_DIR/phase.sh"
-source "$SCRIPT_DIR/settings.sh"
+SCRIPT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/scripts"
+source "$SCRIPT_DIR/infrastructure/state-io.sh"
+source "$SCRIPT_DIR/infrastructure/phase.sh"
+source "$SCRIPT_DIR/infrastructure/settings.sh"
 
 # Stub _log before debug-log.sh is sourced (called in early-exit paths)
 _log() { :; }
@@ -38,7 +38,7 @@ esac
 
 # Debug mode (read after OFF exit to avoid unnecessary jq call)
 DEBUG_MODE=$(get_debug)
-source "$SCRIPT_DIR/debug-log.sh" "workflow-gate"
+source "$SCRIPT_DIR/infrastructure/debug-log.sh" "workflow-gate"
 
 
 # Parse file path early — needed by guard-system check before phase-based early-exit.
@@ -111,7 +111,7 @@ esac
 # Select whitelist based on phase
 case "$PHASE" in
     define|discuss|error) WHITELIST="$RESTRICTED_WRITE_WHITELIST" ;;
-    complete)             WHITELIST="$COMPLETE_WRITE_WHITELIST" ;;  # .claude/commands/ excluded — see workflow-state.sh
+    complete)             WHITELIST="$COMPLETE_WRITE_WHITELIST" ;;  # .claude/commands/ excluded — see state-io.sh
     *)                    exit 0 ;;
 esac
 

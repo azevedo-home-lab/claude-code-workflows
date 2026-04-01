@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "workflow-manager",
-      "version": "1.13.1",
+      "version": "2.0.0",
       "source": "./plugin",
       "description": "Structured workflow enforcement for Claude Code with phase gates, coaching, and autonomy levels",
       "license": "GPL-3.0-only"

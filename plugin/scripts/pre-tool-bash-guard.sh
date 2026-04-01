@@ -16,10 +16,10 @@
 set -euo pipefail
 
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/state-io.sh"
-source "$SCRIPT_DIR/phase.sh"
-source "$SCRIPT_DIR/settings.sh"
+SCRIPT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/scripts"
+source "$SCRIPT_DIR/infrastructure/state-io.sh"
+source "$SCRIPT_DIR/infrastructure/phase.sh"
+source "$SCRIPT_DIR/infrastructure/settings.sh"
 
 # Stub _log before debug-log.sh is sourced (called in early-exit paths)
 _log() { :; }
@@ -73,7 +73,7 @@ esac
 
 # Debug mode (read after OFF exit to avoid unnecessary jq call)
 DEBUG_MODE=$(get_debug)
-source "$SCRIPT_DIR/debug-log.sh" "bash-write-guard"
+source "$SCRIPT_DIR/infrastructure/debug-log.sh" "bash-write-guard"
 
 # ---------------------------------------------------------------------------
 # Shared command parsing — runs once, used by both autonomy and phase-gate paths
@@ -90,8 +90,8 @@ if [ -z "$COMMAND" ]; then
 fi
 
 # Allow workflow state commands ONLY when they are the sole command
-# (prevents bypass by chaining: source workflow-state.sh && echo pwned > evil)
-if echo "$COMMAND" | grep -qE '^[[:space:]]*(source[[:space:]]|\.[ /]).*workflow-state\.sh'; then
+# (prevents bypass by chaining: source workflow-facade.sh && echo pwned > evil)
+if echo "$COMMAND" | grep -qE '^[[:space:]]*(source[[:space:]]|\.[ /]).*workflow-(state|facade)\.sh'; then
     if ! echo "$COMMAND" | grep -qE '(&&|\|\||;|\|)'; then
         _log "ALLOW: workflow state command"
         exit 0

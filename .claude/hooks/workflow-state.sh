@@ -1,1 +1,0 @@
-../../plugin/scripts/workflow-state.sh

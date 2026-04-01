@@ -10,8 +10,8 @@
 [ -n "${_WFM_COACHING_STATE_LOADED:-}" ] && return 0
 _WFM_COACHING_STATE_LOADED=1
 
-SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-source "$SCRIPT_DIR/state-io.sh"
+_SCRIPTS_DIR="${_SCRIPTS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+source "$_SCRIPTS_DIR/infrastructure/state-io.sh"
 
 increment_coaching_counter() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.coaching.tool_calls_since_agent += 1'; }
 reset_coaching_counter() { if [ ! -f "$STATE_FILE" ]; then return; fi; _update_state '.coaching.tool_calls_since_agent = 0'; }

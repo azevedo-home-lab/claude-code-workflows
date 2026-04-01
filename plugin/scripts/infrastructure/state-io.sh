@@ -76,7 +76,7 @@ COMPLETE_WRITE_WHITELIST='(\.claude/state/|\.claude-plugin/|docs/|^[^/]*\.md$)'
 # Shared hook helpers
 # ---------------------------------------------------------------------------
 
-# Emit a PreToolUse deny JSON response. Used by workflow-gate.sh and bash-write-guard.sh.
+# Emit a PreToolUse deny JSON response. Used by pre-tool-write-gate.sh and pre-tool-bash-guard.sh.
 # Usage: emit_deny "reason message"
 emit_deny() {
     local reason="$1"

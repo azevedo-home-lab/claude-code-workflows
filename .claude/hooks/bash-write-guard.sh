@@ -1,1 +1,0 @@
-../../plugin/scripts/bash-write-guard.sh
