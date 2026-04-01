@@ -15,7 +15,7 @@ _WFM_AGENT_SET_PHASE_LOADED=1
 
 SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 source "$SCRIPT_DIR/infrastructure/gate-checks.sh"
-source "$SCRIPT_DIR/infrastructure/phase-coaching.sh"
+source "$SCRIPT_DIR/l1/phase-coaching.sh"
 
 agent_set_phase() {
     local new_phase="$1"

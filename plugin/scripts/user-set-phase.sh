@@ -19,7 +19,7 @@ set -euo pipefail
 
 SCRIPT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/scripts"
 source "$SCRIPT_DIR/workflow-facade.sh"
-source "$SCRIPT_DIR/infrastructure/phase-coaching.sh"
+source "$SCRIPT_DIR/l1/phase-coaching.sh"
 
 new_phase="${1:-}"
 
