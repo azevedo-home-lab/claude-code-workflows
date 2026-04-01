@@ -1,1 +1,0 @@
-../../plugin/scripts/debug-log.sh

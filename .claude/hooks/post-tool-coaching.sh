@@ -1,1 +1,0 @@
-../../plugin/scripts/post-tool-coaching.sh

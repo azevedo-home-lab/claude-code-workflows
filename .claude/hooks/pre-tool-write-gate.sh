@@ -1,1 +1,0 @@
-../../plugin/scripts/pre-tool-write-gate.sh

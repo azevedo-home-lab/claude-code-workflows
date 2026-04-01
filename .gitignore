@@ -8,11 +8,12 @@
 
 # Team-sharable Claude Code files (tracked by git):
 # .claude/settings.json     # Team settings (official Claude Code)
-# .claude/commands/         # Team slash commands (official Claude Code)
 # .claude/.plans/           # Project documentation (extension-specific)
 
-# Workflow Manager state (per-session, not committed)
+# Workflow Manager runtime files (created by setup.sh, not committed)
 .claude/state/
+.claude/hooks/
+.claude/commands/
 
 # Temporary agent artifacts (cleaned up by COMPLETE pipeline)
 .claude/tmp/

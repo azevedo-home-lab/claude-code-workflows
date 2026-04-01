@@ -10,8 +10,9 @@
 #   A. Project state initialization (workflow.json + .gitignore)
 #   B. Plugin updates (claude plugin update for all dependencies)
 #   C. Global statusline installation (~/.claude/statusline.sh + settings.json)
-#   D. Project hooks registration (settings.json)
-#   E. Project permissions (ensure tools needed for unattended operation are allowed)
+#   D. Project hooks (copy scripts to .claude/hooks/ + settings.json registration)
+#   E. Project commands (copy to .claude/commands/)
+#   F. Project permissions (ensure tools needed for unattended operation are allowed)
 
 set -euo pipefail
 
@@ -130,10 +131,20 @@ if [ -f "$STATUSLINE_SRC" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# D. Project hooks — ensure hooks are registered in settings.json
+# D. Project hooks — copy hook scripts and register in settings.json
 # ─────────────────────────────────────────────────────────────────────────────
 # Claude Code reads hooks from .claude/settings.json, NOT from plugin/hooks/hooks.json.
-# Hook scripts live in .claude/hooks/ as committed files (no symlinks).
+# Copy hook scripts from plugin/scripts/ to .claude/hooks/ as real files (no symlinks).
+
+HOOKS_DIR="$PROJECT_DIR/.claude/hooks"
+mkdir -p "$HOOKS_DIR"
+
+for hook in pre-tool-write-gate.sh pre-tool-bash-guard.sh post-tool-coaching.sh; do
+  if [ -f "$SOURCE_ROOT/scripts/$hook" ]; then
+    cp "$SOURCE_ROOT/scripts/$hook" "$HOOKS_DIR/$hook"
+    chmod +x "$HOOKS_DIR/$hook"
+  fi
+done
 
 # Register hooks in settings.json via jq (idempotent — only adds missing hooks)
 PROJECT_SETTINGS="$PROJECT_DIR/.claude/settings.json"
@@ -157,7 +168,19 @@ if [ -f "$PROJECT_SETTINGS" ]; then
 fi || true
 
 # ─────────────────────────────────────────────────────────────────────────────
-# E. Project permissions — ensure tools needed for workflow pipeline are allowed
+# E. Project commands — copy plugin commands to .claude/commands/
+# ─────────────────────────────────────────────────────────────────────────────
+
+COMMANDS_DIR="$PROJECT_DIR/.claude/commands"
+mkdir -p "$COMMANDS_DIR"
+
+for cmd_file in "$SOURCE_ROOT/commands/"*.md; do
+  [ -f "$cmd_file" ] || continue
+  cp "$cmd_file" "$COMMANDS_DIR/$(basename "$cmd_file")"
+done
+
+# ─────────────────────────────────────────────────────────────────────────────
+# F. Project permissions — ensure tools needed for workflow pipeline are allowed
 # ─────────────────────────────────────────────────────────────────────────────
 
 # The workflow pipeline (hooks, coaching, COMPLETE agents) needs these tools

@@ -1,1 +1,0 @@
-../../plugin/scripts/pre-tool-bash-guard.sh
