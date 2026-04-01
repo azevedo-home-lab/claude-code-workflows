@@ -22,7 +22,7 @@ _classify_tool() {
         cmd=$(echo "$input" | jq -r '.tool_input.command // ""' 2>/dev/null) || cmd=""
 
         # Phase transitions: user-set-phase.sh or agent_set_phase via workflow-cmd.sh
-        if echo "$cmd" | grep -qE '(^|/)user-set-phase\.sh'; then
+        if echo "$cmd" | grep -qE 'user-set-phase\.sh'; then
             echo "phase-transition"
             return
         fi
@@ -31,7 +31,7 @@ _classify_tool() {
             return
         fi
         # Also match agent-set-phase.sh directly (sourced by workflow-cmd.sh)
-        if echo "$cmd" | grep -qE '(^|/)agent-set-phase\.sh'; then
+        if echo "$cmd" | grep -qE 'agent-set-phase\.sh'; then
             echo "phase-transition"
             return
         fi

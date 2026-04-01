@@ -102,13 +102,7 @@ _run_l2() {
     if [ -n "$trigger" ] && [ -n "$l2_msg" ]; then
         if [ "$(has_coaching_fired "$trigger")" != "true" ]; then
             add_coaching_fired "$trigger"
-            if [ -n "$MESSAGES" ]; then
-                MESSAGES="$MESSAGES
-
-$l2_msg"
-            else
-                MESSAGES="$l2_msg"
-            fi
+            _append_msg "$l2_msg"
             _log "[WFM coach] L2: nudges/$trigger.md — ${l2_msg_body:0:80}..."
         else
             _log "[WFM coach] L2: trigger=$trigger — already fired, skipped"
@@ -131,14 +125,7 @@ $l2_msg"
                     findings_body=$(load_message "nudges/findings_present_review.md")
                     [ -n "$findings_body" ] && _log "[WFM coach] L2: nudges/findings_present_review.md — ${findings_body:0:80}..."
                     if [ -n "$findings_body" ]; then
-                        local findings_msg="[Workflow Coach — REVIEW] $findings_body"
-                        if [ -n "$MESSAGES" ]; then
-                            MESSAGES="$MESSAGES
-
-$findings_msg"
-                        else
-                            MESSAGES="$findings_msg"
-                        fi
+                        _append_msg "[Workflow Coach — REVIEW] $findings_body"
                     fi
                 fi
             fi

@@ -6,7 +6,7 @@
 # See LICENSE for details.
 
 # L1 Phase coaching loader — builds the coaching message for a phase transition.
-# Called by user-set-phase.sh and agent-set-phase.sh at transition time.
+# Called by l1/post-tool-delivery.sh via PostToolUse hook.
 
 [ -n "${_WFM_PHASE_COACHING_LOADED:-}" ] && return 0
 _WFM_PHASE_COACHING_LOADED=1

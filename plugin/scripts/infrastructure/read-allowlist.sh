@@ -85,7 +85,7 @@ _is_single_cmd_allowed() {
         true|false|test|"["|"[[") return 0 ;;
 
         # Workflow commands
-        workflow-cmd.sh|workflow-facade.sh|workflow-state.sh) return 0 ;;
+        workflow-cmd.sh|workflow-facade.sh) return 0 ;;
 
         # Git — check subcommand
         git)

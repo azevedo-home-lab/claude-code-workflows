@@ -31,7 +31,6 @@ OLD_HOOK_FILES=(
     "bash-write-guard.sh"
     "post-tool-navigator.sh"
     "workflow-cmd.sh"
-    "workflow-state.sh"
 )
 
 echo ""

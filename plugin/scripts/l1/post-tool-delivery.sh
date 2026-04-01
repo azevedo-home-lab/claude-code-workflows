@@ -41,13 +41,7 @@ _deliver_l1() {
     fi
 
     # Append to MESSAGES (same variable L2/L3 use)
-    if [ -n "$MESSAGES" ]; then
-        MESSAGES="$MESSAGES
-
-$l1_content"
-    else
-        MESSAGES="$l1_content"
-    fi
+    _append_msg "$l1_content"
 
     # Mark as delivered so L2 can start firing
     _update_state '.message_shown = true'

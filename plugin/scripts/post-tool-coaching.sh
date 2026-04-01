@@ -27,6 +27,9 @@ _PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null
 COACHING_DIR="$_PROJECT_ROOT/plugin/coaching"
 PHASES_DIR="$_PROJECT_ROOT/plugin/phases"
 
+# Shared pattern for test command detection (used by L2/L3)
+_TEST_CMD_REGEX='(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'
+
 # Validate coaching directory exists — silent degradation if misconfigured
 if [ ! -d "$COACHING_DIR" ]; then
     exit 0
@@ -43,7 +46,7 @@ load_message() {
     local msg
     msg=$(cat "$file")
     if [ -n "${2:-}" ]; then
-        msg=$(echo "$msg" | sed "s/{{PHASE}}/$2/g")
+        msg="${msg//\{\{PHASE\}\}/$2}"
     fi
     echo "$msg"
 }
@@ -94,6 +97,17 @@ source "$SCRIPT_DIR/infrastructure/debug-log.sh" "post-tool-coaching"
 # Collect messages from all layers
 MESSAGES=""
 
+# Helper: append content to MESSAGES with blank-line separator
+_append_msg() {
+    if [ -n "$MESSAGES" ]; then
+        MESSAGES="$MESSAGES
+
+$1"
+    else
+        MESSAGES="$1"
+    fi
+}
+
 # Compute uppercased phase once for all layers
 PHASE_UPPER=$(echo "$PHASE" | tr '[:lower:]' '[:upper:]')
 _log "[WFM coach] Tool: $TOOL_NAME (phase=$PHASE_UPPER)"
@@ -136,11 +150,13 @@ case "$tool_type" in
         ;;
 
     coaching-participant)
-        # Extract FILE_PATH for Write/Edit/MultiEdit (used by L2/L3 checks)
+        # Extract FILE_PATH and IS_WRITE_TOOL for Write/Edit/MultiEdit (used by L2/L3 checks)
         FILE_PATH=""
+        IS_WRITE_TOOL=false
         case "$TOOL_NAME" in
             Write|Edit|MultiEdit)
                 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null) || FILE_PATH=""
+                IS_WRITE_TOOL=true
                 ;;
         esac
 
@@ -182,15 +198,7 @@ case "$tool_type" in
             fi
         done
 
-        if [ -n "$L3_MSG" ]; then
-            if [ -n "$MESSAGES" ]; then
-                MESSAGES="$MESSAGES
-
-$L3_MSG"
-            else
-                MESSAGES="$L3_MSG"
-            fi
-        fi
+        [ -n "$L3_MSG" ] && _append_msg "$L3_MSG"
 
         _log "[WFM coach] L3: fired=[${_L3_CHECKS_FIRED:- none}]"
 
