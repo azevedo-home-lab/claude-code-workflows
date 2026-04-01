@@ -15,7 +15,6 @@ _WFM_PHASE_COACHING_LOADED=1
 # Outputs: objective + phase instructions + auto-transition guidance (if auto).
 # Args: $1 = phase name, $2 = autonomy level
 # Uses: PROJECT_ROOT (must be set by caller)
-#       _WFM_DEBUG_LEVEL (set by debug-log.sh, must be sourced before calling)
 _emit_phase_coaching() {
     local phase="$1"
     local autonomy="${2:-ask}"
@@ -65,10 +64,5 @@ $(cat "$auto_file")"
 
     if [ -n "$msg" ]; then
         echo "$msg"
-        if [ "${_WFM_DEBUG_LEVEL:-}" = "show" ]; then
-            local line_count
-            line_count=$(echo "$msg" | wc -l | tr -d ' ')
-            echo "[WFM coach] L1: ${line_count} coaching lines emitted for $phase" >&2
-        fi
     fi
 }
