@@ -589,14 +589,33 @@ _is_allowed_readonly() {
         if ! _is_single_cmd_allowed "$segment"; then
             return 1
         fi
-    done < <(echo "$cmd" | sed 's/&&/\n/g; s/||/\n/g; s/;/\n/g')
+    done < <(echo "$cmd" | sed 's/&&/\n/g; s/||/\n/g; s/;/\n/g; s/|/\n/g')
 
     return 0
 }
 
+# Check if a single (non-chained, non-piped) command contains a redirect to a file.
+# Returns 0 if redirect found (should deny), 1 if no redirect.
+_has_file_redirect() {
+    local cmd="$1"
+    # Strip safe redirects (2>/dev/null, 2>&1, etc.) before checking
+    local clean
+    clean=$(echo "$cmd" | sed -E 's/[0-9]+>\/dev\/null//g; s/[0-9]*>&[0-9]+//g; s/>>[[:space:]]*\/dev\/null//g; s/>[[:space:]]*\/dev\/null//g')
+    # Check for remaining > or >> (file redirects)
+    echo "$clean" | grep -qE '(>[^&]|>>)'
+}
+
 # Check if a single (non-chained) command is allowed.
 # Extracts the first command word, strips path prefixes.
+# Also rejects commands with file redirects (> or >>).
 _is_single_cmd_allowed() {
+    local cmd="$1"
+
+    # Reject any command with file redirects — even allowed commands
+    # cannot write to files via > or >> in allowlist phases
+    if _has_file_redirect "$cmd"; then
+        return 1
+    fi
     local cmd="$1"
 
     # Extract first word, strip path prefix (e.g., /usr/bin/git → git)
@@ -736,9 +755,9 @@ _is_allowed_readonly 'git log --oneline' && echo "allow" || echo "deny"
 _is_allowed_readonly 'jq .phase .claude/state/workflow.json' && echo "allow" || echo "deny"
 # Expected: allow
 
-# Writes should be denied
+# Writes should be denied — redirect detection catches allowed commands writing to files
 _is_allowed_readonly 'echo "x" > file' && echo "allow" || echo "deny"
-# Expected: deny (echo is allowed but ">" makes it a chain split issue... actually echo is allowed as single cmd)
+# Expected: deny (echo is allowed but _has_file_redirect catches the >)
 
 # Chained: all segments must be allowed
 _is_allowed_readonly 'cat file && wc -l' && echo "allow" || echo "deny"
@@ -746,6 +765,10 @@ _is_allowed_readonly 'cat file && wc -l' && echo "allow" || echo "deny"
 
 _is_allowed_readonly 'cat file && rm -rf /' && echo "allow" || echo "deny"
 # Expected: deny
+
+# Pipe to writer should be denied (pipe is split)
+_is_allowed_readonly 'cat file | tee output.txt' && echo "allow" || echo "deny"
+# Expected: deny (tee is not on allowlist)
 
 # sed -i should be denied
 _is_allowed_readonly 'sed -i "s/old/new/" file.txt' && echo "allow" || echo "deny"
@@ -800,8 +823,8 @@ Replace the entire file with:
 set -euo pipefail
 
 # --- Preamble: shared hook bootstrap ---
-source "$(${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/scripts/infrastructure/hook-preamble.sh)" "workflow-gate" 2>/dev/null \
-    || { SCRIPT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/scripts"; source "$SCRIPT_DIR/infrastructure/hook-preamble.sh" "workflow-gate" || exit 0; }
+SCRIPT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/scripts"
+source "$SCRIPT_DIR/infrastructure/hook-preamble.sh" "workflow-gate" || exit 0
 
 source "$SCRIPT_DIR/infrastructure/deny-messages.sh"
 
