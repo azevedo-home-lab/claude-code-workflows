@@ -8,9 +8,9 @@
 # Setup hook — runs on first plugin activation (Setup hook in hooks.json).
 # Responsibilities:
 #   A. Project state initialization (workflow.json + .gitignore)
-#   B. Plugin cache version sync
+#   B. Plugin updates (claude plugin update for all dependencies)
 #   C. Global statusline installation (~/.claude/statusline.sh + settings.json)
-#   D. Project hooks (symlinks + settings.json registration)
+#   D. Project hooks registration (settings.json)
 #   E. Project permissions (ensure tools needed for unattended operation are allowed)
 
 set -euo pipefail
@@ -130,33 +130,10 @@ if [ -f "$STATUSLINE_SRC" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# D. Project hooks — ensure all plugin hooks are registered in settings.json
+# D. Project hooks — ensure hooks are registered in settings.json
 # ─────────────────────────────────────────────────────────────────────────────
 # Claude Code reads hooks from .claude/settings.json, NOT from plugin/hooks/hooks.json.
-# This section creates symlinks and registers hooks so the plugin's hook scripts fire.
-
-HOOKS_DIR="$PROJECT_DIR/.claude/hooks"
-mkdir -p "$HOOKS_DIR"
-
-# Create symlinks for all plugin hook scripts (idempotent)
-# Uses glob instead of hardcoded list so new scripts are automatically included.
-# setup.sh is excluded — it runs from the plugin root, not from .claude/hooks/.
-for script_path in "$PLUGIN_ROOT"/scripts/*.sh; do
-  script=$(basename "$script_path")
-  [ "$script" = "setup.sh" ] && continue
-  if [ ! -e "$HOOKS_DIR/$script" ]; then
-    ln -s "../../plugin/scripts/$script" "$HOOKS_DIR/$script"
-  fi
-done
-
-# Symlink script subdirectories (e.g., checks/) — coaching check modules
-for subdir in "$PLUGIN_ROOT"/scripts/*/; do
-  [ -d "$subdir" ] || continue
-  dirname=$(basename "$subdir")
-  if [ ! -e "$HOOKS_DIR/$dirname" ]; then
-    ln -s "../../plugin/scripts/$dirname" "$HOOKS_DIR/$dirname"
-  fi
-done
+# Hook scripts live in .claude/hooks/ as committed files (no symlinks).
 
 # Register hooks in settings.json via jq (idempotent — only adds missing hooks)
 PROJECT_SETTINGS="$PROJECT_DIR/.claude/settings.json"
@@ -180,22 +157,7 @@ if [ -f "$PROJECT_SETTINGS" ]; then
 fi || true
 
 # ─────────────────────────────────────────────────────────────────────────────
-# E. Project commands — copy plugin commands to .claude/commands/
-# ─────────────────────────────────────────────────────────────────────────────
-# Plugin commands are namespaced (/plugin-name:cmd), but users expect bare /cmd.
-# Copying (not symlinking) to .claude/commands/ gives bare names and survives
-# fresh installs. Files are always overwritten to stay in sync with source.
-
-COMMANDS_DIR="$PROJECT_DIR/.claude/commands"
-mkdir -p "$COMMANDS_DIR"
-
-for cmd_file in "$SOURCE_ROOT/commands/"*.md; do
-  [ -f "$cmd_file" ] || continue
-  cp "$cmd_file" "$COMMANDS_DIR/$(basename "$cmd_file")"
-done
-
-# ─────────────────────────────────────────────────────────────────────────────
-# F. Project permissions — ensure tools needed for workflow pipeline are allowed
+# E. Project permissions — ensure tools needed for workflow pipeline are allowed
 # ─────────────────────────────────────────────────────────────────────────────
 
 # The workflow pipeline (hooks, coaching, COMPLETE agents) needs these tools
