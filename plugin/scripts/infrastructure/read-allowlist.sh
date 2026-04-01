@@ -1,4 +1,10 @@
 #!/bin/bash
+# Copyright (C) 2026 azevedo-home-lab
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# This file is part of Claude Code Workflows.
+# See LICENSE for details.
+
 # Read-only command allowlist for DEFINE/DISCUSS/ERROR phases.
 # Commands not on this list are denied. This closes the regex arms race
 # by defaulting to deny instead of trying to detect every write vector.
@@ -47,7 +53,6 @@ _is_single_cmd_allowed() {
     if _has_file_redirect "$cmd"; then
         return 1
     fi
-    local cmd="$1"
 
     # Extract first word, strip path prefix (e.g., /usr/bin/git → git)
     local first_word

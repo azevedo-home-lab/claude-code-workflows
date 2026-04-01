@@ -1,4 +1,10 @@
 #!/bin/bash
+# Copyright (C) 2026 azevedo-home-lab
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# This file is part of Claude Code Workflows.
+# See LICENSE for details.
+
 # Shared hook bootstrap — sourced by PreToolUse hooks.
 # Sets up: SCRIPT_DIR, PROJECT_ROOT, PHASE, _log(), _show()
 # Returns early (return 1) if no enforcement needed (no state file or off phase).

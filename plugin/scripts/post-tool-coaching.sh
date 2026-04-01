@@ -99,7 +99,7 @@ fi
 
 # Read debug flag once for all layers
 DEBUG_MODE=$(get_debug)
-source "$SCRIPT_DIR/infrastructure/debug-log.sh" "post-tool-navigator"
+source "$SCRIPT_DIR/infrastructure/debug-log.sh" "post-tool-coaching"
 
 # Collect debug trace for systemMessage injection (show mode only).
 # _trace() logs via _show (file + stderr) AND collects into DEBUG_TRACE

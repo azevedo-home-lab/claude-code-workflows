@@ -104,7 +104,7 @@ if [ -f "$SOURCE_PLUGIN_JSON" ] && [ -d "$CACHE_DIR" ]; then
 
     for dir in agents config statusline; do
       if [ -d "$SOURCE_ROOT/$dir" ]; then
-        rm -rf "$CACHE_DIR/$SOURCE_VERSION/$dir"
+        [ -n "$CACHE_DIR" ] && [ -n "$SOURCE_VERSION" ] && [ -n "$dir" ] && rm -rf "$CACHE_DIR/$SOURCE_VERSION/$dir"
         cp -r "$SOURCE_ROOT/$dir" "$CACHE_DIR/$SOURCE_VERSION/$dir"
       fi
     done
@@ -115,7 +115,7 @@ if [ -f "$SOURCE_PLUGIN_JSON" ] && [ -d "$CACHE_DIR" ]; then
     [ -d "$old_dir" ] || continue
     old_ver=$(basename "$old_dir")
     [ "$old_ver" = "$SOURCE_VERSION" ] && continue
-    rm -rf "$old_dir"
+    [[ "$old_dir" == "$CACHE_DIR"/* ]] && rm -rf "$old_dir"
   done
 fi
 

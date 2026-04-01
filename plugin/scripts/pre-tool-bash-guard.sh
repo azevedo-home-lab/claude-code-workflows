@@ -84,7 +84,7 @@ if echo "$COMMAND" | grep -qE '(^|[;&|[:space:]])(\\./|source[[:space:]]|bash[[:
 fi
 
 # --- Guard-system write protection (ALL phases including implement/review) ---
-GUARD_SYSTEM_PATTERN='(\.claude/hooks/|plugin/scripts/|plugin/commands/)'
+GUARD_SYSTEM_PATTERN='(\.claude/hooks/|(^|[^a-z-])plugin/scripts/|(^|[^a-z-])plugin/commands/)'
 if echo "$COMMAND" | grep -qE "$GUARD_SYSTEM_PATTERN"; then
     if _detect_write_operation "$COMMAND"; then
         _log "DENY: write to enforcement file"
