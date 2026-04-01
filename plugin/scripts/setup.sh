@@ -36,10 +36,20 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null |
 # SOURCE_ROOT: the authoritative plugin source directory.
 # When developing locally, $PROJECT_DIR/plugin/ IS the source — prefer it over
 # the cache ($PLUGIN_ROOT) so that edits to source files take effect immediately.
-if [ -f "$PROJECT_DIR/plugin/.claude-plugin/plugin.json" ]; then
+# plugin.json lives at repo root (.claude-plugin/), not inside plugin/.
+if [ -d "$PROJECT_DIR/plugin/scripts" ]; then
   SOURCE_ROOT="$PROJECT_DIR/plugin"
 else
   SOURCE_ROOT="$PLUGIN_ROOT"
+fi
+
+# PLUGIN_JSON: version metadata lives at repo root, not inside plugin/
+if [ -f "$PROJECT_DIR/.claude-plugin/plugin.json" ]; then
+  SOURCE_PLUGIN_JSON="$PROJECT_DIR/.claude-plugin/plugin.json"
+elif [ -f "$SOURCE_ROOT/.claude-plugin/plugin.json" ]; then
+  SOURCE_PLUGIN_JSON="$SOURCE_ROOT/.claude-plugin/plugin.json"
+else
+  SOURCE_PLUGIN_JSON=""
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -86,16 +96,50 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # B. Plugin updates — keep all plugins at latest version
 # ─────────────────────────────────────────────────────────────────────────────
-# Claude Code doesn't auto-update plugins. Run `claude plugin update` for
-# each dependency so installed_plugins.json and the cache stay current.
+# Claude Code doesn't auto-update plugins. Update external dependencies via
+# `claude plugin update`. For workflow-manager itself, sync the cache directly
+# from SOURCE_ROOT since the marketplace resolver doesn't pick up new versions.
 
 if command -v claude &>/dev/null; then
   for plugin in \
-    "workflow-manager@azevedo-home-lab" \
     "superpowers@superpowers-marketplace" \
     "claude-mem@thedotmack"; do
     claude plugin update "$plugin" 2>/dev/null || true
   done
+fi
+
+# Sync workflow-manager cache from local source
+INSTALLED_PLUGINS="$HOME/.claude/plugins/installed_plugins.json"
+WM_CACHE_DIR="$HOME/.claude/plugins/cache/azevedo-home-lab/workflow-manager"
+
+if [ -n "$SOURCE_PLUGIN_JSON" ] && [ -f "$INSTALLED_PLUGINS" ]; then
+  SOURCE_VERSION=$(jq -r '.version // ""' "$SOURCE_PLUGIN_JSON" 2>/dev/null)
+
+  if [ -n "$SOURCE_VERSION" ]; then
+    # Update cache directory with current source
+    mkdir -p "$WM_CACHE_DIR/$SOURCE_VERSION"
+    cp -r "$SOURCE_ROOT"/* "$WM_CACHE_DIR/$SOURCE_VERSION/"
+    mkdir -p "$WM_CACHE_DIR/$SOURCE_VERSION/.claude-plugin"
+    cp "$SOURCE_PLUGIN_JSON" "$WM_CACHE_DIR/$SOURCE_VERSION/.claude-plugin/plugin.json"
+
+    # Remove stale cache versions
+    for old_dir in "$WM_CACHE_DIR"/*/; do
+      [ -d "$old_dir" ] || continue
+      [ "$(basename "$old_dir")" = "$SOURCE_VERSION" ] && continue
+      rm -rf "$old_dir"
+    done
+
+    # Update installed_plugins.json to reflect current version, path, and commit
+    CURRENT_SHA=$(git -C "$PROJECT_DIR" rev-parse HEAD 2>/dev/null || echo "")
+    jq --arg ver "$SOURCE_VERSION" \
+       --arg path "$WM_CACHE_DIR/$SOURCE_VERSION" \
+       --arg now "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
+       --arg sha "$CURRENT_SHA" \
+      '(.plugins["workflow-manager@azevedo-home-lab"] // []) |= map(
+        .version = $ver | .installPath = $path | .lastUpdated = $now | .gitCommitSha = $sha
+      )' "$INSTALLED_PLUGINS" > "$INSTALLED_PLUGINS.tmp" \
+      && mv "$INSTALLED_PLUGINS.tmp" "$INSTALLED_PLUGINS"
+  fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
