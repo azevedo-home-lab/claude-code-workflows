@@ -42,7 +42,7 @@ state-io.sh          ← no deps (base)
 phase.sh             ← state-io
 settings.sh          ← state-io
 debug-log.sh         ← no deps (configured by caller via DEBUG_MODE)
-deny-messages.sh     ← state-io (for emit_deny)
+deny-messages.sh     ← no deps (emit_deny is self-contained; state-io re-exports for compat)
 hook-preamble.sh     ← state-io, phase, settings, debug-log
 read-allowlist.sh    ← no deps (pure function)
 write-patterns.sh    ← no deps (pure function)
@@ -157,7 +157,6 @@ Contexts: "write" (for write-gate), "bash-write" (for bash-guard write detection
                             _phase_deny_message → emit_deny
     - COMPLETE:            _check_gh_command → allow/deny
                             rm .claude/tmp/ check → allow
-                            Guard-system path check → deny if write to enforcement files
                             _detect_write_operation → deny if match, then whitelist check
                             Allow (no write pattern detected = read-only)
 ```
