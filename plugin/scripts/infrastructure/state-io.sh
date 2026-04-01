@@ -77,7 +77,7 @@ COMPLETE_WRITE_WHITELIST='(\.claude/state/|\.claude-plugin/|docs/|^[^/]*\.md$)'
 # ---------------------------------------------------------------------------
 
 # emit_deny moved to deny-messages.sh. Re-export for backward compatibility.
-SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+# Use BASH_SOURCE to resolve path relative to this file, not caller's SCRIPT_DIR.
 if [ -z "${_WFM_DENY_MESSAGES_LOADED:-}" ]; then
-    source "$SCRIPT_DIR/deny-messages.sh"
+    source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/deny-messages.sh"
 fi

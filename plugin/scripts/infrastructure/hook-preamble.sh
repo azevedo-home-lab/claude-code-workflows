@@ -1,7 +1,7 @@
 #!/bin/bash
 # Shared hook bootstrap — sourced by PreToolUse hooks.
 # Sets up: SCRIPT_DIR, PROJECT_ROOT, PHASE, _log(), _show()
-# Returns early (return 0) if no enforcement needed (no state file or off phase).
+# Returns early (return 1) if no enforcement needed (no state file or off phase).
 # No include guard — must run fresh each invocation.
 #
 # Usage: source hook-preamble.sh "caller-name" || exit 0
@@ -20,14 +20,14 @@ _log() { :; }
 
 # No state file = no enforcement
 if [ ! -f "$STATE_FILE" ]; then
-    return 0
+    return 1
 fi
 
 PHASE=$(get_phase)
 
 # OFF phase: no enforcement
 if [ "$PHASE" = "off" ]; then
-    return 0
+    return 1
 fi
 
 # Debug mode (read after OFF exit to avoid unnecessary jq call)
