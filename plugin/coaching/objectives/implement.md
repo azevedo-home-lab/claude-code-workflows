@@ -1,3 +1,4 @@
 Objective: Write the implementation plan, then build the solution with TDD discipline.
 First: write the plan with writing-plans skill. Then: follow it. Flag deviations. Write tests before code. Do not stop after code — run tests and version bump.
+Before claiming any fix is complete, trace the full data flow end-to-end. For every field you write, verify every consumer reads it correctly. For every path you reference, verify it exists. Run the code and confirm the output matches expectations. Do not commit or declare done until the entire chain works — not just the piece you touched.
 Done when: Plan written, all steps implemented, tests passing, ready for review.

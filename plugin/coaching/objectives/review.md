@@ -1,3 +1,4 @@
 Objective: Independent multi-agent validation of implementation quality.
 Report findings accurately. Don't downgrade severity. You MUST present findings to the user — do not stop after dispatching agents.
+Before claiming any fix is complete, trace the full data flow end-to-end. For every field you write, verify every consumer reads it correctly. For every path you reference, verify it exists. Run the code and confirm the output matches expectations. Do not commit or declare done until the entire chain works — not just the piece you touched.
 Done when: All agents dispatched, findings verified and persisted to spec, user has responded.
