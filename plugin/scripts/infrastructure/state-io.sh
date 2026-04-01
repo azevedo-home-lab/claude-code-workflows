@@ -76,18 +76,8 @@ COMPLETE_WRITE_WHITELIST='(\.claude/state/|\.claude-plugin/|docs/|^[^/]*\.md$)'
 # Shared hook helpers
 # ---------------------------------------------------------------------------
 
-# Emit a PreToolUse deny JSON response. Used by pre-tool-write-gate.sh and pre-tool-bash-guard.sh.
-# Outputs JSON to stdout (Claude Code hook protocol) and reason to stderr (user visibility).
-# Usage: emit_deny "reason message"
-emit_deny() {
-    local reason="$1"
-    local caller="${_WFM_DEBUG_CALLER:-unknown-hook}"
-    echo "[WFM $caller] $reason" >&2
-    jq -n --arg reason "$reason" '{
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": $reason
-        }
-    }'
-}
+# emit_deny moved to deny-messages.sh. Re-export for backward compatibility.
+SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+if [ -z "${_WFM_DENY_MESSAGES_LOADED:-}" ]; then
+    source "$SCRIPT_DIR/deny-messages.sh"
+fi
