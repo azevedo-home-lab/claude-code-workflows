@@ -32,6 +32,15 @@ else
 fi
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
+# SOURCE_ROOT: the authoritative plugin source directory.
+# When developing locally, $PROJECT_DIR/plugin/ IS the source — prefer it over
+# the cache ($PLUGIN_ROOT) so that edits to source files take effect immediately.
+if [ -f "$PROJECT_DIR/plugin/.claude-plugin/plugin.json" ]; then
+  SOURCE_ROOT="$PROJECT_DIR/plugin"
+else
+  SOURCE_ROOT="$PLUGIN_ROOT"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # A. Project state initialization
 # ─────────────────────────────────────────────────────────────────────────────
@@ -80,30 +89,23 @@ fi
 # the cache when the source repo bumps its version. Sync the cache so the
 # statusline displays the correct version.
 
-SOURCE_PLUGIN_JSON="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+SOURCE_PLUGIN_JSON="$SOURCE_ROOT/.claude-plugin/plugin.json"
 CACHE_DIR="$HOME/.claude/plugins/cache/azevedo-home-lab/workflow-manager"
 
 if [ -f "$SOURCE_PLUGIN_JSON" ] && [ -d "$CACHE_DIR" ]; then
   SOURCE_VERSION=$(jq -r '.version // ""' "$SOURCE_PLUGIN_JSON" 2>/dev/null)
   CACHED_VERSION=$(ls -1 "$CACHE_DIR" 2>/dev/null | sort -V | tail -1)
 
-  if [ -n "$SOURCE_VERSION" ] && [ "$SOURCE_VERSION" != "$CACHED_VERSION" ]; then
-    # Create new version directory in cache with current plugin content
+  # Always refresh the current version's key directories from SOURCE_ROOT.
+  # This ensures local edits propagate to cache even when versions match.
+  if [ -n "$SOURCE_VERSION" ]; then
     mkdir -p "$CACHE_DIR/$SOURCE_VERSION/.claude-plugin"
     cp "$SOURCE_PLUGIN_JSON" "$CACHE_DIR/$SOURCE_VERSION/.claude-plugin/plugin.json"
-    # Copy other cached content from old version if available
-    if [ -d "$CACHE_DIR/$CACHED_VERSION" ]; then
-      for item in "$CACHE_DIR/$CACHED_VERSION"/*; do
-        entry=$(basename "$item")
-        [ "$entry" = ".claude-plugin" ] && continue
-        [ ! -e "$CACHE_DIR/$SOURCE_VERSION/$entry" ] && cp -r "$item" "$CACHE_DIR/$SOURCE_VERSION/$entry"
-      done
-    fi
-    # Always refresh key directories from source (overrides stale copies from old cache)
+
     for dir in agents config statusline; do
-      if [ -d "$PLUGIN_ROOT/$dir" ]; then
+      if [ -d "$SOURCE_ROOT/$dir" ]; then
         rm -rf "$CACHE_DIR/$SOURCE_VERSION/$dir"
-        cp -r "$PLUGIN_ROOT/$dir" "$CACHE_DIR/$SOURCE_VERSION/$dir"
+        cp -r "$SOURCE_ROOT/$dir" "$CACHE_DIR/$SOURCE_VERSION/$dir"
       fi
     done
   fi
@@ -121,7 +123,7 @@ fi
 # C. Global statusline installation
 # ─────────────────────────────────────────────────────────────────────────────
 
-STATUSLINE_SRC="$PLUGIN_ROOT/statusline/statusline.sh"
+STATUSLINE_SRC="$SOURCE_ROOT/statusline/statusline.sh"
 STATUSLINE_DST="$HOME/.claude/statusline.sh"
 GLOBAL_SETTINGS="$HOME/.claude/settings.json"
 
@@ -200,18 +202,18 @@ if [ -f "$PROJECT_SETTINGS" ]; then
 fi || true
 
 # ─────────────────────────────────────────────────────────────────────────────
-# E. Project commands — symlink plugin commands to .claude/commands/
+# E. Project commands — copy plugin commands to .claude/commands/
 # ─────────────────────────────────────────────────────────────────────────────
+# Plugin commands are namespaced (/plugin-name:cmd), but users expect bare /cmd.
+# Copying (not symlinking) to .claude/commands/ gives bare names and survives
+# fresh installs. Files are always overwritten to stay in sync with source.
 
 COMMANDS_DIR="$PROJECT_DIR/.claude/commands"
 mkdir -p "$COMMANDS_DIR"
 
-# Install all plugin command files as symlinks (idempotent, self-healing)
-# Uses ln -sf to fix stale/incorrect symlinks on re-run
-for cmd_file in "$PLUGIN_ROOT/commands/"*.md; do
+for cmd_file in "$SOURCE_ROOT/commands/"*.md; do
   [ -f "$cmd_file" ] || continue
-  cmd_name=$(basename "$cmd_file")
-  ln -sf "../../plugin/commands/$cmd_name" "$COMMANDS_DIR/$cmd_name"
+  cp "$cmd_file" "$COMMANDS_DIR/$(basename "$cmd_file")"
 done
 
 # ─────────────────────────────────────────────────────────────────────────────

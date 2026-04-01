@@ -1,1 +1,8 @@
-../../plugin/commands/obs-untrack.md
+---
+description: Stop tracking an observation ID in the workflow status line
+---
+!`"${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/plugin}"/scripts/workflow-cmd.sh remove_tracked_observation "$ARGUMENTS" && echo "Stopped tracking observation #$ARGUMENTS"`
+
+Confirm to the user that observation #$ARGUMENTS is no longer tracked.
+
+If the output shows an error, report it. If $ARGUMENTS is empty, say: "Usage: /obs-untrack <observation-id>"

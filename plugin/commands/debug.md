@@ -18,7 +18,7 @@ Toggle WFM debug mode. Three levels control how much hook activity is visible.
 1. If no argument (`$ARGUMENTS` is empty), report current state:
 
 ```bash
-.claude/hooks/workflow-cmd.sh get_debug
+"${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/plugin}"/scripts/workflow-cmd.sh get_debug
 ```
 
 Report the result:
@@ -29,7 +29,7 @@ Report the result:
 2. If argument is `off`:
 
 ```bash
-.claude/hooks/workflow-cmd.sh set_debug "off"
+"${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/plugin}"/scripts/workflow-cmd.sh set_debug "off"
 ```
 
 Report: "Debug mode **disabled**."
@@ -37,7 +37,7 @@ Report: "Debug mode **disabled**."
 3. If argument is `on` or `log`:
 
 ```bash
-.claude/hooks/workflow-cmd.sh set_debug "log"
+"${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/plugin}"/scripts/workflow-cmd.sh set_debug "log"
 ```
 
 Report: "Debug mode set to **log**. Hook activity logged to `/tmp/wfm-*-debug.log`."
@@ -45,7 +45,7 @@ Report: "Debug mode set to **log**. Hook activity logged to `/tmp/wfm-*-debug.lo
 4. If argument is `show`:
 
 ```bash
-.claude/hooks/workflow-cmd.sh set_debug "show"
+"${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/plugin}"/scripts/workflow-cmd.sh set_debug "show"
 ```
 
 Report: "Debug mode set to **show**. All WFM gate/coach/phase decisions will appear inline in the conversation."
