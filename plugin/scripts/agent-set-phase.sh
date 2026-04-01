@@ -66,60 +66,17 @@ agent_set_phase() {
         return 1
     fi
 
-    # Read existing state to preserve fields across transitions.
-    local preserved_skill="" preserved_decision="" preserved_autonomy=""
-    local preserved_obs_id="" preserved_tracked=""
-    local preserved_issue_mappings="null"
-    local preserved_spec=""
-    local preserved_tests_passed=""
-    local preserved_debug=""
-    _read_preserved_state
-
-    # Clear active skill on phase transition
-    preserved_skill=""
-
-    # Build tracked observations as JSON array
-    local tracked_json="[]"
-    if [ -n "$preserved_tracked" ]; then
-        tracked_json=$(jq -n --arg csv "$preserved_tracked" '$csv | split(",") | map(select(. != "") | (tonumber? // empty))')
-    fi
-
-    # STATE SCHEMA CONTRACT: This template is duplicated in user-set-phase.sh.
-    # The duplication is deliberate — agent and user paths must not share transition code.
-    local ts
-    ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-
-    ( set -o pipefail
-      jq -n --arg phase "$new_phase" --arg ts "$ts" \
-          --arg skill "$preserved_skill" --arg decision "$preserved_decision" \
-          --arg autonomy "${preserved_autonomy}" \
-          --arg obs_id "$preserved_obs_id" \
-          --argjson tracked "$tracked_json" \
-          --argjson issue_maps "${preserved_issue_mappings:-null}" \
-          --arg spec "$preserved_spec" \
-          --arg tests_passed "$preserved_tests_passed" \
-          --arg debug "$preserved_debug" \
-          '{
-              phase: $phase,
-              message_shown: false,
-              active_skill: $skill,
-              plan_path: $decision,
-              spec_path: $spec,
-              coaching: {tool_calls_since_agent: 0, layer2_fired: []},
-              updated: $ts
-          }
-          + (if $autonomy != "" then {autonomy_level: $autonomy} else {} end)
-          + (if $obs_id != "" and $obs_id != "null" then {last_observation_id: ($obs_id | tonumber)} else {} end)
-          + (if ($tracked | length) > 0 then {tracked_observations: $tracked} else {} end)
-          + (if $issue_maps != null then {issue_mappings: $issue_maps} else {} end)
-          + (if $tests_passed != "" then {tests_last_passed_at: $tests_passed} else {} end)
-          + (if $debug != "" and $debug != "off" then {debug: $debug} else {} end)' \
-          | _safe_write
-    )
+    # In-place state update — only change what the transition requires.
+    # Everything else (debug, autonomy, tracked_observations, issue_mappings, etc.)
+    # survives automatically.
+    _update_state \
+        '.phase = $p | .message_shown = false | .active_skill = "" | .coaching = {tool_calls_since_agent: 0, layer2_fired: []}' \
+        --arg p "$new_phase" \
+        || { echo "ERROR: Failed to write state." >&2; return 1; }
 
     echo "Phase advanced to ${new_phase}. Re-evaluate."
 
     # Emit L1 coaching immediately at transition — not deferred to next tool call.
     PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
-    _emit_phase_coaching "$new_phase" "$preserved_autonomy"
+    _emit_phase_coaching "$new_phase" "$current_autonomy"
 }

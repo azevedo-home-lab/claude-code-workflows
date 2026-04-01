@@ -96,22 +96,6 @@ _check_phase_gates() {
     return 0
 }
 
-# Reads fields from current state that must be preserved across phase transitions.
-# Sets variables in the caller's scope (no `local` — writes to caller's declared locals).
-_read_preserved_state() {
-    if [ ! -f "$STATE_FILE" ]; then return; fi
-
-    preserved_skill=$(get_active_skill)
-    preserved_decision=$(get_plan_path)
-    preserved_autonomy=$(get_autonomy_level)
-    preserved_obs_id=$(get_last_observation_id)
-    preserved_tracked=$(get_tracked_observations)
-    preserved_issue_mappings=$(jq -c '.issue_mappings // null' "$STATE_FILE" 2>/dev/null) || preserved_issue_mappings="null"
-    preserved_spec=$(get_spec_path)
-    preserved_tests_passed=$(get_tests_passed_at)
-    preserved_debug=$(get_debug)
-}
-
 # Soft gate checks — return warning message or empty string
 check_soft_gate() {
     local target_phase="$1"
