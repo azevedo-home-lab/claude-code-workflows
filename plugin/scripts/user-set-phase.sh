@@ -49,10 +49,10 @@ if [ -f "$STATE_FILE" ]; then
 fi
 
 # Clearing off phase: reset cycle fields, keep last_observation_id for statusline
+# NOTE: preserved_autonomy is NEVER cleared — it's a user preference, not phase state.
 if [ "$new_phase" = "off" ]; then
     preserved_skill=""
     preserved_decision=""
-    preserved_autonomy=""
     preserved_tests_passed=""
     preserved_debug="off"
 else
@@ -60,8 +60,8 @@ else
     preserved_skill=""
 fi
 
-# Initialize autonomy to "ask" when starting a fresh cycle from off
-if [ "$current_phase" = "off" ] && [ "$new_phase" != "off" ] && [ -z "$preserved_autonomy" ]; then
+# Autonomy persists across cycles. Only default to "ask" if never set at all.
+if [ -z "$preserved_autonomy" ]; then
     preserved_autonomy="ask"
 fi
 
