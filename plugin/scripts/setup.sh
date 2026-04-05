@@ -84,14 +84,40 @@ if [ ! -f "$STATE_FILE" ]; then
   }' > "$STATE_FILE"
 fi
 
-# Add .claude/state/ to .gitignore if not already there
+# Ensure generated/runtime paths are in .gitignore.
+# .claude/settings.json is deliberately NOT gitignored — it holds team-sharable
+# project config (permissions, hook registrations) that should be committed.
 GITIGNORE="$PROJECT_DIR/.gitignore"
-if [ -f "$GITIGNORE" ]; then
-  if ! grep -qxF '.claude/state/' "$GITIGNORE"; then
-    printf '\n# Workflow Manager state (per-session, not committed)\n.claude/state/\n' >> "$GITIGNORE"
+_WFM_GITIGNORE_ENTRIES=(
+  ".claude/state/"
+  ".claude/hooks/"
+  ".claude/commands/"
+  ".claude/settings.local.json"
+)
+_WFM_GITIGNORE_ADDED=false
+for _entry in "${_WFM_GITIGNORE_ENTRIES[@]}"; do
+  if [ -f "$GITIGNORE" ]; then
+    if ! grep -qxF "$_entry" "$GITIGNORE"; then
+      _WFM_GITIGNORE_ADDED=true
+    fi
+  else
+    _WFM_GITIGNORE_ADDED=true
   fi
-else
-  printf '# Workflow Manager state (per-session, not committed)\n.claude/state/\n' > "$GITIGNORE"
+done
+if [ "$_WFM_GITIGNORE_ADDED" = true ]; then
+  _WFM_BLOCK=""
+  for _entry in "${_WFM_GITIGNORE_ENTRIES[@]}"; do
+    if ! { [ -f "$GITIGNORE" ] && grep -qxF "$_entry" "$GITIGNORE"; }; then
+      _WFM_BLOCK="${_WFM_BLOCK}${_entry}\n"
+    fi
+  done
+  if [ -n "$_WFM_BLOCK" ]; then
+    if [ -f "$GITIGNORE" ]; then
+      printf '\n# Workflow Manager — generated/runtime files (not committed)\n'"$_WFM_BLOCK" >> "$GITIGNORE"
+    else
+      printf '# Workflow Manager — generated/runtime files (not committed)\n'"$_WFM_BLOCK" > "$GITIGNORE"
+    fi
+  fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
