@@ -130,6 +130,30 @@ if [ "$_WFM_GITIGNORE_ADDED" = true ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
+# A2. Migration cleanup — remove stale hooks left by previous versions
+# ─────────────────────────────────────────────────────────────────────────────
+# Must run BEFORE plugin updates (section B) which can abort due to network
+# errors under set -euo pipefail, preventing later cleanup from executing.
+PROJECT_SETTINGS="$PROJECT_DIR/.claude/settings.json"
+HOOKS_DIR="$PROJECT_DIR/.claude/hooks"
+if [ -d "$HOOKS_DIR" ]; then
+  for hook in pre-tool-write-gate.sh pre-tool-bash-guard.sh post-tool-coaching.sh; do
+    rm -f "$HOOKS_DIR/$hook"
+  done
+  # Remove hooks dir if empty (may contain user's own hooks)
+  rmdir "$HOOKS_DIR" 2>/dev/null || true
+fi
+# Remove stale hook registrations from settings.json and settings.local.json
+for _settings_file in "$PROJECT_SETTINGS" "$PROJECT_DIR/.claude/settings.local.json"; do
+  if [ -f "$_settings_file" ]; then
+    if jq -e 'has("hooks")' "$_settings_file" &>/dev/null; then
+      jq 'del(.hooks)' "$_settings_file" > "$_settings_file.tmp" \
+        && mv "$_settings_file.tmp" "$_settings_file" || true
+    fi
+  fi
+done
+
+# ─────────────────────────────────────────────────────────────────────────────
 # B. Plugin updates — keep all plugins at latest version
 # ─────────────────────────────────────────────────────────────────────────────
 # Claude Code doesn't auto-update plugins or marketplace clones.
@@ -248,31 +272,8 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # Hooks are defined exclusively in plugin/hooks/hooks.json and auto-wired by
 # Claude Code, which sets CLAUDE_PLUGIN_ROOT at runtime. Scripts run directly
-# from the plugin cache. Copying to .claude/hooks/ and registering in
-# settings.json was the old approach — it broke because Claude Code does NOT
-# set CLAUDE_PLUGIN_ROOT for project hooks (settings.json), only for plugin
-# hooks (hooks.json). Symlinks were also rejected as fragile across environments.
-#
-# Migration cleanup: remove stale hook files and settings.json registrations
-# left by previous versions.
-PROJECT_SETTINGS="$PROJECT_DIR/.claude/settings.json"
-HOOKS_DIR="$PROJECT_DIR/.claude/hooks"
-if [ -d "$HOOKS_DIR" ]; then
-  for hook in pre-tool-write-gate.sh pre-tool-bash-guard.sh post-tool-coaching.sh; do
-    rm -f "$HOOKS_DIR/$hook"
-  done
-  # Remove hooks dir if empty (may contain user's own hooks)
-  rmdir "$HOOKS_DIR" 2>/dev/null || true
-fi
-# Remove stale hook registrations from settings.json and settings.local.json
-for _settings_file in "$PROJECT_SETTINGS" "$PROJECT_DIR/.claude/settings.local.json"; do
-  if [ -f "$_settings_file" ]; then
-    if jq -e 'has("hooks")' "$_settings_file" &>/dev/null; then
-      jq 'del(.hooks)' "$_settings_file" > "$_settings_file.tmp" \
-        && mv "$_settings_file.tmp" "$_settings_file" || true
-    fi
-  fi
-done
+# from the plugin cache. Migration cleanup moved to section A2 (before plugin
+# updates) to ensure it runs even when network calls in section B fail.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # D. Project commands — copy plugin commands to .claude/commands/
