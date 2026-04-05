@@ -17,7 +17,13 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/scripts"
+# Resolve SCRIPT_DIR from dev marker or plugin cache (not hardcoded project path).
+# See resolve-script-dir.sh for the resolution order and rationale.
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$CLAUDE_PLUGIN_ROOT/scripts/infrastructure/resolve-script-dir.sh" ]; then
+    source "$CLAUDE_PLUGIN_ROOT/scripts/infrastructure/resolve-script-dir.sh"
+else
+    source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/infrastructure/resolve-script-dir.sh"
+fi
 source "$SCRIPT_DIR/workflow-facade.sh"
 
 new_phase="${1:-}"

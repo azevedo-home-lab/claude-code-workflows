@@ -18,6 +18,10 @@
 # Temporary agent artifacts (cleaned up by COMPLETE pipeline)
 .claude/tmp/
 
+# Dev mode marker — enables live source loading instead of plugin cache.
+# See plugin/scripts/infrastructure/resolve-script-dir.sh for details.
+.claude-plugin/.dev
+
 # Git worktrees (isolated workspaces)
 .worktrees/
 

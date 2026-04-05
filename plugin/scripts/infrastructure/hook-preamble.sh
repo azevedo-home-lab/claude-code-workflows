@@ -14,7 +14,16 @@
 
 _PREAMBLE_CALLER="${1:-unknown}"
 
-SCRIPT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/scripts"
+# Resolve SCRIPT_DIR from dev marker or plugin cache (not hardcoded project path).
+# See resolve-script-dir.sh for the resolution order and rationale.
+# Try CLAUDE_PLUGIN_ROOT first (works from both plugin/ and .claude/hooks/ contexts),
+# fall back to BASH_SOURCE (works from plugin/scripts/infrastructure/ context).
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$CLAUDE_PLUGIN_ROOT/scripts/infrastructure/resolve-script-dir.sh" ]; then
+    source "$CLAUDE_PLUGIN_ROOT/scripts/infrastructure/resolve-script-dir.sh"
+else
+    source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/resolve-script-dir.sh"
+fi
+
 PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
 source "$SCRIPT_DIR/infrastructure/state-io.sh"

@@ -20,7 +20,13 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/scripts"
+# Resolve SCRIPT_DIR from dev marker or plugin cache (not hardcoded project path).
+# See resolve-script-dir.sh for the resolution order and rationale.
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$CLAUDE_PLUGIN_ROOT/scripts/infrastructure/resolve-script-dir.sh" ]; then
+    source "$CLAUDE_PLUGIN_ROOT/scripts/infrastructure/resolve-script-dir.sh"
+else
+    source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/infrastructure/resolve-script-dir.sh"
+fi
 source "$SCRIPT_DIR/workflow-facade.sh"
 
 # Initialize debug logging for state mutation visibility
@@ -32,7 +38,7 @@ source "$SCRIPT_DIR/infrastructure/debug-log.sh" "workflow-cmd"
 # ---------------------------------------------------------------------------
 dispatch_agent() {
     local agent_name="$1"
-    local agent_dir="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/agents"
+    local agent_dir="$PLUGIN_ASSETS_ROOT/agents"
     local agent_file="$agent_dir/${agent_name}.md"
     if [ ! -f "$agent_file" ]; then
         echo "ERROR: Agent file not found: $agent_file" >&2
@@ -51,7 +57,7 @@ dispatch_agent() {
 # ---------------------------------------------------------------------------
 resolve_skill() {
     local operation="$1"
-    local registry="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/config/skill-registry.json"
+    local registry="$PLUGIN_ASSETS_ROOT/config/skill-registry.json"
     if [ ! -f "$registry" ]; then
         echo "ERROR: Skill registry not found: $registry" >&2
         return 1

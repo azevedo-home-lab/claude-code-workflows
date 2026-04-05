@@ -34,10 +34,11 @@ fi
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
 # SOURCE_ROOT: the authoritative plugin source directory.
-# When developing locally, $PROJECT_DIR/plugin/ IS the source — prefer it over
-# the cache ($PLUGIN_ROOT) so that edits to source files take effect immediately.
-# plugin.json lives at repo root (.claude-plugin/), not inside plugin/.
-if [ -d "$PROJECT_DIR/plugin/scripts" ]; then
+# Dev mode (.claude-plugin/.dev marker): use the project's plugin/ directory as
+# the live source so that edits take effect immediately without cache refresh.
+# Production: use the cache ($PLUGIN_ROOT).
+# See infrastructure/resolve-script-dir.sh for the shared resolution logic.
+if [ -f "$PROJECT_DIR/.claude-plugin/.dev" ] && [ -d "$PROJECT_DIR/plugin/scripts" ]; then
   SOURCE_ROOT="$PROJECT_DIR/plugin"
 else
   SOURCE_ROOT="$PLUGIN_ROOT"

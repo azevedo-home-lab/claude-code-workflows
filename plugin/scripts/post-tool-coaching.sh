@@ -19,13 +19,21 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/scripts"
+# Resolve SCRIPT_DIR from dev marker or plugin cache (not hardcoded project path).
+# See resolve-script-dir.sh for the resolution order and rationale.
+# Try CLAUDE_PLUGIN_ROOT first (works from both plugin/ and .claude/hooks/ contexts),
+# fall back to BASH_SOURCE (works from plugin/scripts/ context only).
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$CLAUDE_PLUGIN_ROOT/scripts/infrastructure/resolve-script-dir.sh" ]; then
+    source "$CLAUDE_PLUGIN_ROOT/scripts/infrastructure/resolve-script-dir.sh"
+else
+    source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/infrastructure/resolve-script-dir.sh"
+fi
+
 source "$SCRIPT_DIR/workflow-facade.sh"
 source "$SCRIPT_DIR/infrastructure/tool-classifier.sh"
 
-_PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
-COACHING_DIR="$_PROJECT_ROOT/plugin/coaching"
-PHASES_DIR="$_PROJECT_ROOT/plugin/phases"
+COACHING_DIR="$PLUGIN_ASSETS_ROOT/coaching"
+PHASES_DIR="$PLUGIN_ASSETS_ROOT/phases"
 
 # Shared pattern for test command detection (used by L2/L3)
 _TEST_CMD_REGEX='(pytest|npm test|cargo test|make test|run-tests|jest|vitest|go test)'

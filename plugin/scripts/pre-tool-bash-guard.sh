@@ -14,8 +14,14 @@
 
 set -euo pipefail
 
-# --- Preamble: shared hook bootstrap ---
-SCRIPT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/plugin/scripts"
+# --- Preamble: shared hook bootstrap (resolves SCRIPT_DIR, PROJECT_ROOT, PHASE) ---
+# Bootstrap resolver: CLAUDE_PLUGIN_ROOT (always set by Claude Code hook runner),
+# then BASH_SOURCE fallback for manual invocation.
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$CLAUDE_PLUGIN_ROOT/scripts/infrastructure/resolve-script-dir.sh" ]; then
+    source "$CLAUDE_PLUGIN_ROOT/scripts/infrastructure/resolve-script-dir.sh"
+else
+    source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/infrastructure/resolve-script-dir.sh"
+fi
 source "$SCRIPT_DIR/infrastructure/hook-preamble.sh" "bash-write-guard" || exit 0
 
 source "$SCRIPT_DIR/infrastructure/deny-messages.sh"
