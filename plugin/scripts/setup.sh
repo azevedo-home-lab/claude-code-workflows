@@ -130,28 +130,14 @@ if [ "$_WFM_GITIGNORE_ADDED" = true ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# A2. Migration cleanup — remove stale hooks left by previous versions
+# A2. Project settings reference (used by section E for permissions)
 # ─────────────────────────────────────────────────────────────────────────────
-# Must run BEFORE plugin updates (section B) which can abort due to network
-# errors under set -euo pipefail, preventing later cleanup from executing.
+# Note: Claude Code materializes plugin hooks into .claude/hooks/ and
+# .claude/settings.json at session start. Previous versions tried to clean
+# these up, but the platform re-creates them immediately after setup.sh runs.
+# The hook scripts themselves now exit silently when run without infrastructure/
+# (the project-deployed copies), so the duplicate invocation is harmless.
 PROJECT_SETTINGS="$PROJECT_DIR/.claude/settings.json"
-HOOKS_DIR="$PROJECT_DIR/.claude/hooks"
-if [ -d "$HOOKS_DIR" ]; then
-  for hook in pre-tool-write-gate.sh pre-tool-bash-guard.sh post-tool-coaching.sh; do
-    rm -f "$HOOKS_DIR/$hook"
-  done
-  # Remove hooks dir if empty (may contain user's own hooks)
-  rmdir "$HOOKS_DIR" 2>/dev/null || true
-fi
-# Remove stale hook registrations from settings.json and settings.local.json
-for _settings_file in "$PROJECT_SETTINGS" "$PROJECT_DIR/.claude/settings.local.json"; do
-  if [ -f "$_settings_file" ]; then
-    if jq -e 'has("hooks")' "$_settings_file" &>/dev/null; then
-      jq 'del(.hooks)' "$_settings_file" > "$_settings_file.tmp" \
-        && mv "$_settings_file.tmp" "$_settings_file" || true
-    fi
-  fi
-done
 
 # ─────────────────────────────────────────────────────────────────────────────
 # B. Plugin updates — keep all plugins at latest version

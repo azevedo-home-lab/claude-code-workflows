@@ -19,6 +19,12 @@
 
 set -euo pipefail
 
+# Exit silently when running as a project-deployed copy (missing infrastructure/).
+# Claude Code materializes plugin hooks into .claude/hooks/ but without subdirectories,
+# so the real work is done by the plugin-scoped copy (which has CLAUDE_PLUGIN_ROOT set).
+_self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -z "${CLAUDE_PLUGIN_ROOT:-}" ] && [ ! -d "$_self_dir/infrastructure" ] && exit 0
+
 # Resolve SCRIPT_DIR from dev marker or plugin cache (not hardcoded project path).
 # See resolve-script-dir.sh for the resolution order and rationale.
 # Try CLAUDE_PLUGIN_ROOT first (works from both plugin/ and .claude/hooks/ contexts),

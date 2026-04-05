@@ -14,6 +14,12 @@
 
 set -euo pipefail
 
+# Exit silently when running as a project-deployed copy (missing infrastructure/).
+# Claude Code materializes plugin hooks into .claude/hooks/ but without subdirectories,
+# so the real work is done by the plugin-scoped copy (which has CLAUDE_PLUGIN_ROOT set).
+_self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -z "${CLAUDE_PLUGIN_ROOT:-}" ] && [ ! -d "$_self_dir/infrastructure" ] && exit 0
+
 # --- Preamble: shared hook bootstrap (resolves SCRIPT_DIR, PROJECT_ROOT, PHASE) ---
 # Bootstrap resolver: CLAUDE_PLUGIN_ROOT (always set by Claude Code hook runner),
 # then BASH_SOURCE fallback for manual invocation.
