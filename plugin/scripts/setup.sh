@@ -10,9 +10,18 @@
 #   A. Project state initialization (workflow.json + .gitignore)
 #   B. Plugin updates (claude plugin update for all dependencies)
 #   C. Global statusline installation (~/.claude/statusline.sh + settings.json)
-#   D. Project hooks (copy scripts to .claude/hooks/ + settings.json registration)
-#   E. Project commands (copy to .claude/commands/)
-#   F. Project permissions (ensure tools needed for unattended operation are allowed)
+#   D. Project commands (copy to .claude/commands/)
+#   E. Project permissions (ensure tools needed for unattended operation are allowed)
+#
+# Hook deployment strategy:
+#   Hooks are defined exclusively in plugin/hooks/hooks.json — Claude Code auto-wires
+#   them and sets CLAUDE_PLUGIN_ROOT at runtime, pointing to the plugin cache. Scripts
+#   run directly from the cache. No copies or symlinks are placed in .claude/hooks/.
+#   This avoids two broken alternatives:
+#     - Symlinks: fragile across environments, don't make sense for distributed plugins.
+#     - Copies in settings.json: Claude Code does NOT set CLAUDE_PLUGIN_ROOT for project
+#       hooks (only for plugin hooks), so scripts can't resolve their dependencies.
+#   Cache freshness is handled by section B (marketplace pull + version comparison).
 
 set -euo pipefail
 
@@ -86,11 +95,11 @@ fi
 
 # Ensure generated/runtime paths are in .gitignore.
 # .claude/settings.json is deliberately NOT gitignored — it holds team-sharable
-# project config (permissions, hook registrations) that should be committed.
+# project config (permissions) that should be committed.
+# .claude/hooks/ is no longer created — hooks run from the plugin cache.
 GITIGNORE="$PROJECT_DIR/.gitignore"
 _WFM_GITIGNORE_ENTRIES=(
   ".claude/state/"
-  ".claude/hooks/"
   ".claude/commands/"
   ".claude/settings.local.json"
 )
@@ -235,44 +244,38 @@ if [ -f "$STATUSLINE_SRC" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# D. Project hooks — copy hook scripts and register in settings.json
+# [Removed] Project hooks — no longer copied or registered here.
 # ─────────────────────────────────────────────────────────────────────────────
-# Claude Code reads hooks from .claude/settings.json, NOT from plugin/hooks/hooks.json.
-# Copy hook scripts from plugin/scripts/ to .claude/hooks/ as real files (no symlinks).
-
+# Hooks are defined exclusively in plugin/hooks/hooks.json and auto-wired by
+# Claude Code, which sets CLAUDE_PLUGIN_ROOT at runtime. Scripts run directly
+# from the plugin cache. Copying to .claude/hooks/ and registering in
+# settings.json was the old approach — it broke because Claude Code does NOT
+# set CLAUDE_PLUGIN_ROOT for project hooks (settings.json), only for plugin
+# hooks (hooks.json). Symlinks were also rejected as fragile across environments.
+#
+# Migration cleanup: remove stale hook files and settings.json registrations
+# left by previous versions.
+PROJECT_SETTINGS="$PROJECT_DIR/.claude/settings.json"
 HOOKS_DIR="$PROJECT_DIR/.claude/hooks"
-mkdir -p "$HOOKS_DIR"
-
-for hook in pre-tool-write-gate.sh pre-tool-bash-guard.sh post-tool-coaching.sh; do
-  if [ -f "$SOURCE_ROOT/scripts/$hook" ]; then
-    cp "$SOURCE_ROOT/scripts/$hook" "$HOOKS_DIR/$hook"
-    chmod +x "$HOOKS_DIR/$hook"
+if [ -d "$HOOKS_DIR" ]; then
+  for hook in pre-tool-write-gate.sh pre-tool-bash-guard.sh post-tool-coaching.sh; do
+    rm -f "$HOOKS_DIR/$hook"
+  done
+  # Remove hooks dir if empty (may contain user's own hooks)
+  rmdir "$HOOKS_DIR" 2>/dev/null || true
+fi
+# Remove stale hook registrations from settings.json and settings.local.json
+for _settings_file in "$PROJECT_SETTINGS" "$PROJECT_DIR/.claude/settings.local.json"; do
+  if [ -f "$_settings_file" ]; then
+    if jq -e 'has("hooks")' "$_settings_file" &>/dev/null; then
+      jq 'del(.hooks)' "$_settings_file" > "$_settings_file.tmp" \
+        && mv "$_settings_file.tmp" "$_settings_file" || true
+    fi
   fi
 done
 
-# Register hooks in settings.json via jq (idempotent — only adds missing hooks)
-PROJECT_SETTINGS="$PROJECT_DIR/.claude/settings.json"
-if [ -f "$PROJECT_SETTINGS" ]; then
-
-  # Ensure PreToolUse hooks exist
-  HAS_PTU=$(jq 'has("hooks") and (.hooks | has("PreToolUse"))' "$PROJECT_SETTINGS" 2>/dev/null)
-  if [ "$HAS_PTU" != "true" ]; then
-    jq '.hooks.PreToolUse = [
-      {"matcher": "Write|Edit|MultiEdit|NotebookEdit", "hooks": [{"type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-tool-write-gate.sh"}]},
-      {"matcher": "Bash", "hooks": [{"type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-tool-bash-guard.sh"}]}
-    ]' "$PROJECT_SETTINGS" > "$PROJECT_SETTINGS.tmp" && mv "$PROJECT_SETTINGS.tmp" "$PROJECT_SETTINGS" || true
-  fi
-
-  # Ensure PostToolUse hook exists
-  HAS_POST=$(jq 'has("hooks") and (.hooks | has("PostToolUse"))' "$PROJECT_SETTINGS" 2>/dev/null)
-  if [ "$HAS_POST" != "true" ]; then
-    jq '.hooks.PostToolUse = [{"hooks": [{"type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-coaching.sh"}]}]' \
-      "$PROJECT_SETTINGS" > "$PROJECT_SETTINGS.tmp" && mv "$PROJECT_SETTINGS.tmp" "$PROJECT_SETTINGS" || true
-  fi
-fi || true
-
 # ─────────────────────────────────────────────────────────────────────────────
-# E. Project commands — copy plugin commands to .claude/commands/
+# D. Project commands — copy plugin commands to .claude/commands/
 # ─────────────────────────────────────────────────────────────────────────────
 
 COMMANDS_DIR="$PROJECT_DIR/.claude/commands"
@@ -284,7 +287,7 @@ for cmd_file in "$SOURCE_ROOT/commands/"*.md; do
 done
 
 # ─────────────────────────────────────────────────────────────────────────────
-# F. Project permissions — ensure tools needed for workflow pipeline are allowed
+# E. Project permissions — ensure tools needed for workflow pipeline are allowed
 # ─────────────────────────────────────────────────────────────────────────────
 
 # The workflow pipeline (hooks, coaching, COMPLETE agents) needs these tools

@@ -80,24 +80,10 @@ Hooks (`workflow-gate.sh`, `bash-write-guard.sh`) are the single source of truth
 ```
 your-project/
 ├── .claude/
-│   ├── hooks/                         # Enforcement hooks
-│   │   ├── workflow-state.sh         # State utility
-│   │   ├── workflow-cmd.sh           # Shell-independent wrapper
-│   │   ├── workflow-gate.sh          # Write/Edit gate
-│   │   ├── bash-write-guard.sh       # Bash write gate
-│   │   └── post-tool-navigator.sh    # 3-layer coaching system
-│   ├── commands/                      # Phase commands (/define, /discuss, etc.)
+│   ├── commands/                      # Phase commands (copied by setup.sh)
 │   ├── state/
 │   │   └── workflow.json              # Workflow state (gitignored)
-│   └── settings.json                  # Hook configuration
-├── plugin/
-│   ├── coaching/                      # Coaching messages (editable prose)
-│   │   ├── objectives/                # Phase entry messages
-│   │   ├── nudges/                    # Contextual reminders
-│   │   ├── checks/                    # Anti-laziness checks
-│   │   └── auto-transition/           # Autonomy=auto appendages
-│   ├── scripts/                       # Hook scripts
-│   └── commands/                      # Phase commands
+│   └── settings.json                  # Project permissions (no hook config needed)
 ├── docs/
 │   ├── guides/                        # Getting started, claude-mem, statusline
 │   ├── reference/                     # Architecture, hooks, commands
@@ -105,7 +91,31 @@ your-project/
 │   └── specs/                         # Design specs (per-feature)
 ├── CLAUDE.md                          # Project rules (committed)
 └── src/                               # Your code
+
+~/.claude/plugins/cache/azevedo-home-lab/workflow-manager/<version>/
+├── .claude-plugin/
+│   └── plugin.json                    # Plugin manifest (name, version)
+├── hooks/
+│   └── hooks.json                     # Auto-wires all hooks via CLAUDE_PLUGIN_ROOT
+├── scripts/                           # Hook scripts (run directly from cache)
+│   ├── pre-tool-write-gate.sh         # PreToolUse: blocks Write/Edit
+│   ├── pre-tool-bash-guard.sh         # PreToolUse: blocks Bash writes
+│   ├── post-tool-coaching.sh          # PostToolUse: 3-layer coaching system
+│   ├── setup.sh                       # Setup/SessionStart: state + cache freshness
+│   ├── workflow-facade.sh             # State read/write utility
+│   ├── workflow-cmd.sh                # Shell-independent wrapper
+│   └── infrastructure/                # Shared modules (resolve-script-dir, etc.)
+├── coaching/                          # Coaching messages (editable prose)
+│   ├── objectives/                    # Phase entry messages
+│   ├── nudges/                        # Contextual reminders
+│   ├── checks/                        # Anti-laziness checks
+│   └── auto-transition/               # Autonomy=auto appendages
+├── commands/                          # Phase commands (source for setup.sh copy)
+└── statusline/
+    └── statusline.sh                  # Status bar with version display
 ```
+
+Hooks run directly from the plugin cache via `CLAUDE_PLUGIN_ROOT`. No hook files are copied to the project — only commands and state live in `.claude/`. See [Hooks — Configuration](hooks.md#configuration) for why.
 
 ## Security
 

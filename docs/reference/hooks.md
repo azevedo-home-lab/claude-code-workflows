@@ -10,39 +10,42 @@ Hooks read state but never write it. Phase transitions are driven by user comman
 
 ## Files
 
-The plugin distributes hooks and commands from `plugin/`:
+The plugin distributes hooks and commands from `plugin/`. Hooks run directly from the plugin cache via `CLAUDE_PLUGIN_ROOT` — no copies or symlinks in the project. Only commands and state live in `.claude/`.
 
 ```
 plugin/
 ├── .claude-plugin/
-│   └── plugin.json             # Plugin manifest (name, version)
+│   └── plugin.json                 # Plugin manifest (name, version)
 ├── hooks/
-│   └── hooks.json              # Auto-wires PreToolUse and PostToolUse hooks
+│   └── hooks.json                  # Auto-wires all hooks (CLAUDE_PLUGIN_ROOT set by Claude Code)
 ├── scripts/
-│   ├── workflow-state.sh       # State read/write utility (sourced by hooks and wrapper)
-│   ├── workflow-cmd.sh         # Shell-independent wrapper — always runs under bash via shebang
-│   ├── workflow-gate.sh        # PreToolUse: blocks Write/Edit in DEFINE/DISCUSS/COMPLETE
-│   ├── bash-write-guard.sh     # PreToolUse: blocks Bash writes in DEFINE/DISCUSS/COMPLETE
-│   ├── post-tool-navigator.sh  # PostToolUse: three-layer coaching system
-│   └── setup.sh                # Setup hook: initializes state + installs statusline
+│   ├── pre-tool-write-gate.sh      # PreToolUse: blocks Write/Edit in DEFINE/DISCUSS/COMPLETE
+│   ├── pre-tool-bash-guard.sh      # PreToolUse: blocks Bash writes in DEFINE/DISCUSS/COMPLETE
+│   ├── post-tool-coaching.sh       # PostToolUse: three-layer coaching system
+│   ├── setup.sh                    # Setup/SessionStart: state init + cache freshness + commands
+│   ├── workflow-facade.sh          # State read/write utility (sourced by hooks and wrapper)
+│   ├── workflow-cmd.sh             # Shell-independent wrapper — always runs under bash via shebang
+│   └── infrastructure/             # Shared modules (resolve-script-dir, hook-preamble, etc.)
 ├── commands/
-│   ├── define.md               # /define → OFF to DEFINE
-│   ├── discuss.md              # /discuss → any phase to DISCUSS
-│   ├── implement.md            # /implement → DISCUSS to IMPLEMENT
-│   ├── review.md               # /review → IMPLEMENT to REVIEW
-│   ├── complete.md             # /complete → REVIEW to COMPLETE
-│   ├── off.md                  # /off → close workflow
-│   ├── autonomy.md             # /autonomy → set autonomy level
-│   └── proposals.md            # /proposals → view/manage proposals
+│   ├── define.md                   # /define → OFF to DEFINE
+│   ├── discuss.md                  # /discuss → any phase to DISCUSS
+│   ├── implement.md                # /implement → DISCUSS to IMPLEMENT
+│   ├── review.md                   # /review → IMPLEMENT to REVIEW
+│   ├── complete.md                 # /complete → REVIEW to COMPLETE
+│   ├── off.md                      # /off → close workflow
+│   ├── autonomy.md                 # /autonomy → set autonomy level
+│   └── proposals.md                # /proposals → view/manage proposals
+├── coaching/                       # Coaching messages (editable prose)
 ├── statusline/
-│   └── statusline.sh           # Status bar with version display
+│   └── statusline.sh              # Status bar with version display
 └── docs/
     └── reference/
         └── professional-standards.md
 
-Per-project state (gitignored):
+Per-project (gitignored):
 .claude/state/
-└── workflow.json               # Consolidated workflow state
+└── workflow.json                   # Consolidated workflow state
+.claude/commands/                   # Copied from plugin by setup.sh
 ```
 
 ## Hook Details
@@ -102,32 +105,49 @@ Toggles debug mode. When enabled (`/debug on`), all hook coaching messages and g
 
 ## Configuration
 
-Hooks are auto-wired when the plugin is installed. The configuration lives in `plugin/hooks/hooks.json`:
+### Hook deployment: plugin hooks.json only
+
+Hooks are defined **exclusively** in `plugin/hooks/hooks.json` and auto-wired by Claude Code when the plugin is installed. Claude Code sets `CLAUDE_PLUGIN_ROOT` at runtime, pointing to the plugin cache directory (`~/.claude/plugins/cache/azevedo-home-lab/workflow-manager/<version>/`). Scripts run directly from the cache — no copies or symlinks in the project.
+
+**Why not project hooks (settings.json)?** Claude Code has two hook systems:
+
+1. **Plugin hooks** (`hooks.json`) — Claude Code sets `CLAUDE_PLUGIN_ROOT` automatically
+2. **Project hooks** (`settings.json`) — `CLAUDE_PLUGIN_ROOT` is **not** set
+
+Our scripts depend on `CLAUDE_PLUGIN_ROOT` to find their dependencies (`infrastructure/`, `coaching/`, etc.). If hooks are registered in `settings.json` instead of `hooks.json`, the scripts crash because they can't resolve their own location.
+
+This distinction is documented in the official Claude Code docs:
+- [Plugins Reference — Environment variables](https://code.claude.com/docs/en/plugins-reference.md#environment-variables): `${CLAUDE_PLUGIN_ROOT}` is "exported as environment variables to hook processes and MCP or LSP server subprocesses" — but only for plugin-scoped hooks.
+- [Hooks Reference — Environment Variables in Hooks](https://code.claude.com/docs/en/hooks.md#environment-variables-in-hooks): project hooks only get `$CLAUDE_PROJECT_DIR`.
+
+**Why not symlinks?** Symlinks are fragile across environments and don't make sense for a distributed plugin. The plugin cache is the single source of truth, kept fresh by `setup.sh` on every session start (see [Cache freshness](#cache-freshness)).
 
 ```json
 {
   "hooks": {
+    "Setup": [{ "matcher": "*", "hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh"}] }],
+    "SessionStart": [{ "matcher": "startup|clear|compact", "hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/setup.sh"}] }],
     "PreToolUse": [
-      {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
-        "hooks": [{
-          "type": "command",
-          "command": "${CLAUDE_PLUGIN_ROOT}/scripts/workflow-gate.sh"
-        }]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [{
-          "type": "command",
-          "command": "${CLAUDE_PLUGIN_ROOT}/scripts/bash-write-guard.sh"
-        }]
-      }
+      { "matcher": "Write|Edit|MultiEdit|NotebookEdit", "hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/pre-tool-write-gate.sh"}] },
+      { "matcher": "Bash", "hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/pre-tool-bash-guard.sh"}] }
+    ],
+    "PostToolUse": [
+      { "matcher": "*", "hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/scripts/post-tool-coaching.sh"}] }
     ]
   }
 }
 ```
 
-No manual `settings.json` configuration is required for end users.
+No manual `settings.json` hook configuration is required for end users.
+
+### Cache freshness
+
+`setup.sh` runs on every `Setup` and `SessionStart` event. It:
+1. Pulls the latest code from the marketplace git clone
+2. Compares the marketplace version against the cached version
+3. If newer: copies to cache, removes stale versions, updates `installed_plugins.json`
+
+This ensures `CLAUDE_PLUGIN_ROOT` always points to the latest plugin code.
 
 ## PostToolUse Implementation Details
 
