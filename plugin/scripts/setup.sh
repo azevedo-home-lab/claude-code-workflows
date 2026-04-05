@@ -148,7 +148,23 @@ if [ -d "$WM_MARKETPLACE_DIR/.git" ]; then
   git -C "$WM_MARKETPLACE_DIR" pull origin main --quiet 2>/dev/null || true
 fi
 
-# Sync workflow-manager cache from local source
+# After pulling, check if the marketplace clone has a newer version than our
+# current SOURCE_ROOT. This handles the case where setup.sh is running from
+# an old cache — the marketplace clone now has the latest code from git pull,
+# so we should sync from it instead of re-copying stale cache over itself.
+WM_MARKETPLACE_PLUGIN_JSON="$WM_MARKETPLACE_DIR/.claude-plugin/plugin.json"
+if [ -f "$WM_MARKETPLACE_PLUGIN_JSON" ]; then
+  _MKT_VERSION=$(jq -r '.version // ""' "$WM_MARKETPLACE_PLUGIN_JSON" 2>/dev/null)
+  _SRC_VERSION=$(jq -r '.version // ""' "${SOURCE_PLUGIN_JSON:-/dev/null}" 2>/dev/null) || _SRC_VERSION=""
+  if [ -n "$_MKT_VERSION" ] && [ "$_MKT_VERSION" != "$_SRC_VERSION" ]; then
+    # Marketplace has a different (newer) version — use it as source
+    SOURCE_ROOT="$WM_MARKETPLACE_DIR/plugin"
+    SOURCE_PLUGIN_JSON="$WM_MARKETPLACE_PLUGIN_JSON"
+  fi
+  unset _MKT_VERSION _SRC_VERSION
+fi
+
+# Sync workflow-manager cache from source (local dev, cache, or marketplace clone)
 INSTALLED_PLUGINS="$HOME/.claude/plugins/installed_plugins.json"
 WM_CACHE_DIR="$HOME/.claude/plugins/cache/azevedo-home-lab/workflow-manager"
 
@@ -169,8 +185,12 @@ if [ -n "$SOURCE_PLUGIN_JSON" ] && [ -f "$INSTALLED_PLUGINS" ]; then
       rm -rf "$old_dir"
     done
 
-    # Update installed_plugins.json to reflect current version, path, and commit
-    CURRENT_SHA=$(git -C "$PROJECT_DIR" rev-parse HEAD 2>/dev/null || echo "")
+    # Update installed_plugins.json to reflect current version, path, and commit.
+    # Read SHA from whichever source we're syncing from (marketplace clone or project).
+    _SHA_DIR="$WM_MARKETPLACE_DIR"
+    [ -f "$PROJECT_DIR/.claude-plugin/.dev" ] && _SHA_DIR="$PROJECT_DIR"
+    CURRENT_SHA=$(git -C "$_SHA_DIR" rev-parse HEAD 2>/dev/null || echo "")
+    unset _SHA_DIR
     jq --arg ver "$SOURCE_VERSION" \
        --arg path "$WM_CACHE_DIR/$SOURCE_VERSION" \
        --arg now "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
