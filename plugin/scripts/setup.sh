@@ -130,14 +130,48 @@ if [ "$_WFM_GITIGNORE_ADDED" = true ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# A2. Project settings reference (used by section E for permissions)
+# A2. Migration: remove stale hook registrations from pre-2.2.0
 # ─────────────────────────────────────────────────────────────────────────────
-# Note: Claude Code materializes plugin hooks into .claude/hooks/ and
-# .claude/settings.json at session start. Previous versions tried to clean
-# these up, but the platform re-creates them immediately after setup.sh runs.
-# The hook scripts themselves now exit silently when run without infrastructure/
-# (the project-deployed copies), so the duplicate invocation is harmless.
+# Old setup.sh versions copied scripts to .claude/hooks/ and registered them
+# in settings.json with $CLAUDE_PROJECT_DIR paths. These stale entries cause
+# errors in projects where the scripts don't exist or are outdated.
+# The correct mechanism is hooks.json with ${CLAUDE_PLUGIN_ROOT} (set by
+# Claude Code only for plugin hooks, not project hooks).
+# See docs/plans/2026-04-06-stale-hook-cleanup.md for full investigation.
 PROJECT_SETTINGS="$PROJECT_DIR/.claude/settings.json"
+
+# Remove stale hook entries from settings files (user-level, project-level, local)
+_STALE_HOOK_PATTERN='\.claude/hooks/(pre-tool-write-gate|pre-tool-bash-guard|post-tool-coaching)\.sh'
+for _settings_file in "$HOME/.claude/settings.json" "$PROJECT_SETTINGS" "$PROJECT_DIR/.claude/settings.local.json"; do
+  [ -f "$_settings_file" ] || continue
+  if grep -qE "$_STALE_HOOK_PATTERN" "$_settings_file" 2>/dev/null; then
+    jq '
+      def remove_stale:
+        if type == "array" then
+          [.[] | select(
+            (.hooks // []) | all(
+              (.command // "") | test("\\.claude/hooks/(pre-tool-write-gate|pre-tool-bash-guard|post-tool-coaching)\\.sh") | not
+            )
+          )]
+        else . end;
+      if .hooks then
+        .hooks |= with_entries(
+          .value |= remove_stale | select(.value | length > 0)
+        ) |
+        if (.hooks | length) == 0 then del(.hooks) else . end
+      else . end
+    ' "$_settings_file" > "$_settings_file.tmp" && mv "$_settings_file.tmp" "$_settings_file" || true
+  fi
+done
+
+# Remove stale .claude/hooks/ script copies (only WFM scripts, not user hooks)
+_HOOKS_DIR="$PROJECT_DIR/.claude/hooks"
+if [ -d "$_HOOKS_DIR" ]; then
+  for _hook in pre-tool-write-gate.sh pre-tool-bash-guard.sh post-tool-coaching.sh; do
+    rm -f "$_HOOKS_DIR/$_hook"
+  done
+  rmdir "$_HOOKS_DIR" 2>/dev/null || true
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # B. Plugin updates — keep all plugins at latest version
@@ -258,8 +292,8 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # Hooks are defined exclusively in plugin/hooks/hooks.json and auto-wired by
 # Claude Code, which sets CLAUDE_PLUGIN_ROOT at runtime. Scripts run directly
-# from the plugin cache. Migration cleanup moved to section A2 (before plugin
-# updates) to ensure it runs even when network calls in section B fail.
+# from the plugin cache. Migration cleanup runs in section A2 (before network
+# calls) to remove stale copies left by pre-2.2.0 versions.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # D. Project commands — copy plugin commands to .claude/commands/
