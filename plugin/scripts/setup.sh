@@ -198,7 +198,16 @@ WM_MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/azevedo-home-lab"
 if [ -d "$WM_MARKETPLACE_DIR/.git" ]; then
   git -C "$WM_MARKETPLACE_DIR" reset --hard HEAD --quiet 2>/dev/null || true
   git -C "$WM_MARKETPLACE_DIR" clean -fd --quiet 2>/dev/null || true
-  git -C "$WM_MARKETPLACE_DIR" pull origin main --quiet 2>/dev/null || true
+  echo "Checking for updates for plugin \"workflow-manager@azevedo-home-lab\" at user scope…"
+  _PULL_OUTPUT=$(GIT_SSH_COMMAND="ssh -o ConnectTimeout=10" git -C "$WM_MARKETPLACE_DIR" pull origin main 2>&1) || true
+  if echo "$_PULL_OUTPUT" | grep -q "Already up to date"; then
+    echo "✔ workflow-manager is already at the latest version."
+  elif echo "$_PULL_OUTPUT" | grep -q "Updating"; then
+    _NEW_VER=$(jq -r '.version // "unknown"' "$WM_MARKETPLACE_DIR/.claude-plugin/plugin.json" 2>/dev/null)
+    echo "✔ workflow-manager updated to ${_NEW_VER}."
+  else
+    echo "⚠ workflow-manager update check failed (network or SSH)."
+  fi
 fi
 
 # After pulling, check if the marketplace clone has a newer version than our
