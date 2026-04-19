@@ -305,9 +305,14 @@ fi
 # calls) to remove stale copies left by pre-2.2.0 versions.
 
 # ─────────────────────────────────────────────────────────────────────────────
-# D. Project commands — loaded directly from plugin cache by Claude Code.
-#    No copying needed. Commands use CLAUDE_SKILL_DIR to find sibling scripts.
+# D. Reload plugin — force Claude Code to re-read commands from cache.
+#    After syncing the cache and registry above, Claude Code still holds stale
+#    command definitions loaded at process start. `claude plugin update` makes
+#    it re-read the updated files.
 # ─────────────────────────────────────────────────────────────────────────────
+if command -v claude &>/dev/null; then
+  claude plugin update "workflow-manager@azevedo-home-lab" 2>/dev/null || true
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # E. Project permissions — ensure tools needed for workflow pipeline are allowed
