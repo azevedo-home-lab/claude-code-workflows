@@ -75,58 +75,94 @@ See [README — Autonomy Levels](../../README.md#autonomy-levels) for the autono
 
 Hooks (`workflow-gate.sh`, `bash-write-guard.sh`) are the single source of truth for write permissions. Autonomy controls checkpoint granularity (how often Claude pauses for user input), not enforcement. All autonomy levels follow the same phase-based write rules.
 
-## File Organization
+## Plugin Architecture
+
+WFM has two locations: the **development repo** and the **deployed cache**.
+
+### Development repo (ClaudeWorkflows)
+
+Where plugin code is written and versioned. Not used at runtime by other projects.
+
+```
+ClaudeWorkflows/
+├── .claude-plugin/
+│   ├── plugin.json              # Plugin manifest (development)
+│   └── marketplace.json         # Marketplace catalog (plugin list + versions)
+├── plugin/                      # Plugin content — copied into cache on install
+│   ├── .claude-plugin/
+│   │   └── plugin.json          # Plugin manifest — must exist here so the
+│   │                            # cache copy has it for Claude Code discovery
+│   ├── commands/                # Slash commands (/discuss, /define, etc.)
+│   ├── scripts/                 # Hook scripts and utilities
+│   ├── hooks/
+│   │   └── hooks.json           # Hook wiring (auto-loaded by Claude Code)
+│   ├── agents/                  # Subagent definitions
+│   ├── coaching/                # Coaching messages (objectives, nudges, checks)
+│   ├── config/                  # Skill registry, phase config
+│   ├── phases/                  # Phase-specific content
+│   └── statusline/
+│       └── statusline.sh        # Status bar script
+├── docs/                        # Specs, plans, reference docs
+├── CLAUDE.md
+└── LICENSE
+```
+
+### Deployed cache
+
+Where Claude Code runs the plugin from. Created by `claude plugin install`.
+Located at `~/.claude/plugins/cache/azevedo-home-lab/workflow-manager/<version>/`.
+
+This is a copy of the `plugin/` directory from the development repo. Claude Code reads
+`marketplace.json`, sees `"source": "./plugin"`, and copies that directory here.
+
+```
+~/.claude/plugins/cache/azevedo-home-lab/workflow-manager/<version>/
+├── .claude-plugin/
+│   └── plugin.json              # Claude Code needs this to discover commands
+├── commands/                    # Slash commands (use CLAUDE_SKILL_DIR for paths)
+├── scripts/                     # Hook scripts (use CLAUDE_PLUGIN_ROOT)
+├── hooks/
+│   └── hooks.json               # Hook wiring
+├── agents/                      # Subagent definitions
+├── coaching/                    # Coaching messages
+├── config/
+├── phases/
+└── statusline/
+```
+
+### User projects (e.g. homelab-infra)
+
+Projects that use WFM have no plugin files. Everything runs from the cache.
 
 ```
 your-project/
 ├── .claude/
-│   ├── commands/                      # Project-specific commands only
+│   ├── commands/                # Project-specific commands only (not WFM)
 │   ├── state/
-│   │   └── workflow.json              # Workflow state (gitignored)
-│   └── settings.json                  # Project permissions (no hook config needed)
-├── docs/
-│   ├── guides/                        # Getting started, claude-mem, statusline
-│   ├── reference/                     # Architecture, hooks, commands
-│   ├── plans/                         # Implementation plans (per-feature)
-│   └── specs/                         # Design specs (per-feature)
-├── CLAUDE.md                          # Project rules (committed)
-└── src/                               # Your code
-
-~/.claude/plugins/cache/azevedo-home-lab/workflow-manager/<version>/
-├── .claude-plugin/
-│   └── plugin.json                    # Plugin manifest (name, version)
-├── hooks/
-│   └── hooks.json                     # Auto-wires all hooks via CLAUDE_PLUGIN_ROOT
-├── scripts/                           # Hook scripts (run directly from cache)
-│   ├── pre-tool-write-gate.sh         # PreToolUse: blocks Write/Edit
-│   ├── pre-tool-bash-guard.sh         # PreToolUse: blocks Bash writes
-│   ├── post-tool-coaching.sh          # PostToolUse: 3-layer coaching system
-│   ├── setup.sh                       # Setup/SessionStart: state + cache freshness
-│   ├── workflow-facade.sh             # State read/write utility
-│   ├── workflow-cmd.sh                # Shell-independent wrapper
-│   └── infrastructure/                # Shared modules (resolve-script-dir, etc.)
-├── coaching/                          # Coaching messages (editable prose)
-│   ├── objectives/                    # Phase entry messages
-│   ├── nudges/                        # Contextual reminders
-│   ├── checks/                        # Anti-laziness checks
-│   └── auto-transition/               # Autonomy=auto appendages
-├── commands/                          # Phase commands (loaded directly by Claude Code)
-└── statusline/
-    └── statusline.sh                  # Status bar with version display
+│   │   └── workflow.json        # Workflow runtime state (gitignored)
+│   └── settings.json            # Project permissions
+└── ...
 ```
 
-Hooks run directly from the plugin cache via `CLAUDE_PLUGIN_ROOT`. Commands are loaded by Claude Code directly from the plugin cache — they use `CLAUDE_SKILL_DIR` to locate sibling scripts. No hook or command files are copied to the project — only project-specific commands and state live in `.claude/`. See [Hooks — Configuration](hooks.md#configuration) for why.
+### How paths resolve
+
+| Context | Variable | Points to |
+|---------|----------|-----------|
+| Hooks (`hooks.json`) | `CLAUDE_PLUGIN_ROOT` | Cache root (`~/.claude/plugins/cache/.../`) |
+| Commands (`!` backtick) | `CLAUDE_SKILL_DIR` | Cache commands dir (`~/.claude/plugins/cache/.../commands/`) |
+| Commands → scripts | `${CLAUDE_SKILL_DIR}/../scripts/` | Cache scripts dir |
 
 ## Versioning
 
-When releasing a new version, update the version in **both** files:
+When releasing a new version, update the version in **all three** files:
 
 | File | Purpose |
 |------|---------|
-| `.claude-plugin/plugin.json` | Plugin manifest — used by `plugin.json`-based resolution |
-| `.claude-plugin/marketplace.json` | Marketplace catalog — used by `claude plugin install` for cache directory naming |
+| `.claude-plugin/plugin.json` | Repo-level manifest (development, setup.sh dev mode) |
+| `.claude-plugin/marketplace.json` | Marketplace catalog — `claude plugin install` reads the version here to name the cache directory |
+| `plugin/.claude-plugin/plugin.json` | Cache-level manifest — Claude Code needs this to discover commands and agents |
 
-If these are out of sync, `claude plugin install` installs under the wrong version directory and users get stale commands. The marketplace version determines the cache path; the plugin.json version is the canonical version. Both must match.
+If these are out of sync, `claude plugin install` creates the cache under the wrong version, or Claude Code fails to discover plugin commands.
 
 ## Security
 

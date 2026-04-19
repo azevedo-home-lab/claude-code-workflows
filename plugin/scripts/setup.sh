@@ -8,10 +8,9 @@
 # Setup hook — runs on first plugin activation (Setup hook in hooks.json).
 # Responsibilities:
 #   A. Project state initialization (workflow.json + .gitignore)
-#   B. Plugin updates (claude plugin update for all dependencies)
+#   B. Plugin updates (pull marketplace clone, then `claude plugin update`)
 #   C. Global statusline installation (~/.claude/statusline.sh + settings.json)
-#   D. Project commands (copy to .claude/commands/)
-#   E. Project permissions (ensure tools needed for unattended operation are allowed)
+#   D. Project permissions (ensure tools needed for unattended operation are allowed)
 #
 # Hook deployment strategy:
 #   Hooks are defined exclusively in plugin/hooks/hooks.json — Claude Code auto-wires
@@ -53,14 +52,6 @@ else
   SOURCE_ROOT="$PLUGIN_ROOT"
 fi
 
-# PLUGIN_JSON: version metadata lives at repo root, not inside plugin/
-if [ -f "$PROJECT_DIR/.claude-plugin/plugin.json" ]; then
-  SOURCE_PLUGIN_JSON="$PROJECT_DIR/.claude-plugin/plugin.json"
-elif [ -f "$SOURCE_ROOT/.claude-plugin/plugin.json" ]; then
-  SOURCE_PLUGIN_JSON="$SOURCE_ROOT/.claude-plugin/plugin.json"
-else
-  SOURCE_PLUGIN_JSON=""
-fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # A. Project state initialization
@@ -100,7 +91,6 @@ fi
 GITIGNORE="$PROJECT_DIR/.gitignore"
 _WFM_GITIGNORE_ENTRIES=(
   ".claude/state/"
-  ".claude/commands/"
   ".claude/settings.local.json"
 )
 _WFM_GITIGNORE_ADDED=false
@@ -177,91 +167,36 @@ fi
 # B. Plugin updates — keep all plugins at latest version
 # ─────────────────────────────────────────────────────────────────────────────
 # Claude Code doesn't auto-update plugins or marketplace clones.
-#
-# For external dependencies: `claude plugin update` handles it.
-# For workflow-manager: Claude Code resolves versions from its marketplace
-# clone at ~/.claude/plugins/marketplaces/azevedo-home-lab/ which is a
-# stale git checkout. We must git pull it, then sync the cache and registry.
+# Strategy: pull the marketplace clone, then let `claude plugin update` handle
+# cache sync and registry updates. No manual cache copying needed.
 
-# Update external dependencies
 if command -v claude &>/dev/null; then
+  # Update external dependencies
   for plugin in \
     "superpowers@superpowers-marketplace" \
     "claude-mem@thedotmack"; do
     claude plugin update "$plugin" 2>/dev/null || true
   done
-fi
 
-# Update workflow-manager marketplace clone (the root cause of stale versions).
-# Claude Code's plugin loader may have dirtied the clone, so reset before pulling.
-WM_MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/azevedo-home-lab"
-if [ -d "$WM_MARKETPLACE_DIR/.git" ]; then
-  git -C "$WM_MARKETPLACE_DIR" reset --hard HEAD --quiet 2>/dev/null || true
-  git -C "$WM_MARKETPLACE_DIR" clean -fd --quiet 2>/dev/null || true
-  echo "Checking for updates for plugin \"workflow-manager@azevedo-home-lab\" at user scope…"
-  _PULL_OUTPUT=$(GIT_SSH_COMMAND="ssh -o ConnectTimeout=10" git -C "$WM_MARKETPLACE_DIR" pull origin main 2>&1) || true
-  if echo "$_PULL_OUTPUT" | grep -q "Already up to date"; then
-    echo "✔ workflow-manager is already at the latest version."
-  elif echo "$_PULL_OUTPUT" | grep -q "Updating"; then
-    _NEW_VER=$(jq -r '.version // "unknown"' "$WM_MARKETPLACE_DIR/.claude-plugin/plugin.json" 2>/dev/null)
-    echo "✔ workflow-manager updated to ${_NEW_VER}."
-  else
-    echo "⚠ workflow-manager update check failed (network or SSH)."
+  # Pull marketplace clone so `claude plugin update` sees the latest version.
+  WM_MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/azevedo-home-lab"
+  if [ -d "$WM_MARKETPLACE_DIR/.git" ]; then
+    git -C "$WM_MARKETPLACE_DIR" reset --hard HEAD --quiet 2>/dev/null || true
+    git -C "$WM_MARKETPLACE_DIR" clean -fd --quiet 2>/dev/null || true
+    echo "Checking for updates for plugin \"workflow-manager@azevedo-home-lab\" at user scope…"
+    _PULL_OUTPUT=$(GIT_SSH_COMMAND="ssh -o ConnectTimeout=10" git -C "$WM_MARKETPLACE_DIR" pull origin main 2>&1) || true
+    if echo "$_PULL_OUTPUT" | grep -q "Already up to date"; then
+      echo "✔ workflow-manager is already at the latest version."
+    elif echo "$_PULL_OUTPUT" | grep -q "Updating"; then
+      _NEW_VER=$(jq -r '.plugins[0].version // "unknown"' "$WM_MARKETPLACE_DIR/.claude-plugin/marketplace.json" 2>/dev/null) || _NEW_VER="unknown"
+      echo "✔ workflow-manager updated to ${_NEW_VER}."
+    else
+      echo "⚠ workflow-manager update check failed (network or SSH)."
+    fi
   fi
-fi
 
-# After pulling, check if the marketplace clone has a newer version than our
-# current SOURCE_ROOT. This handles the case where setup.sh is running from
-# an old cache — the marketplace clone now has the latest code from git pull,
-# so we should sync from it instead of re-copying stale cache over itself.
-WM_MARKETPLACE_PLUGIN_JSON="$WM_MARKETPLACE_DIR/.claude-plugin/plugin.json"
-if [ -f "$WM_MARKETPLACE_PLUGIN_JSON" ]; then
-  _MKT_VERSION=$(jq -r '.version // ""' "$WM_MARKETPLACE_PLUGIN_JSON" 2>/dev/null)
-  _SRC_VERSION=$(jq -r '.version // ""' "${SOURCE_PLUGIN_JSON:-/dev/null}" 2>/dev/null) || _SRC_VERSION=""
-  if [ -n "$_MKT_VERSION" ] && [ "$_MKT_VERSION" != "$_SRC_VERSION" ]; then
-    # Marketplace has a different (newer) version — use it as source
-    SOURCE_ROOT="$WM_MARKETPLACE_DIR/plugin"
-    SOURCE_PLUGIN_JSON="$WM_MARKETPLACE_PLUGIN_JSON"
-  fi
-  unset _MKT_VERSION _SRC_VERSION
-fi
-
-# Sync workflow-manager cache from source (local dev, cache, or marketplace clone)
-INSTALLED_PLUGINS="$HOME/.claude/plugins/installed_plugins.json"
-WM_CACHE_DIR="$HOME/.claude/plugins/cache/azevedo-home-lab/workflow-manager"
-
-if [ -n "$SOURCE_PLUGIN_JSON" ] && [ -f "$INSTALLED_PLUGINS" ]; then
-  SOURCE_VERSION=$(jq -r '.version // ""' "$SOURCE_PLUGIN_JSON" 2>/dev/null)
-
-  if [ -n "$SOURCE_VERSION" ]; then
-    # Update cache directory with current source
-    mkdir -p "$WM_CACHE_DIR/$SOURCE_VERSION"
-    cp -r "$SOURCE_ROOT"/* "$WM_CACHE_DIR/$SOURCE_VERSION/"
-    mkdir -p "$WM_CACHE_DIR/$SOURCE_VERSION/.claude-plugin"
-    cp "$SOURCE_PLUGIN_JSON" "$WM_CACHE_DIR/$SOURCE_VERSION/.claude-plugin/plugin.json"
-
-    # Remove stale cache versions
-    for old_dir in "$WM_CACHE_DIR"/*/; do
-      [ -d "$old_dir" ] || continue
-      [ "$(basename "$old_dir")" = "$SOURCE_VERSION" ] && continue
-      rm -rf "$old_dir"
-    done
-
-    # Update installed_plugins.json to reflect current version, path, and commit.
-    # Read SHA from whichever source we're syncing from (marketplace clone or project).
-    _SHA_DIR="$WM_MARKETPLACE_DIR"
-    [ -f "$PROJECT_DIR/.claude-plugin/.dev" ] && _SHA_DIR="$PROJECT_DIR"
-    CURRENT_SHA=$(git -C "$_SHA_DIR" rev-parse HEAD 2>/dev/null || echo "")
-    unset _SHA_DIR
-    jq --arg ver "$SOURCE_VERSION" \
-       --arg path "$WM_CACHE_DIR/$SOURCE_VERSION" \
-       --arg now "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
-       --arg sha "$CURRENT_SHA" \
-      '(.plugins["workflow-manager@azevedo-home-lab"] // []) |= map(
-        .version = $ver | .installPath = $path | .lastUpdated = $now | .gitCommitSha = $sha
-      )' "$INSTALLED_PLUGINS" > "$INSTALLED_PLUGINS.tmp" \
-      && mv "$INSTALLED_PLUGINS.tmp" "$INSTALLED_PLUGINS"
-  fi
+  # Let Claude Code update the cache from the freshly pulled marketplace clone
+  claude plugin update "workflow-manager@azevedo-home-lab" 2>/dev/null || true
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -297,25 +232,7 @@ if [ -f "$STATUSLINE_SRC" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# [Removed] Project hooks — no longer copied or registered here.
-# ─────────────────────────────────────────────────────────────────────────────
-# Hooks are defined exclusively in plugin/hooks/hooks.json and auto-wired by
-# Claude Code, which sets CLAUDE_PLUGIN_ROOT at runtime. Scripts run directly
-# from the plugin cache. Migration cleanup runs in section A2 (before network
-# calls) to remove stale copies left by pre-2.2.0 versions.
-
-# ─────────────────────────────────────────────────────────────────────────────
-# D. Reload plugin — force Claude Code to re-read commands from cache.
-#    After syncing the cache and registry above, Claude Code still holds stale
-#    command definitions loaded at process start. `claude plugin update` makes
-#    it re-read the updated files.
-# ─────────────────────────────────────────────────────────────────────────────
-if command -v claude &>/dev/null; then
-  claude plugin update "workflow-manager@azevedo-home-lab" 2>/dev/null || true
-fi
-
-# ─────────────────────────────────────────────────────────────────────────────
-# E. Project permissions — ensure tools needed for workflow pipeline are allowed
+# D. Project permissions — ensure tools needed for workflow pipeline are allowed
 # ─────────────────────────────────────────────────────────────────────────────
 
 # The workflow pipeline (hooks, coaching, COMPLETE agents) needs these tools
