@@ -305,16 +305,9 @@ fi
 # calls) to remove stale copies left by pre-2.2.0 versions.
 
 # ─────────────────────────────────────────────────────────────────────────────
-# D. Project commands — copy plugin commands to .claude/commands/
+# D. Project commands — loaded directly from plugin cache by Claude Code.
+#    No copying needed. Commands use CLAUDE_SKILL_DIR to find sibling scripts.
 # ─────────────────────────────────────────────────────────────────────────────
-
-COMMANDS_DIR="$PROJECT_DIR/.claude/commands"
-mkdir -p "$COMMANDS_DIR"
-
-for cmd_file in "$SOURCE_ROOT/commands/"*.md; do
-  [ -f "$cmd_file" ] || continue
-  cp "$cmd_file" "$COMMANDS_DIR/$(basename "$cmd_file")"
-done
 
 # ─────────────────────────────────────────────────────────────────────────────
 # E. Project permissions — ensure tools needed for workflow pipeline are allowed
