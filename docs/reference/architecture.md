@@ -109,7 +109,7 @@ ClaudeWorkflows/
 
 ### Deployed cache
 
-Where Claude Code runs the plugin from. Created by `claude plugin install`.
+Where hooks, scripts, agents, and coaching run from. Created by `claude plugin install`.
 Located at `~/.claude/plugins/cache/azevedo-home-lab/workflow-manager/<version>/`.
 
 This is a copy of the `plugin/` directory from the development repo. Claude Code reads
@@ -118,8 +118,8 @@ This is a copy of the `plugin/` directory from the development repo. Claude Code
 ```
 ~/.claude/plugins/cache/azevedo-home-lab/workflow-manager/<version>/
 ├── .claude-plugin/
-│   └── plugin.json              # Claude Code needs this to discover commands
-├── commands/                    # Slash commands (use CLAUDE_SKILL_DIR for paths)
+│   └── plugin.json              # Claude Code needs this to discover the plugin
+├── commands/                    # Source commands (templates for setup.sh to copy)
 ├── scripts/                     # Hook scripts (use CLAUDE_PLUGIN_ROOT)
 ├── hooks/
 │   └── hooks.json               # Hook wiring
@@ -132,25 +132,35 @@ This is a copy of the `plugin/` directory from the development repo. Claude Code
 
 ### User projects (e.g. homelab-infra)
 
-Projects that use WFM have no plugin files. Everything runs from the cache.
+Setup.sh copies commands into each project's `.claude/commands/` on session start.
 
 ```
 your-project/
 ├── .claude/
-│   ├── commands/                # Project-specific commands only (not WFM)
+│   ├── commands/                # WFM commands (copied by setup.sh) + project-specific
 │   ├── state/
 │   │   └── workflow.json        # Workflow runtime state (gitignored)
 │   └── settings.json            # Project permissions
 └── ...
 ```
 
+### Why commands are copied to projects
+
+Plugin commands are **namespaced** by Claude Code (e.g. `/workflow-manager:discuss`).
+We want users to type `/discuss`, not `/workflow-manager:discuss`. The only way to get
+un-namespaced slash commands is to place them in the project's `.claude/commands/` directory.
+
+Setup.sh copies commands from the cache and rewrites the script paths to use the
+**absolute cache path**. This is necessary because project-level commands with
+`disable-model-invocation: true` run as raw shell — they don't receive `CLAUDE_PLUGIN_ROOT`
+or `CLAUDE_SKILL_DIR`. The absolute path is the only reliable way to locate the scripts.
+
 ### How paths resolve
 
 | Context | Variable | Points to |
 |---------|----------|-----------|
 | Hooks (`hooks.json`) | `CLAUDE_PLUGIN_ROOT` | Cache root (`~/.claude/plugins/cache/.../`) |
-| Commands (`!` backtick) | `CLAUDE_SKILL_DIR` | Cache commands dir (`~/.claude/plugins/cache/.../commands/`) |
-| Commands → scripts | `${CLAUDE_SKILL_DIR}/../scripts/` | Cache scripts dir |
+| Project commands (`!` backtick) | Absolute path (set by setup.sh) | Cache scripts dir |
 
 ## Versioning
 

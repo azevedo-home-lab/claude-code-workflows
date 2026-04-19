@@ -91,6 +91,7 @@ fi
 GITIGNORE="$PROJECT_DIR/.gitignore"
 _WFM_GITIGNORE_ENTRIES=(
   ".claude/state/"
+  ".claude/commands/"
   ".claude/settings.local.json"
 )
 _WFM_GITIGNORE_ADDED=false
@@ -232,7 +233,27 @@ if [ -f "$STATUSLINE_SRC" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# D. Project permissions — ensure tools needed for workflow pipeline are allowed
+# D. Project commands — copy to .claude/commands/ for un-namespaced /slash access
+# ─────────────────────────────────────────────────────────────────────────────
+# Plugin commands are namespaced by Claude Code (e.g. /workflow-manager:discuss).
+# We want /discuss, so we copy commands to the project's .claude/commands/ directory.
+# Commands use ${CLAUDE_SKILL_DIR}/../scripts/ which only works from the plugin cache.
+# For project-level copies, we rewrite that to the absolute cache scripts path.
+COMMANDS_SRC="$SOURCE_ROOT/commands"
+COMMANDS_DST="$PROJECT_DIR/.claude/commands"
+SCRIPTS_PATH="$PLUGIN_ROOT/scripts"
+
+if [ -d "$COMMANDS_SRC" ]; then
+  mkdir -p "$COMMANDS_DST"
+  for cmd_file in "$COMMANDS_SRC/"*.md; do
+    [ -f "$cmd_file" ] || continue
+    sed "s|\${CLAUDE_SKILL_DIR}/../scripts|${SCRIPTS_PATH}|g" \
+      "$cmd_file" > "$COMMANDS_DST/$(basename "$cmd_file")"
+  done
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# E. Project permissions — ensure tools needed for workflow pipeline are allowed
 # ─────────────────────────────────────────────────────────────────────────────
 
 # The workflow pipeline (hooks, coaching, COMPLETE agents) needs these tools
