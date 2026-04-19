@@ -1,7 +1,7 @@
 ---
 description: Stop tracking an observation ID in the workflow status line
 ---
-!`"${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/plugin}"/scripts/workflow-cmd.sh remove_tracked_observation "$ARGUMENTS" && echo "Stopped tracking observation #$ARGUMENTS"`
+!`"${CLAUDE_SKILL_DIR}/../scripts/workflow-cmd.sh" remove_tracked_observation "$ARGUMENTS" && echo "Stopped tracking observation #$ARGUMENTS"`
 
 Confirm to the user that observation #$ARGUMENTS is no longer tracked.
 
