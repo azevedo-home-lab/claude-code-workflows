@@ -80,7 +80,7 @@ Hooks (`workflow-gate.sh`, `bash-write-guard.sh`) are the single source of truth
 ```
 your-project/
 ├── .claude/
-│   ├── commands/                      # Phase commands (copied by setup.sh)
+│   ├── commands/                      # Project-specific commands only
 │   ├── state/
 │   │   └── workflow.json              # Workflow state (gitignored)
 │   └── settings.json                  # Project permissions (no hook config needed)
@@ -110,12 +110,23 @@ your-project/
 │   ├── nudges/                        # Contextual reminders
 │   ├── checks/                        # Anti-laziness checks
 │   └── auto-transition/               # Autonomy=auto appendages
-├── commands/                          # Phase commands (source for setup.sh copy)
+├── commands/                          # Phase commands (loaded directly by Claude Code)
 └── statusline/
     └── statusline.sh                  # Status bar with version display
 ```
 
-Hooks run directly from the plugin cache via `CLAUDE_PLUGIN_ROOT`. No hook files are copied to the project — only commands and state live in `.claude/`. See [Hooks — Configuration](hooks.md#configuration) for why.
+Hooks run directly from the plugin cache via `CLAUDE_PLUGIN_ROOT`. Commands are loaded by Claude Code directly from the plugin cache — they use `CLAUDE_SKILL_DIR` to locate sibling scripts. No hook or command files are copied to the project — only project-specific commands and state live in `.claude/`. See [Hooks — Configuration](hooks.md#configuration) for why.
+
+## Versioning
+
+When releasing a new version, update the version in **both** files:
+
+| File | Purpose |
+|------|---------|
+| `.claude-plugin/plugin.json` | Plugin manifest — used by `plugin.json`-based resolution |
+| `.claude-plugin/marketplace.json` | Marketplace catalog — used by `claude plugin install` for cache directory naming |
+
+If these are out of sync, `claude plugin install` installs under the wrong version directory and users get stale commands. The marketplace version determines the cache path; the plugin.json version is the canonical version. Both must match.
 
 ## Security
 
