@@ -1,6 +1,6 @@
 {
   "name": "workflow-manager",
-  "version": "2.2.7",
+  "version": "2.2.8",
   "description": "Structured workflow enforcement for Claude Code with phase gates, coaching, and autonomy levels",
   "author": {
     "name": "azevedo-home-lab"

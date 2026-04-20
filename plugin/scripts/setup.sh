@@ -24,12 +24,23 @@
 
 set -euo pipefail
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Logging — all output goes to /tmp/wfm-setup.log for debugging
+# ─────────────────────────────────────────────────────────────────────────────
+SETUP_LOG="/tmp/wfm-setup.log"
+_log() { echo "[$(date +%H:%M:%S)] $*" >> "$SETUP_LOG"; }
+_log "───── setup.sh start ─────"
+_log "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT:-<unset>}"
+_log "CLAUDE_PROJECT_DIR=${CLAUDE_PROJECT_DIR:-<unset>}"
+_log "hook_event=${CLAUDE_HOOK_EVENT_NAME:-<unset>}"
+
 # Verify jq is available (required for all JSON state management)
 if ! command -v jq &>/dev/null; then
     echo "ERROR: jq is required but not installed. Install it:" >&2
     echo "  macOS:  brew install jq" >&2
     echo "  Ubuntu: sudo apt-get install jq" >&2
     echo "  Other:  https://jqlang.github.io/jq/download/" >&2
+    _log "ABORT: jq not found"
     return 1 2>/dev/null || exit 1  # return when sourced, exit when run directly
 fi
 
@@ -41,6 +52,9 @@ else
 fi
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 
+_log "PLUGIN_ROOT=$PLUGIN_ROOT"
+_log "PROJECT_DIR=$PROJECT_DIR"
+
 # SOURCE_ROOT: the authoritative plugin source directory.
 # Dev mode (.claude-plugin/.dev marker): use the project's plugin/ directory as
 # the live source so that edits take effect immediately without cache refresh.
@@ -48,14 +62,17 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null |
 # See infrastructure/resolve-script-dir.sh for the shared resolution logic.
 if [ -f "$PROJECT_DIR/.claude-plugin/.dev" ] && [ -d "$PROJECT_DIR/plugin/scripts" ]; then
   SOURCE_ROOT="$PROJECT_DIR/plugin"
+  _log "MODE=dev (using project plugin/)"
 else
   SOURCE_ROOT="$PLUGIN_ROOT"
+  _log "MODE=production (using cache)"
 fi
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # A. Project state initialization
 # ─────────────────────────────────────────────────────────────────────────────
+_log "Section A: state init"
 
 STATE_DIR="$PROJECT_DIR/.claude/state"
 STATE_FILE="$STATE_DIR/workflow.json"
@@ -123,6 +140,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # A2. Migration: remove stale hook registrations from pre-2.2.0
 # ─────────────────────────────────────────────────────────────────────────────
+_log "Section A2: migration cleanup"
 # Old setup.sh versions copied scripts to .claude/hooks/ and registered them
 # in settings.json with $CLAUDE_PROJECT_DIR paths. These stale entries cause
 # errors in projects where the scripts don't exist or are outdated.
@@ -170,6 +188,7 @@ fi
 # Claude Code doesn't auto-update plugins or marketplace clones.
 # Strategy: pull the marketplace clone, then let `claude plugin update` handle
 # cache sync and registry updates. No manual cache copying needed.
+_log "Section B: plugin updates"
 
 if command -v claude &>/dev/null; then
   # Update external dependencies
@@ -203,6 +222,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # C. Global statusline installation
 # ─────────────────────────────────────────────────────────────────────────────
+_log "Section C: statusline"
 
 STATUSLINE_SRC="$SOURCE_ROOT/statusline/statusline.sh"
 STATUSLINE_DST="$HOME/.claude/statusline.sh"
@@ -235,6 +255,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # D. Project commands — copy to .claude/commands/ for un-namespaced /slash access
 # ─────────────────────────────────────────────────────────────────────────────
+_log "Section D: commands copy"
 # Plugin commands are namespaced by Claude Code (e.g. /workflow-manager:discuss).
 # We want /discuss, so we copy commands to the project's .claude/commands/ directory.
 # Commands use ${CLAUDE_SKILL_DIR}/../scripts/ which only works from the plugin cache.
@@ -245,16 +266,22 @@ SCRIPTS_PATH="$PLUGIN_ROOT/scripts"
 
 if [ -d "$COMMANDS_SRC" ]; then
   mkdir -p "$COMMANDS_DST"
+  _copied=0
   for cmd_file in "$COMMANDS_SRC/"*.md; do
     [ -f "$cmd_file" ] || continue
     sed "s|\${CLAUDE_SKILL_DIR}/../scripts|${SCRIPTS_PATH}|g" \
       "$cmd_file" > "$COMMANDS_DST/$(basename "$cmd_file")"
+    _copied=$((_copied + 1))
   done
+  _log "Copied $_copied commands to $COMMANDS_DST"
+else
+  _log "WARN: commands source not found: $COMMANDS_SRC"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # E. Project permissions — ensure tools needed for workflow pipeline are allowed
 # ─────────────────────────────────────────────────────────────────────────────
+_log "Section E: permissions"
 
 # The workflow pipeline (hooks, coaching, COMPLETE agents) needs these tools
 # to operate without permission prompts. Without them, autonomy level 3
@@ -272,3 +299,5 @@ if [ -f "$PROJECT_SETTINGS" ]; then
       "$PROJECT_SETTINGS" > "$PROJECT_SETTINGS.tmp" && mv "$PROJECT_SETTINGS.tmp" "$PROJECT_SETTINGS" || true
   fi
 fi
+
+_log "───── setup.sh complete ─────"
