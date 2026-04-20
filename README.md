@@ -86,9 +86,16 @@ Add the marketplace and install:
 ```
 /plugin marketplace add azevedo-home-lab/claude-code-workflows
 /plugin install workflow-manager
+/reload-plugins
 ```
 
-The plugin auto-wires hooks, installs the statusline, and initializes project state. No manual configuration needed.
+After `/plugin install`, run `/reload-plugins` to activate hooks immediately. On the next session start, setup.sh will:
+- Install dependencies (superpowers, claude-mem) if missing
+- Copy slash commands to `.claude/commands/`
+- Initialize workflow state
+- Install the status line
+
+Slash commands (`/discuss`, `/define`, etc.) are available from the **second session** onwards. Use `/workflow-manager:discuss` in the first session if needed.
 
 ### Optional Tools
 
