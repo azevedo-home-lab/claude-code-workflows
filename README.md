@@ -110,7 +110,7 @@ Standalone scripts, installed separately:
 
 | Tool | Description | Docs |
 |------|------------|------|
-| iTerm Launcher | Opens Claude Code in a dedicated iTerm2 window with a project-name badge for visual identification | [Launcher](tools/iterm-launcher/) |
+| iTerm Launcher | iTerm2 profile and launcher script that opens Claude Code in a dedicated window with a project-name badge. Works from terminal, VSCode, Cursor, or Zed | [Launcher](tools/iterm-launcher/) |
 | YubiKey signing | FIDO2 hardware key for git commit signing and SSH push authentication | [YubiKey setup](tools/yubikey-setup/) |
 
 ## Sources
