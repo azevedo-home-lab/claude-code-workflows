@@ -71,6 +71,28 @@ fi
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 0. Dependencies — install required plugins if missing
+# ─────────────────────────────────────────────────────────────────────────────
+_log "Section 0: dependency check"
+if command -v claude &>/dev/null; then
+  INSTALLED_PLUGINS="$HOME/.claude/plugins/installed_plugins.json"
+  for _dep in "superpowers@superpowers-marketplace" "claude-mem@thedotmack"; do
+    _dep_installed=false
+    if [ -f "$INSTALLED_PLUGINS" ]; then
+      if jq -e ".plugins[\"$_dep\"]" "$INSTALLED_PLUGINS" &>/dev/null; then
+        _dep_installed=true
+      fi
+    fi
+    if [ "$_dep_installed" = false ]; then
+      _dep_name="${_dep%%@*}"
+      echo "Installing dependency: $_dep_name…"
+      _log "Installing dependency: $_dep"
+      claude plugin install "$_dep" 2>/dev/null && echo "✔ $_dep_name installed." || echo "⚠ $_dep_name install failed."
+    fi
+  done
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 # A. Project state initialization
 # ─────────────────────────────────────────────────────────────────────────────
 _log "Section A: state init"
@@ -275,8 +297,10 @@ if [ -d "$COMMANDS_SRC" ]; then
     _copied=$((_copied + 1))
   done
   _log "Copied $_copied commands to $COMMANDS_DST"
+  echo "✔ $_copied slash commands installed to .claude/commands/"
 else
   _log "WARN: commands source not found: $COMMANDS_SRC"
+  echo "⚠ No commands found to install."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -300,5 +324,14 @@ if [ -f "$PROJECT_SETTINGS" ]; then
       "$PROJECT_SETTINGS" > "$PROJECT_SETTINGS.tmp" && mv "$PROJECT_SETTINGS.tmp" "$PROJECT_SETTINGS" || true
   fi
 fi
+
+# Read version for summary
+_WFM_VER=""
+if [ -f "$PLUGIN_ROOT/.claude-plugin/plugin.json" ]; then
+  _WFM_VER=$(jq -r '.version // ""' "$PLUGIN_ROOT/.claude-plugin/plugin.json" 2>/dev/null)
+elif [ -f "$SOURCE_ROOT/.claude-plugin/plugin.json" ]; then
+  _WFM_VER=$(jq -r '.version // ""' "$SOURCE_ROOT/.claude-plugin/plugin.json" 2>/dev/null)
+fi
+echo "✔ Workflow Manager ${_WFM_VER:-unknown} ready. Log: ~/.claude/logs/wfm-setup.log"
 
 _log "───── setup.sh complete ─────"
