@@ -14,10 +14,7 @@ Claude Code is powerful but undisciplined. Left to its defaults, it:
 - Produces limited or inconsisten auditable record of what was decided or implemented and why
 
 ## Goal
-The objective is to make Claude Code behave more like a disciplined senior engineer
-
-Inspired by [cc-sessions](https://github.com/GWUDCAP/cc-sessions) (DAIC workflow enforcement with trigger-phrase automation and sub-agents for Claude Code)
-This project builds on top an opinionated workflow enforcement system with:
+The objective is to make Claude Code behave more like a disciplined senior engineer — an opinionated workflow enforcement system with:
 - **Guardrails** - Enforced workflow phases with gated steps.
 - **Guidance Structure** to prompt and guide claude on each phase of development (coaching + skills)
 - **Accountability** through plans, specs, review pipelines and traceability (github issues and observations) 
