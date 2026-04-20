@@ -106,12 +106,12 @@ Slash commands (`/discuss`, `/define`, etc.) are available from the **second ses
 
 ### Optional Tools
 
-Installed separately with `--iterm` or `--yubikey` flags:
+Standalone scripts, installed separately:
 
-| Tool | What it does | Docs |
-|------|-------------|------|
-| YubiKey signing | FIDO2 commit signing + push auth | [YubiKey setup](tools/yubikey-setup/) |
-| iTerm Launcher | Dedicated Claude Code window | [Launcher](tools/iterm-launcher/) |
+| Tool | Description | Docs |
+|------|------------|------|
+| iTerm Launcher | Opens Claude Code in a dedicated iTerm2 window with a project-name badge for visual identification | [Launcher](tools/iterm-launcher/) |
+| YubiKey signing | FIDO2 hardware key for git commit signing and SSH push authentication | [YubiKey setup](tools/yubikey-setup/) |
 
 ## Sources
 
