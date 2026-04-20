@@ -22,7 +22,7 @@
 #       hooks (only for plugin hooks), so scripts can't resolve their dependencies.
 #   Cache freshness is handled by section B (marketplace pull + version comparison).
 
-set -euo pipefail
+set -eo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Logging — all output goes to /tmp/wfm-setup.log for debugging
@@ -30,6 +30,7 @@ set -euo pipefail
 mkdir -p "$HOME/.claude/logs"
 SETUP_LOG="$HOME/.claude/logs/wfm-setup.log"
 _log() { echo "[$(date +%H:%M:%S)] $*" >> "$SETUP_LOG"; }
+trap '_log "ERROR at line $LINENO: $BASH_COMMAND"' ERR
 _log "───── setup.sh start ─────"
 _log "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT:-<unset>}"
 _log "CLAUDE_PROJECT_DIR=${CLAUDE_PROJECT_DIR:-<unset>}"
