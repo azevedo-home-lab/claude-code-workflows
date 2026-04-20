@@ -89,7 +89,14 @@ Add the marketplace and install:
 /reload-plugins
 ```
 
-After `/plugin install`, run `/reload-plugins` to activate hooks immediately. On the next session start, setup.sh will:
+To update an existing installation:
+```
+/plugin marketplace update azevedo-home-lab
+/plugin update workflow-manager
+/reload-plugins
+```
+
+After install or update, run `/reload-plugins` to activate hooks immediately. On the next session start, setup.sh will:
 - Install dependencies (superpowers, claude-mem) if missing
 - Copy slash commands to `.claude/commands/`
 - Initialize workflow state
