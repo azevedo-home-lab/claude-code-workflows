@@ -84,7 +84,7 @@ if command -v claude &>/dev/null; then
       fi
     fi
     if [ "$_dep_installed" = false ]; then
-      _dep_name="${_dep%%@*}"
+      _dep_name="$(echo "$_dep" | cut -d@ -f1)"
       echo "Installing dependency: $_dep_name…"
       _log "Installing dependency: $_dep"
       claude plugin install "$_dep" 2>/dev/null && echo "✔ $_dep_name installed." || echo "⚠ $_dep_name install failed."
