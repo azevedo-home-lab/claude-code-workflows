@@ -72,12 +72,33 @@ fi
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 0. Dependencies — install required plugins if missing
+# 0. Dependencies — ensure marketplaces are registered and plugins installed
 # ─────────────────────────────────────────────────────────────────────────────
 _log "Section 0: dependency check"
 if command -v claude &>/dev/null; then
   INSTALLED_PLUGINS="$HOME/.claude/plugins/installed_plugins.json"
-  for _dep in "superpowers@superpowers-marketplace" "claude-mem@thedotmack"; do
+  MARKETPLACES_DIR="$HOME/.claude/plugins/marketplaces"
+
+  # Marketplace → plugin mapping (marketplace-repo plugin@marketplace)
+  _deps=(
+    "obra/superpowers-marketplace superpowers@superpowers-marketplace"
+    "thedotmack/claude-mem claude-mem@thedotmack"
+  )
+
+  for _entry in "${_deps[@]}"; do
+    _mkt_repo="$(echo "$_entry" | cut -d' ' -f1)"
+    _dep="$(echo "$_entry" | cut -d' ' -f2)"
+    _dep_name="$(echo "$_dep" | cut -d@ -f1)"
+    _mkt_name="$(echo "$_dep" | cut -d@ -f2)"
+
+    # Register marketplace if missing
+    if [ ! -d "$MARKETPLACES_DIR/$_mkt_name" ]; then
+      _log "Registering marketplace: $_mkt_repo"
+      echo "Registering marketplace: $_mkt_name…"
+      claude plugin marketplace add "$_mkt_repo" 2>/dev/null || true
+    fi
+
+    # Install plugin if missing
     _dep_installed=false
     if [ -f "$INSTALLED_PLUGINS" ]; then
       if jq -e ".plugins[\"$_dep\"]" "$INSTALLED_PLUGINS" &>/dev/null; then
@@ -85,7 +106,6 @@ if command -v claude &>/dev/null; then
       fi
     fi
     if [ "$_dep_installed" = false ]; then
-      _dep_name="$(echo "$_dep" | cut -d@ -f1)"
       echo "Installing dependency: $_dep_name…"
       _log "Installing dependency: $_dep"
       claude plugin install "$_dep" 2>/dev/null && echo "✔ $_dep_name installed." || echo "⚠ $_dep_name install failed."
@@ -241,6 +261,18 @@ if command -v claude &>/dev/null; then
 
   # Let Claude Code update the cache from the freshly pulled marketplace clone
   claude plugin update "workflow-manager@azevedo-home-lab" 2>/dev/null || true
+fi
+
+# Clean up stale WFM cache versions — keep only the current one
+WM_CACHE_DIR="$HOME/.claude/plugins/cache/azevedo-home-lab/workflow-manager"
+if [ -d "$WM_CACHE_DIR" ]; then
+  _current_ver="$(basename "$PLUGIN_ROOT")"
+  for _old_dir in "$WM_CACHE_DIR"/*/; do
+    [ -d "$_old_dir" ] || continue
+    [ "$(basename "$_old_dir")" = "$_current_ver" ] && continue
+    _log "Removing stale cache: $_old_dir"
+    rm -rf "$_old_dir"
+  done
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
