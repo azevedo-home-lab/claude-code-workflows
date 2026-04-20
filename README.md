@@ -112,10 +112,17 @@ Standalone scripts, installed separately:
 
 ## Sources
 
-- [cc-sessions](https://github.com/GWUDCAP/cc-sessions) — DAIC workflow enforcement with trigger-phrase automation for Claude Code
-- [claude-mem](https://github.com/thedotmack/claude-mem) — cross-session memory MCP server
+Inspired by [cc-sessions](https://github.com/GWUDCAP/cc-sessions) — a DAIC workflow enforcement system that uses trigger-phrase automation and sub-agents to structure Claude Code sessions into disciplined development phases.
+
+### Community projects
+
 - [Superpowers](https://github.com/obra/superpowers) — agentic skills framework and development methodology for Claude Code
+- [claude-mem](https://github.com/thedotmack/claude-mem) — cross-session memory MCP server
 - [everything-claude-code](https://github.com/affaan-m/everything-claude-code) — agent harness performance optimization, skills, instincts, memory
+
+### Anthropic
+
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) — the AI coding agent this project extends
 - [Context Engineering for AI Agents](https://docs.claude-mem.ai/context-engineering) — context rot, progressive disclosure, agentic memory
 - [Reduce Hallucinations](https://docs.anthropic.com/en/docs/test-and-evaluate/strengthen-guardrails/reduce-hallucinations) — grounding, citations, uncertainty
 - [Claude Code Best Practices](https://code.claude.com/docs/en/best-practices) — agentic coding patterns
