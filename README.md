@@ -112,10 +112,9 @@ Standalone scripts, installed separately:
 
 ## Sources
 
-Inspired by [cc-sessions](https://github.com/GWUDCAP/cc-sessions) — a DAIC workflow enforcement system that uses trigger-phrase automation and sub-agents to structure Claude Code sessions into disciplined development phases.
-
 ### Community projects
 
+- [cc-sessions](https://github.com/GWUDCAP/cc-sessions) — DAIC workflow enforcement with trigger-phrase automation and sub-agents for Claude Code. The original inspiration for this project
 - [Superpowers](https://github.com/obra/superpowers) — agentic skills framework and development methodology for Claude Code
 - [claude-mem](https://github.com/thedotmack/claude-mem) — cross-session memory MCP server
 - [everything-claude-code](https://github.com/affaan-m/everything-claude-code) — agent harness performance optimization, skills, instincts, memory
