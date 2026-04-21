@@ -112,8 +112,21 @@ if command -v claude &>/dev/null; then
 
       # Run claude-mem's smart-install after first install, since SessionStart
       # already fired and won't re-fire for newly installed plugins.
-      # smart-install.js auto-installs Bun if missing, then runs bun install.
+      # smart-install.js auto-installs Bun via curl, but corporate firewalls
+      # may block bun.sh. Try Homebrew first if available.
       if [ "$_dep_name" = "claude-mem" ] && [ -f "$INSTALLED_PLUGINS" ]; then
+        # Ensure Bun is available before smart-install runs
+        if ! command -v bun &>/dev/null && [ ! -x "$HOME/.bun/bin/bun" ]; then
+          if command -v brew &>/dev/null; then
+            _log "Bun not found, attempting Homebrew install"
+            echo "Installing Bun runtime via Homebrew…"
+            brew tap oven-sh/bun 2>/dev/null || true
+            brew install bun 2>/dev/null \
+              && echo "✔ Bun installed via Homebrew." \
+              || echo "⚠ Bun Homebrew install failed, smart-install will try curl fallback."
+          fi
+        fi
+
         _CMEM_ROOT=$(jq -r '.plugins["claude-mem@thedotmack"][0].installPath // ""' "$INSTALLED_PLUGINS" 2>/dev/null)
         if [ -n "$_CMEM_ROOT" ] && [ -f "$_CMEM_ROOT/scripts/smart-install.js" ]; then
           _log "Running claude-mem smart-install post-install"
