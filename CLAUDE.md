@@ -1,5 +1,9 @@
 Do not fix, modify, or delete anything unless explicitly asked. Default behavior is to investigate and report findings. Always ask before making changes.
 
+## Guard-System Integrity
+
+Never use Bash to bypass Edit/Write tool blocks. If the guard-system blocks an edit, stop and tell the user. Do not use interpreters (python, node, ruby, perl), heredocs, or any indirect method to write files that the guard-system would block via the Edit/Write tools. The guard-system exists to keep the user in control — circumventing it defeats its purpose.
+
 ## Version Bumping
 
 When bumping the plugin version, you MUST update ALL THREE files:

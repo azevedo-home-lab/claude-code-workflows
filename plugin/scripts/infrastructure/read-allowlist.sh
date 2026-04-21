@@ -149,17 +149,23 @@ _is_single_cmd_allowed() {
             echo "$cmd" | grep -qE 'kubectl[[:space:]]+(get|describe|logs|top|explain|api-resources|version)' && return 0
             return 1 ;;
 
-        # python/node/ruby/perl -c — check for write indicators
+        # Interpreters — only allow inline one-liners (-c/-e) with no write indicators.
+        # Script file execution (e.g. python3 script.py) is blocked because the
+        # script contents can't be inspected from the command string.
         python|python3)
+            echo "$cmd" | grep -qE 'python[3]?[[:space:]]+-c[[:space:]]' || return 1
             echo "$cmd" | grep -qiE '\.(write|open|read_text|write_text)|os\.(system|remove|rename|unlink|makedirs)|subprocess\.|shutil\.' && return 1
             return 0 ;;
         node)
+            echo "$cmd" | grep -qE 'node[[:space:]]+(--eval|-e)[[:space:]]' || return 1
             echo "$cmd" | grep -qiE 'fs\.|writeFile|appendFile|createWriteStream|child_process|exec\(|spawn\(' && return 1
             return 0 ;;
         ruby)
+            echo "$cmd" | grep -qE 'ruby[[:space:]]+-e[[:space:]]' || return 1
             echo "$cmd" | grep -qiE 'File\.|IO\.|open\(|system\(|exec\(|`' && return 1
             return 0 ;;
         perl)
+            echo "$cmd" | grep -qE 'perl[[:space:]]+-e[[:space:]]' || return 1
             echo "$cmd" | grep -qiE 'open\(|system\(|unlink|rename' && return 1
             return 0 ;;
 

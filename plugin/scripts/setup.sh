@@ -109,6 +109,20 @@ if command -v claude &>/dev/null; then
       echo "Installing dependency: $_dep_name…"
       _log "Installing dependency: $_dep"
       claude plugin install "$_dep" 2>/dev/null && echo "✔ $_dep_name installed." || echo "⚠ $_dep_name install failed."
+
+      # Run claude-mem's smart-install after first install, since SessionStart
+      # already fired and won't re-fire for newly installed plugins.
+      # smart-install.js auto-installs Bun if missing, then runs bun install.
+      if [ "$_dep_name" = "claude-mem" ] && [ -f "$INSTALLED_PLUGINS" ]; then
+        _CMEM_ROOT=$(jq -r '.plugins["claude-mem@thedotmack"][0].installPath // ""' "$INSTALLED_PLUGINS" 2>/dev/null)
+        if [ -n "$_CMEM_ROOT" ] && [ -f "$_CMEM_ROOT/scripts/smart-install.js" ]; then
+          _log "Running claude-mem smart-install post-install"
+          echo "Setting up claude-mem dependencies…"
+          CLAUDE_PLUGIN_ROOT="$_CMEM_ROOT" node "$_CMEM_ROOT/scripts/smart-install.js" 2>/dev/null \
+            && echo "✔ claude-mem dependencies ready." \
+            || echo "⚠ claude-mem dependency setup failed (will retry next session)."
+        fi
+      fi
     fi
   done
 fi
